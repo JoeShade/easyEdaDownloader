@@ -1,0 +1,85 @@
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  background: #f2f4f7;
+  color: #1c1f24;
+}
+
+.card {
+  width: 260px;
+  padding: 16px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.label {
+  color: #5b6470;
+}
+
+.value {
+  font-weight: 600;
+}
+
+.primary {
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #1663d6;
+  color: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  background: #9bb5dd;
+  cursor: not-allowed;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1c1f24;
+}
+
+.option input {
+  margin: 0;
+}
+
+.status {
+  margin: 0;
+  font-size: 12px;
+  color: #4a5568;
+  min-height: 16px;
+}
+
+.status.error {
+  color: #b42318;
+}

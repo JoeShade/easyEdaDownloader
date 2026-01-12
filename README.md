@@ -9,7 +9,7 @@ without calling any external programs.
 1. Load the extension in Chrome:
    - Visit `chrome://extensions`.
    - Enable **Developer mode**.
-   - Click **Load unpacked** and select `chrome_extension/`.
+   - Click **Load unpacked** and select `easyEdaDownloader/`.
 
 ## Usage
 

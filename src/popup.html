@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>easyeda2kicad</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="card">
+      <h1>easyeda2kicad</h1>
+      <div class="row">
+        <span class="label">LCSC part</span>
+        <span id="partNumber" class="value">Searching...</span>
+      </div>
+      <button id="downloadButton" class="primary" disabled>Download</button>
+      <div class="options" role="group" aria-label="Download options">
+        <label class="option">
+          <input type="checkbox" id="downloadSymbol" checked />
+          Symbol
+        </label>
+        <label class="option">
+          <input type="checkbox" id="downloadFootprint" checked />
+          Footprint
+        </label>
+        <label class="option">
+          <input type="checkbox" id="downloadModel" checked />
+          3D Model
+        </label>
+      </div>
+      <p id="status" class="status" aria-live="polite"></p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
