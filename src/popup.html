@@ -8,17 +8,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>easyeda2kicad</title>
+    <title>easy EDA downloader</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <main class="card">
       <!-- Header/title for the popup card. -->
-      <h1>easyeda2kicad</h1>
+      <h1>Easy EDA Downloader</h1>
       <!-- Row showing the detected LCSC part number. -->
       <div class="row">
         <span class="label">LCSC part</span>
         <span id="partNumber" class="value">Searching...</span>
+      </div>
+      <!-- Preview images for symbol and footprint. -->
+      <div class="previews" aria-label="Previews">
+        <div class="preview-card">
+          <div class="preview-title">Symbol</div>
+          <div class="preview-box">
+            <img id="symbolPreview" class="preview-image" alt="Symbol preview" />
+            <div id="symbolPreviewFallback" class="preview-fallback">Loading...</div>
+          </div>
+        </div>
+        <div class="preview-card">
+          <div class="preview-title">Footprint</div>
+          <div class="preview-box">
+            <img id="footprintPreview" class="preview-image" alt="Footprint preview" />
+            <div id="footprintPreviewFallback" class="preview-fallback">Loading...</div>
+          </div>
+        </div>
       </div>
       <!-- Primary action button; enabled only when ready to download. -->
       <button id="downloadButton" class="primary" disabled>Download</button>
@@ -37,23 +54,19 @@
           3D Model
         </label>
       </div>
-      <!-- Settings section for download folder organization. -->
+      <!-- Settings section for download organization. -->
       <section class="settings" aria-label="Settings">
         <div class="settings-header">Settings</div>
-        <label class="settings-row">
-          <span class="label">Base folder</span>
-          <input id="baseFolder" type="text" spellcheck="false" />
-        </label>
         <label class="option">
-          <input type="checkbox" id="useSubfolders" checked />
-          Create symbols/footprints/3d subfolders
+          <input type="checkbox" id="downloadIndividually" />
+          Download individually (loose files)
         </label>
-        <p class="settings-hint">
-          Files are saved inside your Downloads folder.
-        </p>
       </section>
       <!-- Status text updated by popup.js. -->
       <p id="status" class="status" aria-live="polite"></p>
+      <p class="footer">
+        Visit the <a class="footer-link" href="https://github.com/JoeShade/easyEdaDownloader" target="_blank" rel="noopener">GitHub</a> page for more information.
+      </p>
     </main>
     <script src="popup.js"></script>
   </body>

@@ -9,11 +9,16 @@
   color-scheme: light;
 }
 
+html,
+body {
+  min-height: 100%;
+  background: #f2f4f7 url("assets/popup-bg.png") no-repeat center / cover;
+}
+
 /* Page-level defaults for the popup. */
 body {
   margin: 0;
   font-family: "Segoe UI", Tahoma, sans-serif;
-  background: #f2f4f7;
   color: #1c1f24;
 }
 
@@ -21,7 +26,7 @@ body {
 .card {
   width: 260px;
   padding: 16px;
-  background: #ffffff;
+  background: transparent;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
   display: flex;
   flex-direction: column;
@@ -31,8 +36,9 @@ body {
 /* Title styling. */
 h1 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1663d6;
 }
 
 /* Row layout for label/value pairs. */
@@ -41,6 +47,58 @@ h1 {
   justify-content: space-between;
   gap: 12px;
   font-size: 13px;
+}
+
+/* Preview section with two image cards. */
+.previews {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preview-title {
+  font-size: 11px;
+  color: #5b6470;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.preview-box {
+  height: 90px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.preview-image.hidden {
+  display: none;
+}
+
+.preview-fallback {
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 0 6px;
+}
+
+.preview-fallback.hidden {
+  display: none;
 }
 
 /* Muted label text. */
@@ -78,7 +136,7 @@ h1 {
   font-size: 12px;
 }
 
-/* Settings block with input field and helper text. */
+/* Settings block with helper text. */
 .settings {
   display: flex;
   flex-direction: column;
@@ -90,20 +148,6 @@ h1 {
 
 .settings-header {
   font-weight: 600;
-  font-size: 12px;
-}
-
-.settings-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: #1c1f24;
-}
-
-.settings-row input {
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  padding: 6px 8px;
   font-size: 12px;
 }
 
@@ -137,4 +181,23 @@ h1 {
 /* Error state for status messages. */
 .status.error {
   color: #b42318;
+}
+
+.footer {
+  margin: 0;
+  font-size: 10px;
+  color: #5b6470;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.footer-link {
+  color: #1663d6;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer-link:hover,
+.footer-link:focus {
+  text-decoration: underline;
 }

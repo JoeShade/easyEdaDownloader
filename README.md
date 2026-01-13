@@ -23,9 +23,8 @@ without calling any external programs.
 
 ## Settings
 
-The popup includes a **Base folder** field. Files are saved under your Downloads
-directory inside that folder. When subfolders are enabled, the extension writes:
+The popup includes a **Download individually** option.
 
-- `symbols/` for `.kicad_sym`
-- `footprints/` for `.kicad_mod`
-- `3d/` for `.step` and `.wrl`
+- Disabled (default): files are saved under `Downloads/easyEDADownloader/` using
+  KiCad library structure (`easyEDADownloader.kicad_sym`, `.pretty/`, `.3dshapes/`).
+- Enabled: files are downloaded as loose files directly into Downloads.
