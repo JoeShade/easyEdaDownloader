@@ -3,7 +3,7 @@
   "name": "EasyEDA Downloader",
   "version": "0.1.0",
   "description": "Extract LCSC part numbers and export symbol, footprint, and 3D model via easyeda2kicad.",
-  "permissions": ["activeTab", "downloads"],
+  "permissions": ["activeTab", "downloads", "storage"],
   "host_permissions": [
     "https://easyeda.com/*",
     "https://modules.easyeda.com/*"

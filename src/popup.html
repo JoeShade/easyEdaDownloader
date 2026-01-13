@@ -37,6 +37,21 @@
           3D Model
         </label>
       </div>
+      <!-- Settings section for download folder organization. -->
+      <section class="settings" aria-label="Settings">
+        <div class="settings-header">Settings</div>
+        <label class="settings-row">
+          <span class="label">Base folder</span>
+          <input id="baseFolder" type="text" spellcheck="false" />
+        </label>
+        <label class="option">
+          <input type="checkbox" id="useSubfolders" checked />
+          Create symbols/footprints/3d subfolders
+        </label>
+        <p class="settings-hint">
+          Files are saved inside your Downloads folder.
+        </p>
+      </section>
       <!-- Status text updated by popup.js. -->
       <p id="status" class="status" aria-live="polite"></p>
     </main>

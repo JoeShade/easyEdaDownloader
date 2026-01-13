@@ -78,6 +78,41 @@ h1 {
   font-size: 12px;
 }
 
+/* Settings block with input field and helper text. */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #e2e8f0;
+  font-size: 12px;
+}
+
+.settings-header {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #1c1f24;
+}
+
+.settings-row input {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.settings-hint {
+  margin: 0;
+  color: #5b6470;
+  font-size: 11px;
+}
+
 /* Individual option row. */
 .option {
   display: flex;

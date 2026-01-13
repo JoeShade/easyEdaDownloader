@@ -18,6 +18,12 @@ const ENDPOINT_3D_MODEL_OBJ = "https://modules.easyeda.com/3dmodel/{uuid}";
 const ENDPOINT_3D_MODEL_STEP =
   "https://modules.easyeda.com/qAxj6KHrDKw4blvCG8QJPs7Y/{uuid}";
 
+// Default settings for where files are saved under Downloads/.
+const DEFAULT_SETTINGS = {
+  baseFolder: "easyEDADownloader",
+  useSubfolders: true
+};
+
 // Convert an ArrayBuffer to base64 for data URLs.
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -32,6 +38,37 @@ function arrayBufferToBase64(buffer) {
 // Convert a string to base64 for data URLs.
 function textToBase64(text) {
   return btoa(unescape(encodeURIComponent(text)));
+}
+
+// Load user settings from extension storage.
+async function loadSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(DEFAULT_SETTINGS, (settings) => {
+      if (chrome.runtime.lastError) {
+        console.warn("Failed to load settings:", chrome.runtime.lastError);
+        resolve({ ...DEFAULT_SETTINGS });
+        return;
+      }
+      resolve({
+        baseFolder: String(settings.baseFolder || DEFAULT_SETTINGS.baseFolder).trim(),
+        useSubfolders:
+          typeof settings.useSubfolders === "boolean"
+            ? settings.useSubfolders
+            : DEFAULT_SETTINGS.useSubfolders
+      });
+    });
+  });
+}
+
+// Build a download path relative to the user's Downloads directory.
+function buildDownloadPath(baseFolder, subfolder, filename, useSubfolders) {
+  const safeBase = baseFolder || DEFAULT_SETTINGS.baseFolder;
+  const parts = [safeBase];
+  if (useSubfolders && subfolder) {
+    parts.push(subfolder);
+  }
+  parts.push(filename);
+  return parts.join("/");
 }
 
 // Download a text file by creating a data URL.
@@ -94,6 +131,8 @@ async function exportPart(lcscId, options = {}) {
     throw new Error("No LCSC part number found on the page.");
   }
 
+  const settings = await loadSettings();
+
   // Default to exporting everything unless explicitly disabled.
   const resolvedOptions = {
     symbol: options.symbol !== false,
@@ -120,7 +159,12 @@ async function exportPart(lcscId, options = {}) {
   // Download the symbol if requested.
   if (kicadFiles.symbol) {
     await downloadTextFile(
-      `${lcscId}-${kicadFiles.symbol.name}.kicad_sym`,
+      buildDownloadPath(
+        settings.baseFolder,
+        "symbols",
+        `${lcscId}-${kicadFiles.symbol.name}.kicad_sym`,
+        settings.useSubfolders
+      ),
       kicadFiles.symbol.content,
       "application/octet-stream"
     );
@@ -129,7 +173,12 @@ async function exportPart(lcscId, options = {}) {
   // Download the footprint if requested.
   if (kicadFiles.footprint) {
     await downloadTextFile(
-      `${kicadFiles.footprint.name}.kicad_mod`,
+      buildDownloadPath(
+        settings.baseFolder,
+        "footprints",
+        `${kicadFiles.footprint.name}.kicad_mod`,
+        settings.useSubfolders
+      ),
       kicadFiles.footprint.content,
       "application/octet-stream"
     );
@@ -146,7 +195,12 @@ async function exportPart(lcscId, options = {}) {
       if (stepResponse.ok) {
         const stepData = await stepResponse.arrayBuffer();
         await downloadBinaryFile(
-          `${safeModelName}.step`,
+          buildDownloadPath(
+            settings.baseFolder,
+            "3d",
+            `${safeModelName}.step`,
+            settings.useSubfolders
+          ),
           stepData,
           "application/octet-stream"
         );
@@ -161,7 +215,12 @@ async function exportPart(lcscId, options = {}) {
         const objData = await objResponse.text();
         const wrlData = convertObjToWrlString(objData);
         await downloadTextFile(
-          `${safeModelName}.wrl`,
+          buildDownloadPath(
+            settings.baseFolder,
+            "3d",
+            `${safeModelName}.wrl`,
+            settings.useSubfolders
+          ),
           wrlData,
           "application/octet-stream"
         );

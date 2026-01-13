@@ -20,3 +20,12 @@ without calling any external programs.
 2. Click the extension action button.
 3. The extension will download the symbol JSON, footprint JSON, and 3D model files
    to your default downloads folder.
+
+## Settings
+
+The popup includes a **Base folder** field. Files are saved under your Downloads
+directory inside that folder. When subfolders are enabled, the extension writes:
+
+- `symbols/` for `.kicad_sym`
+- `footprints/` for `.kicad_mod`
+- `3d/` for `.step` and `.wrl`

@@ -11,6 +11,14 @@ const statusEl = document.getElementById("status");
 const downloadSymbolEl = document.getElementById("downloadSymbol");
 const downloadFootprintEl = document.getElementById("downloadFootprint");
 const downloadModelEl = document.getElementById("downloadModel");
+const baseFolderEl = document.getElementById("baseFolder");
+const useSubfoldersEl = document.getElementById("useSubfolders");
+
+// Default settings for download organization.
+const DEFAULT_SETTINGS = {
+  baseFolder: "easyEDADownloader",
+  useSubfolders: true
+};
 
 // Store the most recently detected LCSC id.
 let currentLcscId = null;
@@ -33,6 +41,45 @@ function hasSelection() {
 // Enable the download button only when there is a part id and a selection.
 function updateDownloadEnabled() {
   downloadButton.disabled = !currentLcscId || !hasSelection();
+}
+
+// Apply settings values to the UI controls.
+function applySettingsToUi(settings) {
+  baseFolderEl.value = settings.baseFolder || DEFAULT_SETTINGS.baseFolder;
+  useSubfoldersEl.checked =
+    typeof settings.useSubfolders === "boolean"
+      ? settings.useSubfolders
+      : DEFAULT_SETTINGS.useSubfolders;
+}
+
+// Read settings from the UI and normalize them.
+function readSettingsFromUi() {
+  return {
+    baseFolder: String(baseFolderEl.value || DEFAULT_SETTINGS.baseFolder).trim(),
+    useSubfolders: Boolean(useSubfoldersEl.checked)
+  };
+}
+
+// Load settings from extension storage.
+function loadSettings() {
+  chrome.storage.local.get(DEFAULT_SETTINGS, (settings) => {
+    if (chrome.runtime.lastError) {
+      console.warn("Failed to load settings:", chrome.runtime.lastError);
+      applySettingsToUi(DEFAULT_SETTINGS);
+      return;
+    }
+    applySettingsToUi(settings);
+  });
+}
+
+// Save settings to extension storage.
+function saveSettings() {
+  const settings = readSettingsFromUi();
+  chrome.storage.local.set(settings, () => {
+    if (chrome.runtime.lastError) {
+      setStatus("Failed to save settings.", true);
+    }
+  });
 }
 
 // Update UI state based on whether a part number was found.
@@ -70,13 +117,18 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     setStatus("No active tab detected.", true);
     return;
   }
-  requestLcscIdFromTab(tab.id);
+requestLcscIdFromTab(tab.id);
 });
+
+// Load settings when the popup opens.
+loadSettings();
 
 // Keep button state in sync with checkbox changes.
 downloadSymbolEl.addEventListener("change", updateDownloadEnabled);
 downloadFootprintEl.addEventListener("change", updateDownloadEnabled);
 downloadModelEl.addEventListener("change", updateDownloadEnabled);
+baseFolderEl.addEventListener("input", saveSettings);
+useSubfoldersEl.addEventListener("change", saveSettings);
 
 // When clicked, validate selections and ask the background worker to export.
 downloadButton.addEventListener("click", () => {
