@@ -1,7 +1,15 @@
+/*
+ * Popup styles for the extension. This keeps the UI small, readable,
+ * and consistent, with clear hierarchy for the part id, action button, and
+ * status messaging.
+ */
+
+/* Base colors and global settings. */
 :root {
   color-scheme: light;
 }
 
+/* Page-level defaults for the popup. */
 body {
   margin: 0;
   font-family: "Segoe UI", Tahoma, sans-serif;
@@ -9,6 +17,7 @@ body {
   color: #1c1f24;
 }
 
+/* Main card container. */
 .card {
   width: 260px;
   padding: 16px;
@@ -19,12 +28,14 @@ body {
   gap: 12px;
 }
 
+/* Title styling. */
 h1 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
 }
 
+/* Row layout for label/value pairs. */
 .row {
   display: flex;
   justify-content: space-between;
@@ -32,14 +43,17 @@ h1 {
   font-size: 13px;
 }
 
+/* Muted label text. */
 .label {
   color: #5b6470;
 }
 
+/* Emphasized value text. */
 .value {
   font-weight: 600;
 }
 
+/* Primary call-to-action button. */
 .primary {
   border: none;
   border-radius: 6px;
@@ -50,11 +64,13 @@ h1 {
   cursor: pointer;
 }
 
+/* Disabled button state. */
 .primary:disabled {
   background: #9bb5dd;
   cursor: not-allowed;
 }
 
+/* Download option list layout. */
 .options {
   display: flex;
   flex-direction: column;
@@ -62,6 +78,7 @@ h1 {
   font-size: 12px;
 }
 
+/* Individual option row. */
 .option {
   display: flex;
   align-items: center;
@@ -69,10 +86,12 @@ h1 {
   color: #1c1f24;
 }
 
+/* Checkbox alignment tweaks. */
 .option input {
   margin: 0;
 }
 
+/* Status line beneath the options. */
 .status {
   margin: 0;
   font-size: 12px;
@@ -80,6 +99,7 @@ h1 {
   min-height: 16px;
 }
 
+/* Error state for status messages. */
 .status.error {
   color: #b42318;
 }

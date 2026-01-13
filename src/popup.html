@@ -1,3 +1,8 @@
+<!--
+  Explainer: This is the extension popup UI. It shows the detected LCSC part
+  number, lets the user choose which assets to download, and displays status
+  messages during export.
+-->
 <!doctype html>
 <html lang="en">
   <head>
@@ -8,12 +13,16 @@
   </head>
   <body>
     <main class="card">
+      <!-- Header/title for the popup card. -->
       <h1>easyeda2kicad</h1>
+      <!-- Row showing the detected LCSC part number. -->
       <div class="row">
         <span class="label">LCSC part</span>
         <span id="partNumber" class="value">Searching...</span>
       </div>
+      <!-- Primary action button; enabled only when ready to download. -->
       <button id="downloadButton" class="primary" disabled>Download</button>
+      <!-- Checkboxes for choosing which assets to export. -->
       <div class="options" role="group" aria-label="Download options">
         <label class="option">
           <input type="checkbox" id="downloadSymbol" checked />
@@ -28,6 +37,7 @@
           3D Model
         </label>
       </div>
+      <!-- Status text updated by popup.js. -->
       <p id="status" class="status" aria-live="polite"></p>
     </main>
     <script src="popup.js"></script>

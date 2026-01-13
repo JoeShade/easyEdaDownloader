@@ -1,6 +1,15 @@
+/*
+ * This module converts EasyEDA CAD data into KiCad outputs.
+ * It parses EasyEDA symbol/footprint strings into structured objects, converts
+ * units and coordinate systems, and emits KiCad symbol/footprint text. It also
+ * converts OBJ/MTL data into VRML for KiCad's 3D viewer.
+ */
+
+// KiCad symbol library metadata written into the output header.
 const KI_SYMBOL_LIB_VERSION = "20211014";
 const KI_SYMBOL_GENERATOR = "easy EDA downloader";
 
+// Default sizes/offsets used when laying out symbol pins and fields.
 const KI_SYMBOL_CONFIG = {
   pinLength: 2.54,
   pinNameSize: 1.27,
@@ -11,6 +20,7 @@ const KI_SYMBOL_CONFIG = {
   defaultLineWidth: 0
 };
 
+// String templates for each KiCad footprint element we emit.
 const KI_FOOTPRINT_TEMPLATES = {
   moduleInfo: "(module {packageLib}:{packageName} (layer F.Cu) (tedit {edit})\n",
   fpType: "\t(attr {componentType})\n",
@@ -38,6 +48,7 @@ const KI_FOOTPRINT_TEMPLATES = {
     "\t(model \"{file3d}\"\n\t\t(offset (xyz {posX} {posY} {posZ}))\n\t\t(scale (xyz 1 1 1))\n\t\t(rotate (xyz {rotX} {rotY} {rotZ}))\n\t)\n"
 };
 
+// Map EasyEDA pad shapes to KiCad pad shapes.
 const KI_PAD_SHAPE = {
   ELLIPSE: "circle",
   RECT: "rect",
@@ -45,6 +56,7 @@ const KI_PAD_SHAPE = {
   POLYGON: "custom"
 };
 
+// Map EasyEDA layer ids to KiCad layers for SMD pads and graphics.
 const KI_PAD_LAYER = {
   1: "F.Cu F.Paste F.Mask",
   2: "B.Cu B.Paste B.Mask",
@@ -54,6 +66,7 @@ const KI_PAD_LAYER = {
   15: "Dwgs.User"
 };
 
+// Map EasyEDA layer ids to KiCad layers for through-hole pads.
 const KI_PAD_LAYER_THT = {
   1: "F.Cu F.Mask",
   2: "B.Cu B.Mask",
@@ -63,6 +76,7 @@ const KI_PAD_LAYER_THT = {
   15: "Dwgs.User"
 };
 
+// General layer lookup used by graphics and text.
 const KI_LAYERS = {
   1: "F.Cu",
   2: "B.Cu",
@@ -81,6 +95,7 @@ const KI_LAYERS = {
   101: "F.Fab"
 };
 
+// Convert EasyEDA numeric pin types to KiCad pin type strings.
 const EASYEDA_PIN_TYPE_MAP = {
   0: "unspecified",
   1: "input",
@@ -89,11 +104,13 @@ const EASYEDA_PIN_TYPE_MAP = {
   4: "power_in"
 };
 
+// Safely parse numbers and fall back when data is missing or invalid.
 function toNumber(value, fallback = 0) {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
 }
 
+// Normalize EasyEDA "show/hide" style flags into real booleans.
 function toBool(value) {
   if (value === true || value === false) {
     return value;
@@ -108,10 +125,12 @@ function toBool(value) {
   return Boolean(value);
 }
 
+// Clean text used as symbol ids or filenames.
 function sanitizeFields(name) {
   return String(name || "").replace(/\s+/g, "").replace(/\//g, "_");
 }
 
+// Apply EasyEDA's suffix conventions to KiCad text formatting.
 function applyTextStyle(text) {
   if (text.endsWith("#")) {
     return `~{${text.slice(0, -1)}}`;
@@ -119,6 +138,7 @@ function applyTextStyle(text) {
   return text;
 }
 
+// Apply text styling to each pin name segment separated by "/".
 function applyPinNameStyle(pinName) {
   return String(pinName || "")
     .split("/")
@@ -126,14 +146,17 @@ function applyPinNameStyle(pinName) {
     .join("/");
 }
 
+// Convert EasyEDA pixels into millimeters (symbol scale).
 function pxToMm(dim) {
   return 10.0 * Number(dim) * 0.0254;
 }
 
+// Convert EasyEDA length units into millimeters (footprint scale).
 function convertToMm(dim) {
   return Number(dim) * 10 * 0.0254;
 }
 
+// Parse a small subset of SVG path commands (M, A, L, Z) into objects.
 function parseSvgPath(svgPath) {
   let path = String(svgPath || "");
   if (!path.endsWith(" ")) {
@@ -183,6 +206,7 @@ function parseSvgPath(svgPath) {
   return parsed;
 }
 
+// Angle helpers used by arc math.
 function toRadians(angle) {
   return (angle / 180) * Math.PI;
 }
@@ -191,6 +215,7 @@ function toDegrees(angle) {
   return (angle / Math.PI) * 180;
 }
 
+// Convert SVG arc parameters into a center point and sweep angle.
 function computeArc(
   startX,
   startY,
@@ -263,6 +288,7 @@ function computeArc(
   return { cx, cy, angleExtent };
 }
 
+// Compute the midpoint on an arc for KiCad's start/mid/end format.
 function getMiddleArcPos(centerX, centerY, radius, angleStart, angleEnd) {
   const middleX =
     centerX + radius * Math.cos(((angleStart + angleEnd) / 2) * (Math.PI / 180));
@@ -271,6 +297,7 @@ function getMiddleArcPos(centerX, centerY, radius, angleStart, angleEnd) {
   return { middleX, middleY };
 }
 
+// Read EasyEDA symbol data and turn it into a normalized JS object.
 function parseEasyedaSymbol(cadData) {
   const info = cadData?.dataStr?.head?.c_para || {};
   const lcsc = cadData?.lcsc || {};
@@ -300,6 +327,7 @@ function parseEasyedaSymbol(cadData) {
     paths: []
   };
 
+  // Parse each serialized shape line into the right bucket.
   const shapes = cadData?.dataStr?.shape || [];
   for (const line of shapes) {
     const designator = line.split("~")[0];
@@ -402,6 +430,7 @@ function parseEasyedaSymbol(cadData) {
   return symbol;
 }
 
+// Read EasyEDA footprint data and turn it into a normalized JS object.
 function parseEasyedaFootprint(cadData) {
   const dataStr = cadData?.packageDetail?.dataStr;
   const info = dataStr?.head?.c_para || {};
@@ -430,6 +459,7 @@ function parseEasyedaFootprint(cadData) {
     texts: []
   };
 
+  // Parse each serialized shape line into the right bucket.
   const shapes = dataStr?.shape || [];
   for (const line of shapes) {
     const parts = line.split("~");
@@ -557,7 +587,9 @@ function parseEasyedaFootprint(cadData) {
   return footprint;
 }
 
+// Convert the parsed symbol into KiCad-friendly geometry and pin data.
 function convertSymbolToKiCad(symbol) {
+  // Convert pins and map styles/types to KiCad equivalents.
   const pins = symbol.pins.map((pin) => {
     const pinLengthRaw = String(pin.pinPath.path || "").split("h").pop();
     const pinLength = Math.abs(toNumber(pinLengthRaw));
@@ -584,6 +616,7 @@ function convertSymbolToKiCad(symbol) {
     };
   });
 
+  // Convert rectangles from EasyEDA's top-left system into KiCad coords.
   const rectangles = symbol.rectangles.map((rect) => {
     const posX0 = pxToMm(rect.posX - symbol.bbox.x);
     const posY0 = -pxToMm(rect.posY - symbol.bbox.y);
@@ -595,6 +628,7 @@ function convertSymbolToKiCad(symbol) {
     };
   });
 
+  // Convert circles, keeping fill state for KiCad background fills.
   const circles = symbol.circles.map((circle) => ({
     posX: pxToMm(circle.centerX - symbol.bbox.x),
     posY: -pxToMm(circle.centerY - symbol.bbox.y),
@@ -602,6 +636,7 @@ function convertSymbolToKiCad(symbol) {
     background: circle.fillColor
   }));
 
+  // Convert ellipses only when they are circles (KiCad doesn't support ellipses).
   const ellipses = symbol.ellipses
     .filter((ellipse) => ellipse.radiusX === ellipse.radiusY)
     .map((ellipse) => ({
@@ -611,6 +646,7 @@ function convertSymbolToKiCad(symbol) {
       background: false
     }));
 
+  // Convert SVG arcs into KiCad arcs using start/mid/end points.
   const arcs = [];
   for (const arc of symbol.arcs) {
     if (arc.path.length < 2 || arc.path[0].type !== "M" || arc.path[1].type !== "A") {
@@ -662,6 +698,7 @@ function convertSymbolToKiCad(symbol) {
     });
   }
 
+  // Convert EasyEDA polylines/polygons into point arrays.
   function convertPolyline(polyline, closeIfFilled) {
     const rawPts = String(polyline.points || "").trim().split(/\s+/);
     const xPoints = [];
@@ -683,6 +720,7 @@ function convertSymbolToKiCad(symbol) {
     };
   }
 
+  // Merge polylines and polygons into KiCad polylines.
   const polygons = [];
   for (const polyline of symbol.polylines) {
     const poly = convertPolyline(polyline, polyline.fillColor);
@@ -697,6 +735,7 @@ function convertSymbolToKiCad(symbol) {
     }
   }
 
+  // Convert path strings into polylines when they only use M/L/Z.
   for (const path of symbol.paths) {
     const rawPts = String(path.paths || "").trim().split(/\s+/);
     const xPoints = [];
@@ -730,11 +769,13 @@ function convertSymbolToKiCad(symbol) {
   };
 }
 
+// Convert a symbol object into a full KiCad symbol library file text.
 function exportKiCadSymbolLibrary(kiSymbol) {
   const pins = kiSymbol.pins || [];
   const yLow = pins.length ? Math.min(...pins.map((pin) => pin.posY)) : 0;
   const yHigh = pins.length ? Math.max(...pins.map((pin) => pin.posY)) : 0;
 
+  // Lay out property fields above/below the symbol.
   const properties = [];
   let offsetY = KI_SYMBOL_CONFIG.fieldOffsetStart;
 
@@ -776,6 +817,7 @@ function exportKiCadSymbolLibrary(kiSymbol) {
     );
   }
 
+  // Gather graphics and pins into KiCad symbol blocks.
   const symbolId = sanitizeFields(kiSymbol.info.name || "symbol");
   const graphicItems = [
     ...kiSymbol.rectangles.map(exportSymbolRectangle),
@@ -786,6 +828,7 @@ function exportKiCadSymbolLibrary(kiSymbol) {
 
   const pinItems = kiSymbol.pins.map(exportSymbolPin).join("\n");
 
+  // Wrap everything in KiCad's symbol library container.
   const symbolBlock = `
 (symbol "${symbolId}"
   (in_bom yes)
@@ -804,6 +847,7 @@ ${indentLines(symbolBlock, 1)}
 )\n`;
 }
 
+// Build a KiCad property entry for symbol metadata.
 function formatSymbolProperty(key, value, id, posY, rotation, hide = false) {
   const hideFlag = hide ? "hide" : "";
   return `(property
@@ -815,6 +859,7 @@ function formatSymbolProperty(key, value, id, posY, rotation, hide = false) {
 )`;
 }
 
+// Emit a single KiCad pin from normalized pin data.
 function exportSymbolPin(pin) {
   const pinName = applyPinNameStyle(pin.name);
   const pinType = pin.type.startsWith("_") ? pin.type.slice(1) : pin.type;
@@ -826,6 +871,7 @@ function exportSymbolPin(pin) {
 )`;
 }
 
+// Emit a KiCad rectangle from start/end corners.
 function exportSymbolRectangle(rect) {
   return `(rectangle
   (start ${rect.posX0.toFixed(2)} ${rect.posY0.toFixed(2)})
@@ -835,6 +881,7 @@ function exportSymbolRectangle(rect) {
 )`;
 }
 
+// Emit a KiCad circle from center and radius.
 function exportSymbolCircle(circle) {
   return `(circle
   (center ${circle.posX.toFixed(2)} ${circle.posY.toFixed(2)})
@@ -844,6 +891,7 @@ function exportSymbolCircle(circle) {
 )`;
 }
 
+// Emit a KiCad arc using start/mid/end points.
 function exportSymbolArc(arc) {
   return `(arc
   (start ${arc.startX.toFixed(2)} ${arc.startY.toFixed(2)})
@@ -854,6 +902,7 @@ function exportSymbolArc(arc) {
 )`;
 }
 
+// Emit a KiCad polyline, optionally filled if closed.
 function exportSymbolPolygon(poly) {
   return `(polyline
   (pts
@@ -866,6 +915,7 @@ ${poly.points
 )`;
 }
 
+// Indent multi-line output to match KiCad formatting.
 function indentLines(text, indentLevel) {
   if (!text.trim()) {
     return "";
@@ -877,6 +927,7 @@ function indentLines(text, indentLevel) {
     .join("\n");
 }
 
+// Convert rotation angles into KiCad's signed degree convention.
 function angleToKi(rotation) {
   const value = toNumber(rotation);
   if (!Number.isFinite(value)) {
@@ -885,6 +936,7 @@ function angleToKi(rotation) {
   return value > 180 ? -(360 - value) : value;
 }
 
+// Rotate a point around the origin by degrees.
 function rotate(x, y, degrees) {
   const radians = (degrees / 180) * 2 * Math.PI;
   return {
@@ -893,6 +945,7 @@ function rotate(x, y, degrees) {
   };
 }
 
+// Build KiCad drill syntax for round or oval holes.
 function drillToKi(holeRadius, holeLength, padHeight, padWidth) {
   if (holeRadius > 0 && holeLength && holeLength !== 0) {
     const maxDistanceHole = Math.max(holeRadius * 2, holeLength);
@@ -910,12 +963,14 @@ function drillToKi(holeRadius, holeLength, padHeight, padWidth) {
   return "";
 }
 
+// Convert footprint units and coordinate systems into KiCad-friendly values.
 function convertFootprintToKiCad(footprint) {
   const bbox = {
     x: convertToMm(footprint.bbox.x),
     y: convertToMm(footprint.bbox.y)
   };
 
+  // Convert pad geometry into millimeters.
   const pads = footprint.pads.map((pad) => ({
     ...pad,
     centerX: convertToMm(pad.centerX),
@@ -926,11 +981,13 @@ function convertFootprintToKiCad(footprint) {
     holeLength: convertToMm(pad.holeLength)
   }));
 
+  // Convert track widths into millimeters.
   const tracks = footprint.tracks.map((track) => ({
     ...track,
     strokeWidth: convertToMm(track.strokeWidth)
   }));
 
+  // Convert hole locations and sizes.
   const holes = footprint.holes.map((hole) => ({
     ...hole,
     centerX: convertToMm(hole.centerX),
@@ -938,6 +995,7 @@ function convertFootprintToKiCad(footprint) {
     radius: convertToMm(hole.radius)
   }));
 
+  // Convert via sizes.
   const vias = footprint.vias.map((via) => ({
     ...via,
     centerX: convertToMm(via.centerX),
@@ -946,6 +1004,7 @@ function convertFootprintToKiCad(footprint) {
     radius: convertToMm(via.radius)
   }));
 
+  // Convert circle geometry.
   const circles = footprint.circles.map((circle) => ({
     ...circle,
     cx: convertToMm(circle.cx),
@@ -954,6 +1013,7 @@ function convertFootprintToKiCad(footprint) {
     strokeWidth: convertToMm(circle.strokeWidth)
   }));
 
+  // Convert rectangle geometry.
   const rectangles = footprint.rectangles.map((rect) => ({
     ...rect,
     x: convertToMm(rect.x),
@@ -962,6 +1022,7 @@ function convertFootprintToKiCad(footprint) {
     height: convertToMm(rect.height)
   }));
 
+  // Convert text sizes and positions.
   const texts = footprint.texts.map((text) => ({
     ...text,
     centerX: convertToMm(text.centerX),
@@ -970,6 +1031,7 @@ function convertFootprintToKiCad(footprint) {
     fontSize: convertToMm(text.fontSize)
   }));
 
+  // Rebase and flip 3D model transforms to KiCad's coordinate system.
   const model3d = footprint.model3d
     ? {
         ...footprint.model3d,
@@ -1003,6 +1065,7 @@ function convertFootprintToKiCad(footprint) {
   };
 }
 
+// Emit a KiCad footprint file from the converted footprint object.
 function exportKiCadFootprint(kiFootprint, model3dPath) {
   let output = "";
   output += KI_FOOTPRINT_TEMPLATES.moduleInfo
@@ -1017,6 +1080,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
     );
   }
 
+  // Reference/value text placement uses min/max pad Y to sit outside the part.
   const yLow = kiFootprint.pads.length
     ? Math.min(...kiFootprint.pads.map((pad) => pad.centerY - kiFootprint.bbox.y))
     : -2;
@@ -1033,6 +1097,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
     .replace("{posY}", (yHigh + 4).toFixed(2));
   output += KI_FOOTPRINT_TEMPLATES.fabRef;
 
+  // Convert each EasyEDA track into KiCad fp_line segments.
   for (const track of kiFootprint.tracks) {
     const points = String(track.points || "").trim().split(/\s+/).map(fpToKi);
     for (let i = 0; i < points.length - 2; i += 2) {
@@ -1046,6 +1111,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
     }
   }
 
+  // Convert rectangles into four KiCad fp_line segments.
   for (const rect of kiFootprint.rectangles) {
     const startX = rect.x - kiFootprint.bbox.x;
     const startY = rect.y - kiFootprint.bbox.y;
@@ -1068,6 +1134,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
     }
   }
 
+  // Emit pads, including custom polygon pads when needed.
   for (const pad of kiFootprint.pads) {
     let shape = KI_PAD_SHAPE[pad.shape] || "custom";
     let width = Math.max(pad.width, 0.01);
@@ -1125,6 +1192,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
       .replace("{polygon}", polygon);
   }
 
+  // Emit unplated mounting holes.
   for (const hole of kiFootprint.holes) {
     output += KI_FOOTPRINT_TEMPLATES.hole
       .replace("{posX}", (hole.centerX - kiFootprint.bbox.x).toFixed(2))
@@ -1132,6 +1200,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
       .replace("{size}", (hole.radius * 2).toFixed(2));
   }
 
+  // Emit vias as through-hole pads with drill size.
   for (const via of kiFootprint.vias) {
     output += KI_FOOTPRINT_TEMPLATES.via
       .replace("{posX}", (via.centerX - kiFootprint.bbox.x).toFixed(2))
@@ -1140,6 +1209,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
       .replace("{size}", (via.radius * 2).toFixed(2));
   }
 
+  // Emit circular graphics.
   for (const circle of kiFootprint.circles) {
     const cx = circle.cx - kiFootprint.bbox.x;
     const cy = circle.cy - kiFootprint.bbox.y;
@@ -1152,6 +1222,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
       .replace("{strokeWidth}", Math.max(circle.strokeWidth, 0.01).toFixed(2));
   }
 
+  // Emit arcs by converting SVG arc parameters into KiCad arc parameters.
   for (const arc of kiFootprint.arcs) {
     const arcPath = arc.path.replace(/,/g, " ").replace("M ", "M").replace("A ", "A");
     const [startXRaw, startYRaw] = arcPath.split("A")[0].slice(1).split(" ", 2);
@@ -1200,6 +1271,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
       .replace("{strokeWidth}", Math.max(fpToKi(arc.strokeWidth), 0.01).toFixed(2));
   }
 
+  // Emit text items with proper mirroring and visibility.
   for (const text of kiFootprint.texts) {
     let layers = KI_LAYERS[text.layerId] || "F.Fab";
     if (text.type === "N") {
@@ -1218,6 +1290,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
       .replace("{mirror}", mirror);
   }
 
+  // Attach 3D model reference if available.
   if (kiFootprint.model3d && model3dPath) {
     output += KI_FOOTPRINT_TEMPLATES.model3d
       .replace("{file3d}", `${model3dPath}/${kiFootprint.model3d.name}.wrl`)
@@ -1233,12 +1306,15 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
   return output;
 }
 
+// Convert EasyEDA footprint values to millimeters with rounding.
 function fpToKi(value) {
   const num = toNumber(value);
   return Number.isFinite(num) ? Math.round(num * 10 * 0.0254 * 100) / 100 : num;
 }
 
+// Convert OBJ + MTL data into a basic VRML file for KiCad.
 function convertObjToWrl(objData) {
+  // Parse material definitions so we can preserve colors.
   const materials = {};
   const materialMatches = objData.match(/newmtl[\s\S]*?endmtl/g) || [];
   for (const match of materialMatches) {
@@ -1260,6 +1336,7 @@ function convertObjToWrl(objData) {
     materials[materialId] = material;
   }
 
+  // Convert vertices from OBJ units into KiCad-friendly units.
   const vertices = (objData.match(/^v\s+.*$/gm) || []).map((line) => {
     const coords = line
       .replace(/^v\s+/, "")
@@ -1272,6 +1349,7 @@ function convertObjToWrl(objData) {
   let rawWrl =
     "#VRML V2.0 utf8\n# 3D model generated by easy EDA downloader\n";
 
+  // Split by material and emit one VRML Shape per material group.
   const shapes = objData.split("usemtl").slice(1);
   for (const shape of shapes) {
     const lines = shape.split(/\r?\n/).filter(Boolean);
@@ -1284,6 +1362,7 @@ function convertObjToWrl(objData) {
     const linkMap = new Map();
     let indexCounter = 0;
 
+    // Convert each face into VRML coordIndex entries, de-duplicating vertices.
     for (const line of lines.slice(1)) {
       if (!line.startsWith("f ")) {
         continue;
@@ -1312,6 +1391,7 @@ function convertObjToWrl(objData) {
       points.splice(points.length - 1, 0, points[points.length - 1]);
     }
 
+    // Emit a VRML Shape with material and geometry.
     rawWrl += `
 Shape{
     appearance Appearance {
@@ -1341,9 +1421,11 @@ Shape{
   return rawWrl;
 }
 
+// Public API: convert EasyEDA CAD data to KiCad symbol/footprint strings.
 export function convertEasyedaCadToKicad(cadData, options = {}) {
   const result = {};
 
+  // Build the symbol output if requested.
   if (options.symbol) {
     const eeSymbol = parseEasyedaSymbol(cadData);
     const kiSymbol = convertSymbolToKiCad(eeSymbol);
@@ -1353,6 +1435,7 @@ export function convertEasyedaCadToKicad(cadData, options = {}) {
     };
   }
 
+  // Build the footprint output if requested.
   if (options.footprint) {
     const eeFootprint = parseEasyedaFootprint(cadData);
     const kiFootprint = convertFootprintToKiCad(eeFootprint);
@@ -1365,6 +1448,7 @@ export function convertEasyedaCadToKicad(cadData, options = {}) {
   return result;
 }
 
+// Public API: convert a raw OBJ string into VRML text.
 export function convertObjToWrlString(objData) {
   return convertObjToWrl(objData);
 }
