@@ -72,3 +72,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   sendResponse({ lcscId });
   return true;
 });
+/*
+ * This file is part of easyEdaDownloader.
+ *
+ * easyEdaDownloader is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This software is derived from easyeda2kicad.py by uPesy.
+ */

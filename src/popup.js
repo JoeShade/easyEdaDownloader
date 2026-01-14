@@ -1,4 +1,15 @@
 /*
+ * This file is part of easyEdaDownloader.
+ *
+ * easyEdaDownloader is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This software is derived from easyeda2kicad.py by uPesy.
+ */
+
+/*
  * This script powers the extension popup UI. It fetches the LCSC
  * part number from the active tab, lets the user choose what to download, and
  * sends a request to the background service worker to start the export.
