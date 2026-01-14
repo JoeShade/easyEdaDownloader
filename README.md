@@ -7,6 +7,11 @@ This extension grabs an LCSC part number from JLCPCB or LCSC product pages and
 downloads the EasyEDA symbol data, footprint data, and 3D model files directly
 without calling any external programs.
 
+## Disclaimer
+
+File correctness is not guaranteed. Manually review and validate any
+production-critical symbols, footprints, or 3D models before use.
+
 ## Upstream project
 
 This project is derived from and based on algorithms and concepts from
