@@ -656,9 +656,9 @@ function convertSymbolToKiCad(symbol) {
     const ellipseArc = arc.path[1];
 
     const startX = pxToMm(move.startX - symbol.bbox.x);
-    const startY = pxToMm(move.startY - symbol.bbox.y);
+    const startY = -pxToMm(move.startY - symbol.bbox.y);
     const endX = pxToMm(ellipseArc.endX - symbol.bbox.x);
-    const endY = pxToMm(ellipseArc.endY - symbol.bbox.y);
+    const endY = -pxToMm(ellipseArc.endY - symbol.bbox.y);
     const radius = pxToMm(
       Math.max(ellipseArc.radiusX, ellipseArc.radiusY)
     );
@@ -670,30 +670,28 @@ function convertSymbolToKiCad(symbol) {
       pxToMm(ellipseArc.radiusY),
       ellipseArc.xAxisRotation,
       ellipseArc.flagLargeArc,
-      ellipseArc.flagSweep,
+      !ellipseArc.flagSweep,
       endX,
       endY
     );
 
-    const angleEnd = ellipseArc.flagLargeArc
-      ? 360 - arcInfo.angleExtent
-      : arcInfo.angleExtent;
-
+    const startAngle = toDegrees(Math.atan2(startY - arcInfo.cy, startX - arcInfo.cx));
+    const endAngle = startAngle + arcInfo.angleExtent;
     const middle = getMiddleArcPos(
       arcInfo.cx,
-      ellipseArc.flagLargeArc ? arcInfo.cy : -arcInfo.cy,
+      arcInfo.cy,
       radius,
-      ellipseArc.xAxisRotation,
-      angleEnd
+      startAngle,
+      endAngle
     );
 
     arcs.push({
-      startX: ellipseArc.flagLargeArc ? startX : startX,
-      startY: ellipseArc.flagLargeArc ? startY : -startY,
+      startX,
+      startY,
       middleX: middle.middleX,
       middleY: middle.middleY,
-      endX: ellipseArc.flagLargeArc ? endX : endX,
-      endY: ellipseArc.flagLargeArc ? endY : -endY,
+      endX,
+      endY,
       fill: arc.fillColor
     });
   }
