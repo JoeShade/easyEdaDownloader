@@ -25,22 +25,6 @@ const DEFAULT_SETTINGS = {
 
 const DEFAULT_LIBRARY_DIR = "easyEDADownloader";
 
-// Convert an ArrayBuffer to base64 for data URLs.
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
-// Convert a string to base64 for data URLs.
-function textToBase64(text) {
-  return btoa(unescape(encodeURIComponent(text)));
-}
-
 // Load user settings from extension storage.
 async function loadSettings() {
   return new Promise((resolve) => {
@@ -69,26 +53,31 @@ function buildLibraryPaths() {
   };
 }
 
-// Download a text file by creating a data URL.
-async function downloadTextFile(filename, text, mimeType, conflictAction) {
-  const base64 = textToBase64(text);
-  const url = `data:${mimeType};base64,${base64}`;
-  await chrome.downloads.download({
-    url,
-    filename,
-    conflictAction: conflictAction || "uniquify"
-  });
+// Download a Blob URL so Firefox doesn't block data: URLs.
+function downloadBlobUrl(filename, blob, conflictAction) {
+  const url = URL.createObjectURL(blob);
+  chrome.downloads.download(
+    {
+      url,
+      filename,
+      conflictAction: conflictAction || "uniquify"
+    },
+    () => {
+      URL.revokeObjectURL(url);
+    }
+  );
 }
 
-// Download a binary file by creating a data URL.
+// Download a text file by creating a Blob URL.
+async function downloadTextFile(filename, text, mimeType, conflictAction) {
+  const blob = new Blob([text], { type: mimeType });
+  downloadBlobUrl(filename, blob, conflictAction);
+}
+
+// Download a binary file by creating a Blob URL.
 async function downloadBinaryFile(filename, buffer, mimeType, conflictAction) {
-  const base64 = arrayBufferToBase64(buffer);
-  const url = `data:${mimeType};base64,${base64}`;
-  await chrome.downloads.download({
-    url,
-    filename,
-    conflictAction: conflictAction || "uniquify"
-  });
+  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
+  downloadBlobUrl(filename, blob, conflictAction);
 }
 
 // Fetch the EasyEDA CAD payload for the given LCSC id.
