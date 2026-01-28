@@ -54,6 +54,10 @@ function buildLibraryPaths() {
 }
 
 const activeDownloadUrls = new Map();
+const canUseBlobUrl =
+  typeof URL !== "undefined" &&
+  typeof URL.createObjectURL === "function" &&
+  typeof Blob !== "undefined";
 
 chrome.downloads.onChanged.addListener((delta) => {
   if (!delta?.state?.current) {
@@ -68,6 +72,22 @@ chrome.downloads.onChanged.addListener((delta) => {
     activeDownloadUrls.delete(delta.id);
   }
 });
+
+// Convert an ArrayBuffer to base64 for data URLs.
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+// Convert a string to base64 for data URLs.
+function textToBase64(text) {
+  return btoa(unescape(encodeURIComponent(text)));
+}
 
 // Download a Blob URL so Firefox doesn't block data: URLs.
 function downloadBlobUrl(filename, blob, conflictAction) {
@@ -96,16 +116,36 @@ function downloadBlobUrl(filename, blob, conflictAction) {
   });
 }
 
-// Download a text file by creating a Blob URL.
+// Download a text file by creating a Blob URL or data URL fallback.
 async function downloadTextFile(filename, text, mimeType, conflictAction) {
-  const blob = new Blob([text], { type: mimeType });
-  await downloadBlobUrl(filename, blob, conflictAction);
+  if (canUseBlobUrl) {
+    const blob = new Blob([text], { type: mimeType });
+    await downloadBlobUrl(filename, blob, conflictAction);
+    return;
+  }
+  const base64 = textToBase64(text);
+  const url = `data:${mimeType};base64,${base64}`;
+  await chrome.downloads.download({
+    url,
+    filename,
+    conflictAction: conflictAction || "uniquify"
+  });
 }
 
-// Download a binary file by creating a Blob URL.
+// Download a binary file by creating a Blob URL or data URL fallback.
 async function downloadBinaryFile(filename, buffer, mimeType, conflictAction) {
-  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
-  await downloadBlobUrl(filename, blob, conflictAction);
+  if (canUseBlobUrl) {
+    const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
+    await downloadBlobUrl(filename, blob, conflictAction);
+    return;
+  }
+  const base64 = arrayBufferToBase64(buffer);
+  const url = `data:${mimeType};base64,${base64}`;
+  await chrome.downloads.download({
+    url,
+    filename,
+    conflictAction: conflictAction || "uniquify"
+  });
 }
 
 // Fetch the EasyEDA CAD payload for the given LCSC id.
