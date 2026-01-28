@@ -52,6 +52,16 @@ The popup includes a **Download individually** option.
   KiCad library structure (`easyEDADownloader.kicad_sym`, `.pretty/`, `.3dshapes/`).
 - Enabled: files are downloaded as loose files directly into Downloads.
 
+This project includes and is derived from:
+
+easyeda2kicad.py
+Copyright (c) uPesy
+Licensed under the GNU Affero General Public License v3.0
+
+Modifications and additional code:
+Copyright (c) JoeShade
+Licensed under the GNU Affero General Public License v3.0
+
 ## Contributing
 
 Pull requests and issues are welcome.  
