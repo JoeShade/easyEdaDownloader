@@ -37,7 +37,7 @@ https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjao
 - Electronics hobbyists and professionals using EasyEDA
 - Open-source hardware projects
 
-## Usage
+## How to use
 
 1. Open a JLCPCB or LCSC product page.
 2. Click the extension action button.
@@ -52,6 +52,11 @@ The popup includes a **Download individually** option.
   KiCad library structure (`easyEDADownloader.kicad_sym`, `.pretty/`, `.3dshapes/`).
 - Enabled: files are downloaded as loose files directly into Downloads.
 
+## Contributing
+
+Pull requests and issues are welcome.  
+If you find a bug or want to improve support for additional components, feel free to open an issue.
+
 This project includes and is derived from:
 
 easyeda2kicad.py
@@ -61,9 +66,4 @@ Licensed under the GNU Affero General Public License v3.0
 Modifications and additional code:
 Copyright (c) JoeShade
 Licensed under the GNU Affero General Public License v3.0
-
-## Contributing
-
-Pull requests and issues are welcome.  
-If you find a bug or want to improve support for additional components, feel free to open an issue.
 
