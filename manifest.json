@@ -39,9 +39,7 @@
     "gecko": {
       "id": "easyeda-downloader@joeshade.local",
       "data_collection_permissions": {
-        "collected_data": [],
-        "data_types": [],
-        "collection_purposes": []
+        "required": ["none"]
       }
     }
   }
