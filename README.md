@@ -2,7 +2,6 @@
 [![GitHub stars](https://img.shields.io/github/stars/JoeShade/easyEdaDownloader)](https://github.com/JoeShade/easyEdaDownloader/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/JoeShade/easyEdaDownloader)](https://github.com/JoeShade/easyEdaDownloader/network/members)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/egbkokdcahpjimldjjaobimnofbdnncb)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
-
 [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/egbkokdcahpjimldjjaobimnofbdnncb)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
 
 
