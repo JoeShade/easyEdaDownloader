@@ -10,6 +10,7 @@
   ],
   "background": {
     "service_worker": "src/service_worker.js",
+    "scripts": ["src/service_worker.js"],
     "type": "module"
   },
   "action": {
@@ -33,5 +34,15 @@
       "matches": ["*://*.jlcpcb.com/*", "*://*.lcsc.com/*"],
       "js": ["src/content_script.js"]
     }
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "easyeda-downloader@joeshade.local",
+      "data_collection_permissions": {
+        "collected_data": [],
+        "data_types": [],
+        "collection_purposes": []
+      }
+    }
+  }
 }
