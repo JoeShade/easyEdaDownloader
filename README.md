@@ -1,7 +1,10 @@
 # EasyEDA Downloader – Export Symbols, Footprints & 3D Models to KiCad
-![GitHub stars](https://img.shields.io/github/stars/JoeShade/easyEdaDownloader)
-![GitHub forks](https://img.shields.io/github/forks/JoeShade/easyEdaDownloader)
-![Chrome Web Store](https://img.shields.io/chrome-web-store/v/egbkokdcahpjimldjjaobimnofbdnncb)
+[![GitHub stars](https://img.shields.io/github/stars/JoeShade/easyEdaDownloader)](https://github.com/JoeShade/easyEdaDownloader/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/JoeShade/easyEdaDownloader)](https://github.com/JoeShade/easyEdaDownloader/network/members)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/egbkokdcahpjimldjjaobimnofbdnncb)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
+
+[![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/egbkokdcahpjimldjjaobimnofbdnncb)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
+
 
 
 EasyEDA Downloader is a Chrome extension that lets you download electronic components directly from EasyEDA, JLCPCB, and LCSC product pages and export them as **KiCad-compatible symbols, footprints, and 3D models**.
