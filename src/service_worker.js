@@ -53,31 +53,59 @@ function buildLibraryPaths() {
   };
 }
 
+const activeDownloadUrls = new Map();
+
+chrome.downloads.onChanged.addListener((delta) => {
+  if (!delta?.state?.current) {
+    return;
+  }
+  if (delta.state.current !== "complete" && delta.state.current !== "interrupted") {
+    return;
+  }
+  const url = activeDownloadUrls.get(delta.id);
+  if (url) {
+    URL.revokeObjectURL(url);
+    activeDownloadUrls.delete(delta.id);
+  }
+});
+
 // Download a Blob URL so Firefox doesn't block data: URLs.
 function downloadBlobUrl(filename, blob, conflictAction) {
   const url = URL.createObjectURL(blob);
-  chrome.downloads.download(
-    {
-      url,
-      filename,
-      conflictAction: conflictAction || "uniquify"
-    },
-    () => {
-      URL.revokeObjectURL(url);
-    }
-  );
+  return new Promise((resolve, reject) => {
+    chrome.downloads.download(
+      {
+        url,
+        filename,
+        conflictAction: conflictAction || "uniquify"
+      },
+      (downloadId) => {
+        if (chrome.runtime.lastError || !downloadId) {
+          URL.revokeObjectURL(url);
+          reject(
+            new Error(
+              chrome.runtime.lastError?.message || "Download failed to start."
+            )
+          );
+          return;
+        }
+        activeDownloadUrls.set(downloadId, url);
+        resolve(downloadId);
+      }
+    );
+  });
 }
 
 // Download a text file by creating a Blob URL.
 async function downloadTextFile(filename, text, mimeType, conflictAction) {
   const blob = new Blob([text], { type: mimeType });
-  downloadBlobUrl(filename, blob, conflictAction);
+  await downloadBlobUrl(filename, blob, conflictAction);
 }
 
 // Download a binary file by creating a Blob URL.
 async function downloadBinaryFile(filename, buffer, mimeType, conflictAction) {
   const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
-  downloadBlobUrl(filename, blob, conflictAction);
+  await downloadBlobUrl(filename, blob, conflictAction);
 }
 
 // Fetch the EasyEDA CAD payload for the given LCSC id.
