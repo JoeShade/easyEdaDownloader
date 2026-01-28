@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EasyEDA Downloader",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Extract LCSC part numbers and export symbol, footprint, and 3D model files.",
   "permissions": ["activeTab", "downloads", "storage"],
   "host_permissions": [
