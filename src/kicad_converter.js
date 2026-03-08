@@ -1192,10 +1192,11 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
 
   // Emit unplated mounting holes.
   for (const hole of kiFootprint.holes) {
+    const holeSize = (hole.radius * 2).toFixed(2);
     output += KI_FOOTPRINT_TEMPLATES.hole
       .replace("{posX}", (hole.centerX - kiFootprint.bbox.x).toFixed(2))
       .replace("{posY}", (hole.centerY - kiFootprint.bbox.y).toFixed(2))
-      .replace("{size}", (hole.radius * 2).toFixed(2));
+      .replace(/{size}/g, holeSize);
   }
 
   // Emit vias as through-hole pads with drill size.
