@@ -22,6 +22,9 @@ const statusEl = document.getElementById("status");
 const downloadSymbolEl = document.getElementById("downloadSymbol");
 const downloadFootprintEl = document.getElementById("downloadFootprint");
 const downloadModelEl = document.getElementById("downloadModel");
+const downloadDatasheetEl = document.getElementById("downloadDatasheet");
+const downloadDatasheetOptionEl = document.getElementById("downloadDatasheetOption");
+const downloadDatasheetLabelEl = document.getElementById("downloadDatasheetLabel");
 const downloadIndividuallyEl = document.getElementById("downloadIndividually");
 const symbolPreviewEl = document.getElementById("symbolPreview");
 const footprintPreviewEl = document.getElementById("footprintPreview");
@@ -37,9 +40,10 @@ const DEFAULT_SETTINGS = {
 let currentLcscId = null;
 
 // Show a status message and optionally mark it as an error.
-function setStatus(message, isError = false) {
+function setStatus(message, tone = "default") {
   statusEl.textContent = message;
-  statusEl.classList.toggle("error", isError);
+  statusEl.classList.toggle("error", tone === "error");
+  statusEl.classList.toggle("warning", tone === "warning");
 }
 
 // Determine if the user selected any download option.
@@ -47,7 +51,8 @@ function hasSelection() {
   return (
     downloadSymbolEl.checked ||
     downloadFootprintEl.checked ||
-    downloadModelEl.checked
+    downloadModelEl.checked ||
+    downloadDatasheetEl.checked
   );
 }
 
@@ -90,12 +95,14 @@ function setPreviewImage(fallbackEl, imgEl, url) {
 function requestPreviews(lcscId) {
   setPreviewLoading(symbolPreviewFallbackEl, symbolPreviewEl);
   setPreviewLoading(footprintPreviewFallbackEl, footprintPreviewEl);
+  setDatasheetAvailability(null);
   chrome.runtime.sendMessage(
     { type: "GET_PREVIEW_SVGS", lcscId },
     (response) => {
       if (chrome.runtime.lastError || !response?.ok) {
         setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl);
         setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl);
+        setDatasheetAvailability(null);
         return;
       }
       const symbolSvg = response.previews?.symbolSvg;
@@ -112,8 +119,25 @@ function requestPreviews(lcscId) {
         footprintPreviewEl,
         footprintUrl
       );
+      setDatasheetAvailability(response.metadata?.datasheetAvailable === true);
     }
   );
+}
+
+function setDatasheetAvailability(isAvailable) {
+  if (isAvailable === false) {
+    downloadDatasheetEl.checked = false;
+    downloadDatasheetEl.disabled = true;
+    downloadDatasheetOptionEl.classList.add("disabled");
+    downloadDatasheetLabelEl.textContent = "Datasheet (not available)";
+    updateDownloadEnabled();
+    return;
+  }
+
+  downloadDatasheetEl.disabled = false;
+  downloadDatasheetOptionEl.classList.remove("disabled");
+  downloadDatasheetLabelEl.textContent = "Datasheet";
+  updateDownloadEnabled();
 }
 
 // Apply settings values to the UI controls.
@@ -148,7 +172,7 @@ function saveSettings() {
   const settings = readSettingsFromUi();
   chrome.storage.local.set(settings, () => {
     if (chrome.runtime.lastError) {
-      setStatus("Failed to save settings.", true);
+      setStatus("Failed to save settings.", "error");
     }
   });
 }
@@ -164,7 +188,8 @@ function setPartNumber(lcscId) {
   } else {
     partNumberEl.textContent = "Not found";
     downloadButton.disabled = true;
-    setStatus("No LCSC part number found on this page.", true);
+    setStatus("No LCSC part number found on this page.", "error");
+    setDatasheetAvailability(false);
     setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Not found");
     setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Not found");
   }
@@ -176,7 +201,8 @@ function requestLcscIdFromTab(tabId) {
     if (chrome.runtime.lastError) {
       partNumberEl.textContent = "Unavailable";
       downloadButton.disabled = true;
-      setStatus("Open a JLCPCB or LCSC product page.", true);
+      setStatus("Open a JLCPCB or LCSC product page.", "error");
+      setDatasheetAvailability(false);
       setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Unavailable");
       setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Unavailable");
       return;
@@ -190,7 +216,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const tab = tabs[0];
   if (!tab?.id) {
     partNumberEl.textContent = "Unavailable";
-    setStatus("No active tab detected.", true);
+    setStatus("No active tab detected.", "error");
     return;
   }
   requestLcscIdFromTab(tab.id);
@@ -203,6 +229,7 @@ loadSettings();
 downloadSymbolEl.addEventListener("change", updateDownloadEnabled);
 downloadFootprintEl.addEventListener("change", updateDownloadEnabled);
 downloadModelEl.addEventListener("change", updateDownloadEnabled);
+downloadDatasheetEl.addEventListener("change", updateDownloadEnabled);
 downloadIndividuallyEl.addEventListener("change", saveSettings);
 
 // When clicked, validate selections and ask the background worker to export.
@@ -212,7 +239,7 @@ downloadButton.addEventListener("click", () => {
   }
 
   if (!hasSelection()) {
-    setStatus("Select at least one download option.", true);
+    setStatus("Select at least one download option.", "error");
     return;
   }
 
@@ -228,19 +255,29 @@ downloadButton.addEventListener("click", () => {
         symbol: downloadSymbolEl.checked,
         footprint: downloadFootprintEl.checked,
         model3d: downloadModelEl.checked,
+        datasheet: downloadDatasheetEl.checked,
         downloadIndividually: downloadIndividuallyEl.checked
       }
     },
     (response) => {
       updateDownloadEnabled();
       if (chrome.runtime.lastError) {
-        setStatus("Download failed. Check the console.", true);
+        setStatus("Download failed. Check the console.", "error");
         return;
       }
       if (response?.ok) {
-        setStatus("Download started.");
+        const warnings = Array.isArray(response.warnings)
+          ? response.warnings.filter(Boolean)
+          : [];
+        if (warnings.length && response.downloadCount > 0) {
+          setStatus(`Download started. ${warnings.join(" ")}`, "warning");
+        } else if (warnings.length) {
+          setStatus(warnings.join(" "), "warning");
+        } else {
+          setStatus("Download started.");
+        }
       } else {
-        setStatus(response?.error || "Download failed.", true);
+        setStatus(response?.error || "Download failed.", "error");
       }
     }
   );
