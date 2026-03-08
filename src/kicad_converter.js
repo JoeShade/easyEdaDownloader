@@ -35,7 +35,7 @@ const KI_FOOTPRINT_TEMPLATES = {
   line:
     "\t(fp_line (start {startX} {startY}) (end {endX} {endY}) (layer {layers}) (width {strokeWidth}))\n",
   hole:
-    "\t(pad \"\" thru_hole circle (at {posX} {posY}) (size {size} {size}) (drill {size}) (layers *.Cu *.Mask))\n",
+    "\t(pad \"\" np_thru_hole circle (at {posX} {posY}) (size {size} {size}) (drill {size}) (layers *.Mask))\n",
   via:
     "\t(pad \"\" thru_hole circle (at {posX} {posY}) (size {diameter} {diameter}) (drill {size}) (layers *.Cu *.Paste *.Mask))\n",
   circle:
