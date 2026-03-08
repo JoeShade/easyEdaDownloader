@@ -59,6 +59,22 @@ const canUseBlobUrl =
   typeof URL.createObjectURL === "function" &&
   typeof Blob !== "undefined";
 
+function sanitizeFilenamePart(value, fallback = "datasheet") {
+  const sanitized = String(value || "").trim().replace(/[^\w.-]+/g, "_");
+  return sanitized || fallback;
+}
+
+function normalizeUrl(value) {
+  const url = String(value || "").trim();
+  if (!url) {
+    return "";
+  }
+  if (url.startsWith("//")) {
+    return `https:${url}`;
+  }
+  return url;
+}
+
 chrome.downloads.onChanged.addListener((delta) => {
   if (!delta?.state?.current) {
     return;
@@ -145,6 +161,30 @@ async function downloadBinaryFile(filename, buffer, mimeType, conflictAction) {
     url,
     filename,
     conflictAction: conflictAction || "uniquify"
+  });
+}
+
+// Download a remote URL directly into the user's Downloads directory.
+async function downloadUrlFile(filename, url, conflictAction) {
+  return new Promise((resolve, reject) => {
+    chrome.downloads.download(
+      {
+        url,
+        filename,
+        conflictAction: conflictAction || "uniquify"
+      },
+      (downloadId) => {
+        if (chrome.runtime.lastError || !downloadId) {
+          reject(
+            new Error(
+              chrome.runtime.lastError?.message || "Download failed to start."
+            )
+          );
+          return;
+        }
+        resolve(downloadId);
+      }
+    );
   });
 }
 
@@ -428,6 +468,43 @@ function find3dModelInfo(packageDetail) {
   return null;
 }
 
+function getDatasheetInfo(cadData, lcscId) {
+  const rawUrl = [
+    cadData?.packageDetail?.dataStr?.head?.c_para?.link,
+    cadData?.dataStr?.head?.c_para?.link,
+    cadData?.lcsc?.url
+  ].find((value) => String(value || "").trim());
+  const url = normalizeUrl(rawUrl);
+  if (!url) {
+    return { url: "", filename: "" };
+  }
+
+  let extension = ".pdf";
+  try {
+    const pathname = new URL(url).pathname;
+    const lastSegment = pathname.split("/").pop() || "";
+    const match = lastSegment.match(/(\.[a-zA-Z0-9]{1,8})$/);
+    if (match) {
+      extension = match[1];
+    }
+  } catch (error) {
+    console.warn("Failed to parse datasheet URL:", error);
+  }
+
+  const baseName = sanitizeFilenamePart(
+    cadData?.packageDetail?.title ||
+      cadData?.dataStr?.head?.c_para?.package ||
+      cadData?.title ||
+      lcscId,
+    lcscId
+  );
+
+  return {
+    url,
+    filename: `${baseName}-datasheet${extension}`
+  };
+}
+
 // Main workflow: fetch, convert, and download the requested assets.
 async function exportPart(lcscId, options = {}) {
   if (!lcscId) {
@@ -442,18 +519,24 @@ async function exportPart(lcscId, options = {}) {
   const resolvedOptions = {
     symbol: options.symbol !== false,
     footprint: options.footprint !== false,
-    model3d: options.model3d !== false
+    model3d: options.model3d !== false,
+    datasheet: options.datasheet === true
   };
+
+  let downloadCount = 0;
+  const warnings = [];
 
   if (
     !resolvedOptions.symbol &&
     !resolvedOptions.footprint &&
-    !resolvedOptions.model3d
+    !resolvedOptions.model3d &&
+    !resolvedOptions.datasheet
   ) {
     throw new Error("No download options selected.");
   }
 
   const cadData = await fetchCadData(lcscId);
+  const datasheetInfo = getDatasheetInfo(cadData, lcscId);
 
   // Convert the EasyEDA CAD payload into KiCad symbol/footprint text.
   const kicadFiles = convertEasyedaCadToKicad(cadData, {
@@ -469,6 +552,7 @@ async function exportPart(lcscId, options = {}) {
         kicadFiles.symbol.content,
         "application/octet-stream"
       );
+      downloadCount += 1;
     } else {
       const symbolBlock = extractSymbolBlock(kicadFiles.symbol.content);
       const existingLibrary = await loadStoredSymbolLibrary(symbolLibraryKey);
@@ -484,6 +568,7 @@ async function exportPart(lcscId, options = {}) {
         "application/octet-stream",
         "overwrite"
       );
+      downloadCount += 1;
     }
   }
 
@@ -495,12 +580,14 @@ async function exportPart(lcscId, options = {}) {
         kicadFiles.footprint.content,
         "application/octet-stream"
       );
+      downloadCount += 1;
     } else {
       await downloadTextFile(
         `${libraryPaths.footprintDir}/${kicadFiles.footprint.name}.kicad_mod`,
         kicadFiles.footprint.content,
         "application/octet-stream"
       );
+      downloadCount += 1;
     }
   }
 
@@ -521,6 +608,7 @@ async function exportPart(lcscId, options = {}) {
           stepData,
           "application/octet-stream"
         );
+        downloadCount += 1;
       } else {
         console.warn("3D STEP download failed:", stepResponse.status);
       }
@@ -538,11 +626,33 @@ async function exportPart(lcscId, options = {}) {
           wrlData,
           "application/octet-stream"
         );
+        downloadCount += 1;
       } else {
         console.warn("3D OBJ download failed:", objResponse.status);
       }
     }
   }
+
+  if (resolvedOptions.datasheet) {
+    if (!datasheetInfo.url) {
+      warnings.push("Datasheet not available for this part.");
+    } else {
+      try {
+        await downloadUrlFile(
+          settings.downloadIndividually
+            ? datasheetInfo.filename
+            : `${DEFAULT_LIBRARY_DIR}/${datasheetInfo.filename}`,
+          datasheetInfo.url
+        );
+        downloadCount += 1;
+      } catch (error) {
+        console.warn("Datasheet download failed:", error);
+        warnings.push("Datasheet download failed.");
+      }
+    }
+  }
+
+  return { warnings, downloadCount };
 }
 
 // Listen for UI requests to export the current part.
@@ -555,6 +665,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           previews: {
             symbolSvg: buildSymbolPreviewSvg(cadData),
             footprintSvg: buildFootprintPreviewSvg(cadData)
+          },
+          metadata: {
+            datasheetAvailable: Boolean(getDatasheetInfo(cadData, message.lcscId).url)
           }
         });
       })
@@ -567,7 +680,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "EXPORT_PART") {
     exportPart(message.lcscId, message.options)
-      .then(() => sendResponse({ ok: true }))
+      .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => {
         console.error("easy EDA downloader extension error:", error);
         sendResponse({ ok: false, error: error?.message || "Download failed." });
