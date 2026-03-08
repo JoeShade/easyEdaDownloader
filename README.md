@@ -3,6 +3,8 @@
 [![GitHub forks](https://img.shields.io/github/forks/JoeShade/easyEdaDownloader)](https://github.com/JoeShade/easyEdaDownloader/network/members)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/egbkokdcahpjimldjjaobimnofbdnncb)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
 [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/egbkokdcahpjimldjjaobimnofbdnncb)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
+[![Firefox Add-ons](https://img.shields.io/amo/v/easyeda-downloader)](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/)
+[![Firefox Add-on Users](https://img.shields.io/amo/users/easyeda-downloader)](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/)
 
 
 
