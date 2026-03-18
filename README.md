@@ -1,11 +1,11 @@
 # EasyEDA Downloader – Export Symbols, Footprints & 3D Models to KiCad
 
-[![GitHub stars](https://img.shields.io/github/stars/JoeShade/easyEdaDownloader?style=flat-square&logo=github)](https://github.com/JoeShade/easyEdaDownloader/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/JoeShade/easyEdaDownloader?style=flat-square&logo=github)](https://github.com/JoeShade/easyEdaDownloader/network/members)
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/egbkokdcahpjimldjjaobimnofbdnncb?style=flat-square&logo=googlechrome)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
-[![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/egbkokdcahpjimldjjaobimnofbdnncb?style=flat-square&logo=googlechrome)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
-[![Firefox Add-ons](https://img.shields.io/amo/v/easyeda-downloader?style=flat-square&logo=firefoxbrowser)](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/)
-[![Firefox Add-on Users](https://img.shields.io/amo/users/easyeda-downloader?style=flat-square&logo=firefoxbrowser)](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/)
+[![GitHub stars](https://img.shields.io/github/stars/JoeShade/easyEdaDownloader.svg?style=flat-square)](https://github.com/JoeShade/easyEdaDownloader/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/JoeShade/easyEdaDownloader.svg?style=flat-square)](https://github.com/JoeShade/easyEdaDownloader/network/members)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/egbkokdcahpjimldjjaobimnofbdnncb?style=flat-square)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
+[![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/egbkokdcahpjimldjjaobimnofbdnncb?style=flat-square)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
+[![Firefox Add-ons](https://img.shields.io/amo/v/easyeda-downloader?style=flat-square)](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/)
+[![Firefox Add-on Users](https://img.shields.io/amo/users/easyeda-downloader?style=flat-square)](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/)
 
 EasyEDA Downloader is a Chrome and Firefox extension that lets you download electronic components directly from EasyEDA, JLCPCB, and LCSC product pages and export them as **KiCad-compatible symbols, footprints, and 3D models**, with optional datasheet downloads.
 
