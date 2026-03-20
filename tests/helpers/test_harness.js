@@ -1,77 +1,73 @@
-/*
- * This content script runs in JLCPCB/LCSC pages and tries to
- * locate the LCSC part number by scanning common page layouts. It looks in
- * definition lists and table rows first, then falls back to a full-page scan.
- */
+import fs from "node:fs";
+import path from "node:path";
+import vm from "node:vm";
 
-// Normalize a label so we can compare it reliably.
-function normalizeLabel(text) {
-  return text.replace(/\s+/g, " ").trim().toLowerCase();
+const FALLBACK_ATOB = (value) => Buffer.from(value, "base64").toString("binary");
+const FALLBACK_BTOA = (value) => Buffer.from(value, "binary").toString("base64");
+
+export const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..");
+
+export function readRepoFile(relativePath) {
+  return fs.readFileSync(path.join(REPO_ROOT, relativePath), "utf8");
 }
 
-// Pull the LCSC part id (e.g., C12345) out of a text string.
-function extractLcscId(text) {
-  if (!text) {
-    return null;
+export function runSourceFile(
+  relativePath,
+  { context = {}, transforms = [], append = "" } = {}
+) {
+  let source = readRepoFile(relativePath);
+  for (const transform of transforms) {
+    source = transform(source);
   }
-  const match = text.toUpperCase().match(/C\d{3,}/);
-  return match ? match[0] : null;
-}
-
-// Search definition list entries (<dl><dt><dd>) for the part number.
-function findInDefinitionLists() {
-  const lists = document.querySelectorAll("dl");
-  for (const list of lists) {
-    const dt = list.querySelector("dt");
-    const dd = list.querySelector("dd");
-    if (!dt || !dd) {
-      continue;
-    }
-    const label = normalizeLabel(dt.textContent || "");
-    if (label.includes("jlcpcb part #") || label.includes("lcsc part #")) {
-      const lcscId = extractLcscId(dd.textContent);
-      if (lcscId) {
-        return lcscId;
-      }
-    }
-  }
-  return null;
-}
-
-// Search the common product table layout for the part number.
-function findInTables() {
-  const rows = document.querySelectorAll("table.tableInfoWrap tr");
-  for (const row of rows) {
-    const cells = row.querySelectorAll("td");
-    if (cells.length < 2) {
-      continue;
-    }
-    const label = normalizeLabel(cells[0].textContent || "");
-    if (label.includes("lcsc part #")) {
-      const lcscId = extractLcscId(cells[1].textContent);
-      if (lcscId) {
-        return lcscId;
-      }
-    }
-  }
-  return null;
-}
-
-// Try the targeted searches first, then scan the entire page as a fallback.
-function findLcscId() {
-  return findInDefinitionLists() || findInTables() || extractLcscId(document.body.textContent);
-}
-
-// Listen for extension messages and reply with the detected LCSC id.
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "GET_LCSC_ID") {
-    return false;
+  if (append) {
+    source = `${source}\n${append}\n`;
   }
 
-  const lcscId = findLcscId();
-  sendResponse({ lcscId });
-  return true;
-});
+  const script = new vm.Script(source, { filename: relativePath });
+  const vmContext = vm.createContext({
+    console,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    Promise,
+    Map,
+    WeakMap,
+    ArrayBuffer,
+    Uint8Array,
+    URL,
+    Blob,
+    TextEncoder,
+    TextDecoder,
+    atob: globalThis.atob || FALLBACK_ATOB,
+    btoa: globalThis.btoa || FALLBACK_BTOA,
+    encodeURIComponent,
+    decodeURIComponent,
+    unescape: globalThis.unescape,
+    ...context
+  });
+
+  script.runInContext(vmContext);
+  return vmContext;
+}
+
+export function replaceExactImport(source, fromText, toText) {
+  return source.replace(fromText, toText);
+}
+
+export function stripEsmFunctionExports(source) {
+  return source.replace(/^export function /gm, "function ");
+}
+
+export function normalizeNewlines(text) {
+  return String(text).replace(/\r\n/g, "\n");
+}
+
+export async function flushAsyncWork() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 /*
 ######################################################################################################################
 

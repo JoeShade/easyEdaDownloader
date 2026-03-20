@@ -4,6 +4,10 @@ Thanks for your interest in contributing to **easyEdaDownloader**.
 
 This project is a Chrome extension that extracts an LCSC part number from **JLCPCB** or **LCSC** product pages and downloads related **EasyEDA** symbol data, footprint data, and 3D model files. Please keep the project’s scope and constraints in mind while contributing. :contentReference[oaicite:1]{index=1}
 
+These are the contribution instructions referenced from `README.md`. Read
+`AGENTS.md` before changing code, tests, or governance docs so your work stays
+aligned with the repository’s working rules.
+
 ## Table of contents
 
 - [Code of conduct](#code-of-conduct)
@@ -56,3 +60,39 @@ Per the project disclaimer: downloaded files may be incorrect; contributors shou
 ```bash
 git clone https://github.com/JoeShade/easyEdaDownloader.git
 cd easyEdaDownloader
+npm install
+```
+
+Use `README.md` for the user-facing overview and setup summary. Use this file
+for contribution expectations and `AGENTS.md` for repository working method,
+testing discipline, documentation rules, and source-footer policy.
+
+## Running and debugging
+
+- Load the extension as an unpacked extension from `chrome://extensions` while developing.
+- Use the extension service worker console and the target page console when debugging extraction or download issues.
+- Run the unit tests with:
+
+```bash
+npm test
+```
+
+## Change guidelines
+
+- Keep changes small and explicit.
+- Do not change runtime behavior casually.
+- Update tests and docs together when behavior or repository rules change.
+
+## Commit and PR guidelines
+
+- Run the unit tests with `npm test` before submitting a pull request.
+- Summarize the user-visible or repository-level impact of the change in the pull request.
+- Call out any manual verification, assumptions, or remaining risks.
+
+## Security
+
+Do not commit secrets, private keys, or browser/profile data. Report security-sensitive issues privately instead of opening a public issue when appropriate.
+
+## License
+
+By contributing, you agree that your contributions will be distributed under the repository license.

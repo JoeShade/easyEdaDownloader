@@ -1,2 +1,4 @@
 easyEdaDownloader.crx
 easyEdaDownloader.zip
+node_modules/
+coverage/

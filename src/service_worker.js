@@ -691,12 +691,44 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false;
 });
 /*
- * This file is part of easyEdaDownloader.
- *
- * easyEdaDownloader is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This software is derived from easyeda2kicad.py by uPesy.
- */
+######################################################################################################################
+
+
+                                        AAAAAAAA
+                                      AAAA    AAAAA              AAAAAAAA
+                                    AAA          AAA           AAAA    AAA
+                                    AA            AA          AAA       AAA
+                                    AA            AAAAAAAAAA  AAA       AAAAAAAAAA
+                                    AAA                  AAA  AAA               AA
+                                     AAA                AAA    AAAAA            AA
+                                      AAAAA            AAA        AAA           AA
+                                         AAA          AAA                       AA
+                                         AAA         AAA                        AA
+                                         AA         AAA                         AA
+                                         AA        AAA                          AA
+                                        AAA       AAAAAAAAA                     AA
+                                        AAA       AAAAAAAAA                     AA
+                                        AA                   AAAAAAAAAAAAAA     AA
+                                        AA  AAAAAAAAAAAAAAAAAAAAAAAA    AAAAAAA AA
+                                       AAAAAAAAAAA                           AA AA
+                                                                           AAA  AA
+                                                                         AAAA   AA
+                                                                      AAAA      AA
+                                                                   AAAAA        AA
+                                                               AAAAA            AA
+                                                            AAAAA               AA
+                                                        AAAAAA                  AA
+                                                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+
+######################################################################################################################
+
+                                                Copyright (c) JoeShade
+                              Licensed under the GNU Affero General Public License v3.0
+
+######################################################################################################################
+
+                                        +44 (0) 7356 042702 | joe@jshade.co.uk
+
+######################################################################################################################
+*/
