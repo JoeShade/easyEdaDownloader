@@ -62,10 +62,24 @@ The popup includes a Download individually option.
 - **Disabled** (default): files are saved under `Downloads/easyEDADownloader/` using KiCad library structure (`easyEDADownloader.kicad_sym`, `.pretty/`, `.3dshapes/`).
 - **Enabled**: files are downloaded as loose files directly into Downloads.
 
+## Testing
+
+Install the dev dependencies and run the regression suite:
+
+```bash
+npm install
+npm test
+```
+
+Repository design and governance live in `systemDesign.md`, `AGENTS.md`,
+`docs/architecture-notes.md`, and `docs/deviations.md`.
+
 ## Contributing
 
 Pull requests and issues are welcome.  
 If you find a bug or want to improve support for additional components, feel free to open an issue.
+Before contributing, read `AGENTS.md` for repository working rules and
+`contributing.md` for the project’s contribution instructions.
 
 This project includes and is derived from:
 

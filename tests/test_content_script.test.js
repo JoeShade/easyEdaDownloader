@@ -1,77 +1,88 @@
-/*
- * This content script runs in JLCPCB/LCSC pages and tries to
- * locate the LCSC part number by scanning common page layouts. It looks in
- * definition lists and table rows first, then falls back to a full-page scan.
- */
+import { describe, expect, it, vi } from "vitest";
+import { JSDOM } from "jsdom";
 
-// Normalize a label so we can compare it reliably.
-function normalizeLabel(text) {
-  return text.replace(/\s+/g, " ").trim().toLowerCase();
-}
+import { runSourceFile } from "./helpers/test_harness.js";
 
-// Pull the LCSC part id (e.g., C12345) out of a text string.
-function extractLcscId(text) {
-  if (!text) {
-    return null;
-  }
-  const match = text.toUpperCase().match(/C\d{3,}/);
-  return match ? match[0] : null;
-}
-
-// Search definition list entries (<dl><dt><dd>) for the part number.
-function findInDefinitionLists() {
-  const lists = document.querySelectorAll("dl");
-  for (const list of lists) {
-    const dt = list.querySelector("dt");
-    const dd = list.querySelector("dd");
-    if (!dt || !dd) {
-      continue;
-    }
-    const label = normalizeLabel(dt.textContent || "");
-    if (label.includes("jlcpcb part #") || label.includes("lcsc part #")) {
-      const lcscId = extractLcscId(dd.textContent);
-      if (lcscId) {
-        return lcscId;
+function loadContentScript(markup) {
+  const dom = new JSDOM(`<!doctype html><html><body>${markup}</body></html>`, {
+    url: "https://example.test/"
+  });
+  const listeners = [];
+  const chrome = {
+    runtime: {
+      onMessage: {
+        addListener(listener) {
+          listeners.push(listener);
+        }
       }
     }
-  }
-  return null;
+  };
+
+  const context = runSourceFile("src/content_script.js", {
+    context: {
+      chrome,
+      document: dom.window.document,
+      window: dom.window
+    },
+    append: `
+globalThis.__testExports = {
+  normalizeLabel,
+  extractLcscId,
+  findInDefinitionLists,
+  findInTables,
+  findLcscId
+};
+`
+  });
+
+  return {
+    hooks: context.__testExports,
+    listener: listeners[0]
+  };
 }
 
-// Search the common product table layout for the part number.
-function findInTables() {
-  const rows = document.querySelectorAll("table.tableInfoWrap tr");
-  for (const row of rows) {
-    const cells = row.querySelectorAll("td");
-    if (cells.length < 2) {
-      continue;
-    }
-    const label = normalizeLabel(cells[0].textContent || "");
-    if (label.includes("lcsc part #")) {
-      const lcscId = extractLcscId(cells[1].textContent);
-      if (lcscId) {
-        return lcscId;
-      }
-    }
-  }
-  return null;
-}
+describe("content script", () => {
+  it("normalizes labels and extracts LCSC ids from text", () => {
+    const { hooks } = loadContentScript("<div>ignored</div>");
 
-// Try the targeted searches first, then scan the entire page as a fallback.
-function findLcscId() {
-  return findInDefinitionLists() || findInTables() || extractLcscId(document.body.textContent);
-}
+    expect(hooks.normalizeLabel("  LCSC   Part #  ")).toBe("lcsc part #");
+    expect(hooks.extractLcscId("Match c123456 here")).toBe("C123456");
+    expect(hooks.extractLcscId("No part id")).toBeNull();
+  });
 
-// Listen for extension messages and reply with the detected LCSC id.
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "GET_LCSC_ID") {
-    return false;
-  }
+  it("detects LCSC ids in definition lists and tables", () => {
+    const { hooks } = loadContentScript(`
+      <dl>
+        <dt>JLCPCB Part #</dt>
+        <dd>C2040</dd>
+      </dl>
+      <table class="tableInfoWrap">
+        <tr>
+          <td>LCSC Part #</td>
+          <td>C9988</td>
+        </tr>
+      </table>
+    `);
 
-  const lcscId = findLcscId();
-  sendResponse({ lcscId });
-  return true;
+    expect(hooks.findInDefinitionLists()).toBe("C2040");
+    expect(hooks.findInTables()).toBe("C9988");
+  });
+
+  it("falls back to a page-wide scan and answers extension messages", () => {
+    const { hooks, listener } = loadContentScript(`
+      <section>
+        Product details mention c777888 in plain text.
+      </section>
+    `);
+
+    expect(hooks.findLcscId()).toBe("C777888");
+
+    const sendResponse = vi.fn();
+    expect(listener({ type: "GET_LCSC_ID" }, null, sendResponse)).toBe(true);
+    expect(sendResponse).toHaveBeenCalledWith({ lcscId: "C777888" });
+  });
 });
+
 /*
 ######################################################################################################################
 

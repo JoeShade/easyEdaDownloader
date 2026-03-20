@@ -1,77 +1,82 @@
-/*
- * This content script runs in JLCPCB/LCSC pages and tries to
- * locate the LCSC part number by scanning common page layouts. It looks in
- * definition lists and table rows first, then falls back to a full-page scan.
- */
-
-// Normalize a label so we can compare it reliably.
-function normalizeLabel(text) {
-  return text.replace(/\s+/g, " ").trim().toLowerCase();
-}
-
-// Pull the LCSC part id (e.g., C12345) out of a text string.
-function extractLcscId(text) {
-  if (!text) {
-    return null;
-  }
-  const match = text.toUpperCase().match(/C\d{3,}/);
-  return match ? match[0] : null;
-}
-
-// Search definition list entries (<dl><dt><dd>) for the part number.
-function findInDefinitionLists() {
-  const lists = document.querySelectorAll("dl");
-  for (const list of lists) {
-    const dt = list.querySelector("dt");
-    const dd = list.querySelector("dd");
-    if (!dt || !dd) {
-      continue;
-    }
-    const label = normalizeLabel(dt.textContent || "");
-    if (label.includes("jlcpcb part #") || label.includes("lcsc part #")) {
-      const lcscId = extractLcscId(dd.textContent);
-      if (lcscId) {
-        return lcscId;
+export function createCadData({
+  lcscId = "C12345",
+  datasheetUrl = "https://cdn.example.test/datasheets/demo-part.pdf",
+  modelUuid = "model-uuid-1",
+  modelName = "Model QFN"
+} = {}) {
+  return {
+    SMT: true,
+    title: "Demo Logic Part",
+    lcsc: {
+      number: lcscId,
+      url: datasheetUrl
+    },
+    dataStr: {
+      BBox: { x: 10, y: 20, width: 80, height: 50 },
+      head: {
+        x: 10,
+        y: 20,
+        c_para: {
+          name: "Logic / Buffer",
+          pre: "U?",
+          package: "QFN-16/Example",
+          BOM_Manufacturer: "ACME Semi",
+          "BOM_JLCPCB Part Class": "JLC-001",
+          link: datasheetUrl
+        }
+      },
+      shape: [
+        "P~show~1~1~20~30~0~pin-1~false^^0^^M 20 30 h10~#000^^show~24~30~0~CLK#/RESET#~start~Arial~7pt^^0^^show~19~30^^show~M 0 0",
+        "R~30~25~0~0~40~20",
+        "PL~30 25 70 25 70 45~#000~0~0~none",
+        "PG~30 25 50 15 70 25",
+        "C~50~35~5~#000~0~none",
+        "A~M 30 35 A 5 5 0 0 1 40 45~#000~0~0~none",
+        "PT~M 30 25 L 40 35 L 30 45 Z"
+      ]
+    },
+    packageDetail: {
+      title: "QFN-16/Example",
+      dataStr: {
+        BBox: { x: 90, y: 190, width: 40, height: 30 },
+        head: {
+          x: 100,
+          y: 200,
+          c_para: {
+            package: "QFN-16/Example",
+            link: datasheetUrl,
+            "3DModel": modelName
+          }
+        },
+        shape: [
+          "PAD~RECT~100~200~20~10~1~~(1)~0~~90~pad-1~0~~true~false",
+          "PAD~POLYGON~120~200~10~10~1~~2~0~120 195 125 205 115 205~0~pad-2~0~~true~false",
+          "TRACK~1~3~~100 190 120 190 120 210~track-1~false",
+          "HOLE~110~210~2~hole-1~false",
+          "VIA~118~208~3~~1~via-1~false",
+          "CIRCLE~110~210~5~1~3~circle-1~false",
+          "ARC~1~3~~M 100 200 A 10 10 0 0 1 120 200~~arc-1~false",
+          "RECT~95~195~30~20~1~rect-1~3~false",
+          "TEXT~N~105~205~0.5~270~~3~~4~REF**~~show~text-1~false",
+          `SVGNODE~{"attrs":{"title":"${modelName}","uuid":"${modelUuid}","c_origin":"105,205","c_rotation":"0,90,180","z":"2"}}`
+        ]
       }
     }
-  }
-  return null;
+  };
 }
 
-// Search the common product table layout for the part number.
-function findInTables() {
-  const rows = document.querySelectorAll("table.tableInfoWrap tr");
-  for (const row of rows) {
-    const cells = row.querySelectorAll("td");
-    if (cells.length < 2) {
-      continue;
-    }
-    const label = normalizeLabel(cells[0].textContent || "");
-    if (label.includes("lcsc part #")) {
-      const lcscId = extractLcscId(cells[1].textContent);
-      if (lcscId) {
-        return lcscId;
-      }
-    }
-  }
-  return null;
+export function createSymbolLibrary(symbolId = "ExistingSymbol") {
+  return `(kicad_symbol_lib
+  (version 20211014)
+  (generator "easy EDA downloader")
+  (symbol "${symbolId}"
+    (in_bom yes)
+    (on_board yes)
+  )
+)
+`;
 }
 
-// Try the targeted searches first, then scan the entire page as a fallback.
-function findLcscId() {
-  return findInDefinitionLists() || findInTables() || extractLcscId(document.body.textContent);
-}
-
-// Listen for extension messages and reply with the detected LCSC id.
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "GET_LCSC_ID") {
-    return false;
-  }
-
-  const lcscId = findLcscId();
-  sendResponse({ lcscId });
-  return true;
-});
 /*
 ######################################################################################################################
 
