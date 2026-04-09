@@ -2,11 +2,12 @@
   "manifest_version": 3,
   "name": "EasyEDA Downloader",
   "version": "0.1.1",
-  "description": "Extract LCSC part numbers and export symbol, footprint, and 3D model files.",
+  "description": "Export KiCad symbol, footprint, and 3D model files from EasyEDA and Mouser-supported product pages.",
   "permissions": ["activeTab", "downloads", "storage"],
   "host_permissions": [
     "https://easyeda.com/*",
-    "https://modules.easyeda.com/*"
+    "https://modules.easyeda.com/*",
+    "https://ms.componentsearchengine.com/*"
   ],
   "background": {
     "service_worker": "src/service_worker.js",
@@ -15,7 +16,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Export EasyEDA part",
+    "default_title": "Export supported part",
     "default_popup": "src/popup.html",
     "default_icon": {
       "16": "icons/16x16.png",
@@ -32,7 +33,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.jlcpcb.com/*", "*://*.lcsc.com/*"],
+      "matches": [
+        "*://*.jlcpcb.com/*",
+        "*://*.lcsc.com/*",
+        "*://*.mouser.com/*",
+        "*://*.mouser.co.uk/*"
+      ],
       "js": ["src/content_script.js"]
     }
   ],

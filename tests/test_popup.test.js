@@ -47,9 +47,13 @@ function createPopupChrome() {
   return { chrome, state };
 }
 
-function loadPopup() {
+function loadPopup({ userAgent = "Mozilla/5.0 Chrome/135.0.0.0" } = {}) {
   const dom = new JSDOM(readRepoFile("src/popup.html"), {
     url: "https://example.test/popup.html"
+  });
+  Object.defineProperty(dom.window.navigator, "userAgent", {
+    configurable: true,
+    value: userAgent
   });
   const { chrome, state } = createPopupChrome();
 
@@ -62,15 +66,15 @@ function loadPopup() {
     },
     append: `
 globalThis.__testExports = {
-  setPartNumber,
+  setPartContext,
   updateDownloadEnabled,
   setDatasheetAvailability,
   hasSelection,
   normalizeLibraryDownloadRoot,
-  getCurrentLcscId: () => currentLcscId,
-  getCurrentManufacturerPartNumber: () => currentManufacturerPartNumber,
+  getCurrentPartContext: () => currentPartContext,
   elements: {
     manufacturerPartNumberEl,
+    sourcePartLabelEl,
     partNumberEl,
     downloadButton,
     statusEl,
@@ -115,6 +119,7 @@ describe("popup", () => {
     });
     expect(state.storageGetCalls).toHaveLength(1);
     expect(hooks.elements.manufacturerPartNumberEl.textContent).toBe("Searching...");
+    expect(hooks.elements.sourcePartLabelEl.textContent).toBe("Part");
     expect(hooks.elements.partNumberEl.textContent).toBe("Searching...");
     expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
     expect(hooks.elements.downloadButton.disabled).toBe(true);
@@ -122,7 +127,7 @@ describe("popup", () => {
     expect(hooks.elements.footprintPreviewFallbackEl.textContent).toBe("Loading...");
   });
 
-  it("loads both detected identifiers and enables the download button only when a part and selection exist", async () => {
+  it("loads an EasyEDA part context and enables download only when a selection exists", async () => {
     const { dom, state, hooks } = loadPopup();
 
     state.storageGetCalls[0].callback({
@@ -135,23 +140,29 @@ describe("popup", () => {
     state.queryCalls[0].callback([{ id: 7 }]);
     expect(state.tabMessages[0]).toMatchObject({
       tabId: 7,
-      message: { type: "GET_LCSC_ID" }
+      message: { type: "GET_PART_CONTEXT" }
     });
 
-    state.tabMessages[0].callback({
-      lcscId: "C12345",
-      manufacturerPartNumber: "SN74LVC1G14DBVR"
-    });
+    const partContext = {
+      provider: "easyedaLcsc",
+      sourcePartLabel: "LCSC part",
+      sourcePartNumber: "C12345",
+      manufacturerPartNumber: "SN74LVC1G14DBVR",
+      lookup: {
+        lcscId: "C12345"
+      }
+    };
+    state.tabMessages[0].callback(partContext);
     expect(state.runtimeMessages[0].message).toEqual({
-      type: "GET_PREVIEW_SVGS",
-      lcscId: "C12345"
+      type: "GET_PART_PREVIEWS",
+      partContext
     });
 
     state.runtimeMessages[0].callback({
       ok: true,
       previews: {
-        symbolSvg: "<svg><rect /></svg>",
-        footprintSvg: "<svg><circle /></svg>"
+        symbolUrl: "data:image/svg+xml;utf8,%3Csvg%20%2F%3E",
+        footprintUrl: "data:image/svg+xml;utf8,%3Csvg%20%2F%3E"
       },
       metadata: {
         datasheetAvailable: true
@@ -159,15 +170,15 @@ describe("popup", () => {
     });
     await flushAsyncWork();
 
-    expect(hooks.getCurrentLcscId()).toBe("C12345");
-    expect(hooks.getCurrentManufacturerPartNumber()).toBe("SN74LVC1G14DBVR");
+    expect(hooks.getCurrentPartContext()).toEqual(partContext);
+    expect(hooks.elements.sourcePartLabelEl.textContent).toBe("LCSC part");
     expect(hooks.elements.manufacturerPartNumberEl.textContent).toBe(
       "SN74LVC1G14DBVR"
     );
     expect(hooks.elements.partNumberEl.textContent).toBe("C12345");
     expect(hooks.elements.downloadButton.disabled).toBe(false);
-    expect(hooks.elements.symbolPreviewEl.src).toContain("data:image/svg+xml;utf8,");
-    expect(hooks.elements.footprintPreviewEl.src).toContain("data:image/svg+xml;utf8,");
+    expect(hooks.elements.symbolPreviewEl.src).toContain("data:image/svg+xml");
+    expect(hooks.elements.footprintPreviewEl.src).toContain("data:image/svg+xml");
 
     hooks.elements.downloadSymbolEl.checked = false;
     hooks.elements.downloadFootprintEl.checked = false;
@@ -180,6 +191,138 @@ describe("popup", () => {
     hooks.elements.downloadSymbolEl.checked = true;
     dispatchChange(dom, hooks.elements.downloadSymbolEl);
     expect(hooks.elements.downloadButton.disabled).toBe(false);
+  });
+
+  it("renders a Mouser provider context, uses PNG previews, and disables datasheet export", async () => {
+    const { state, hooks } = loadPopup();
+
+    state.storageGetCalls[0].callback({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
+    state.queryCalls[0].callback([{ id: 8 }]);
+
+    const partContext = {
+      provider: "mouserSamacsys",
+      sourcePartLabel: "Mouser part",
+      sourcePartNumber: "511-STM32U3C5RIT6Q",
+      manufacturerPartNumber: "STM32U3C5RIT6Q",
+      lookup: {
+        manufacturerName: "STMicroelectronics",
+        entryUrl:
+          "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB"
+      }
+    };
+
+    state.tabMessages[0].callback(partContext);
+    expect(state.runtimeMessages[0].message).toEqual({
+      type: "GET_PART_PREVIEWS",
+      partContext
+    });
+
+    state.runtimeMessages[0].callback({
+      ok: true,
+      previews: {
+        symbolUrl: "data:image/png;base64,AAAA",
+        footprintUrl: "data:image/png;base64,BBBB"
+      },
+      metadata: {
+        datasheetAvailable: false
+      }
+    });
+    await flushAsyncWork();
+
+    expect(hooks.elements.sourcePartLabelEl.textContent).toBe("Mouser part");
+    expect(hooks.elements.partNumberEl.textContent).toBe("511-STM32U3C5RIT6Q");
+    expect(hooks.elements.downloadDatasheetEl.disabled).toBe(true);
+    expect(hooks.elements.downloadDatasheetLabelEl.textContent).toBe(
+      "Datasheet (not available)"
+    );
+    expect(hooks.elements.symbolPreviewEl.src).toContain("data:image/png;base64");
+    expect(hooks.elements.footprintPreviewEl.src).toContain("data:image/png;base64");
+
+    hooks.elements.downloadDatasheetEl.checked = false;
+    hooks.elements.downloadButton.click();
+    expect(state.runtimeMessages[1].message).toEqual({
+      type: "EXPORT_PART",
+      partContext,
+      options: {
+        symbol: true,
+        footprint: true,
+        model3d: true,
+        datasheet: false
+      }
+    });
+  });
+
+  it("keeps Mouser datasheet export disabled when previews fail", async () => {
+    const { state, hooks } = loadPopup();
+
+    state.storageGetCalls[0].callback({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
+    state.queryCalls[0].callback([{ id: 8 }]);
+
+    const partContext = {
+      provider: "mouserSamacsys",
+      sourcePartLabel: "Mouser part",
+      sourcePartNumber: "511-STM32U3C5RIT6Q",
+      manufacturerPartNumber: "STM32U3C5RIT6Q",
+      lookup: {
+        manufacturerName: "STMicroelectronics",
+        entryUrl:
+          "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB"
+      }
+    };
+
+    state.tabMessages[0].callback(partContext);
+    expect(hooks.elements.downloadDatasheetEl.disabled).toBe(true);
+    expect(hooks.elements.downloadDatasheetLabelEl.textContent).toBe(
+      "Datasheet (not available)"
+    );
+
+    state.runtimeMessages[0].callback({
+      ok: false,
+      error: "Preview failed."
+    });
+    await flushAsyncWork();
+
+    expect(hooks.elements.downloadDatasheetEl.disabled).toBe(true);
+    expect(hooks.elements.downloadDatasheetEl.checked).toBe(false);
+    expect(hooks.elements.downloadDatasheetLabelEl.textContent).toBe(
+      "Datasheet (not available)"
+    );
+  });
+
+  it("blocks Mouser downloads on Firefox with the proxy-required message", () => {
+    const { state, hooks } = loadPopup({
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    state.storageGetCalls[0].callback({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
+    state.queryCalls[0].callback([{ id: 10 }]);
+    state.tabMessages[0].callback({
+      provider: "mouserSamacsys",
+      sourcePartLabel: "Mouser part",
+      sourcePartNumber: "511-STM32U3C5RIT6Q",
+      manufacturerPartNumber: "STM32U3C5RIT6Q",
+      lookup: {
+        manufacturerName: "STMicroelectronics",
+        entryUrl: "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB"
+      }
+    });
+
+    expect(hooks.elements.statusEl.textContent).toContain("Chrome-only for now");
+    expect(hooks.elements.downloadButton.disabled).toBe(true);
+    expect(hooks.elements.symbolPreviewFallbackEl.textContent).toBe("Unavailable");
+    expect(hooks.elements.footprintPreviewFallbackEl.textContent).toBe(
+      "Unavailable"
+    );
+    expect(state.runtimeMessages).toHaveLength(0);
   });
 
   it("saves settings when the download organization toggle changes", () => {
@@ -248,68 +391,7 @@ describe("popup", () => {
     });
   });
 
-  it("shows a manufacturer fallback when only the LCSC identifier is found", async () => {
-    const { state, hooks } = loadPopup();
-
-    state.storageGetCalls[0].callback({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
-    });
-    state.queryCalls[0].callback([{ id: 8 }]);
-    state.tabMessages[0].callback({
-      lcscId: "C55555",
-      manufacturerPartNumber: null
-    });
-
-    state.runtimeMessages[0].callback({
-      ok: true,
-      previews: {
-        symbolSvg: "<svg><rect /></svg>",
-        footprintSvg: "<svg><circle /></svg>"
-      },
-      metadata: {
-        datasheetAvailable: false
-      }
-    });
-    await flushAsyncWork();
-
-    expect(hooks.elements.manufacturerPartNumberEl.textContent).toBe("Not found");
-    expect(hooks.elements.partNumberEl.textContent).toBe("C55555");
-    expect(hooks.elements.downloadDatasheetEl.disabled).toBe(true);
-    expect(hooks.elements.downloadDatasheetLabelEl.textContent).toBe(
-      "Datasheet (not available)"
-    );
-
-    hooks.elements.downloadSymbolEl.checked = true;
-    hooks.elements.downloadFootprintEl.checked = false;
-    hooks.elements.downloadModelEl.checked = false;
-    hooks.elements.downloadButton.click();
-
-    expect(state.runtimeMessages[1].message).toEqual({
-      type: "EXPORT_PART",
-      lcscId: "C55555",
-      options: {
-        symbol: true,
-        footprint: false,
-        model3d: false,
-        datasheet: false,
-        downloadIndividually: false
-      }
-    });
-
-    state.runtimeMessages[1].callback({
-      ok: true,
-      downloadCount: 1,
-      warnings: ["Datasheet not available for this part."]
-    });
-    await flushAsyncWork();
-
-    expect(hooks.elements.statusEl.textContent).toContain("Datasheet not available");
-    expect(hooks.elements.statusEl.classList.contains("warning")).toBe(true);
-    expect(hooks.elements.downloadButton.disabled).toBe(false);
-  });
-
-  it("shows both identifiers as unavailable when the content script cannot respond", () => {
+  it("shows identifiers as unavailable when the content script cannot respond", () => {
     const { chrome, state, hooks } = loadPopup();
 
     state.storageGetCalls[0].callback({
@@ -323,7 +405,7 @@ describe("popup", () => {
     expect(hooks.elements.manufacturerPartNumberEl.textContent).toBe("Unavailable");
     expect(hooks.elements.partNumberEl.textContent).toBe("Unavailable");
     expect(hooks.elements.statusEl.textContent).toBe(
-      "Open a JLCPCB or LCSC product page."
+      "Open a supported product page."
     );
     expect(hooks.elements.downloadButton.disabled).toBe(true);
   });
@@ -336,15 +418,21 @@ describe("popup", () => {
       libraryDownloadRoot: "easyEDADownloader"
     });
     state.queryCalls[0].callback([{ id: 9 }]);
-    state.tabMessages[0].callback({
-      lcscId: "C90000",
-      manufacturerPartNumber: "LM358PWR"
-    });
+    const partContext = {
+      provider: "easyedaLcsc",
+      sourcePartLabel: "LCSC part",
+      sourcePartNumber: "C90000",
+      manufacturerPartNumber: "LM358PWR",
+      lookup: {
+        lcscId: "C90000"
+      }
+    };
+    state.tabMessages[0].callback(partContext);
     state.runtimeMessages[0].callback({
       ok: true,
       previews: {
-        symbolSvg: "<svg />",
-        footprintSvg: "<svg />"
+        symbolUrl: "data:image/svg+xml;utf8,%3Csvg%20%2F%3E",
+        footprintUrl: "data:image/svg+xml;utf8,%3Csvg%20%2F%3E"
       },
       metadata: {
         datasheetAvailable: true

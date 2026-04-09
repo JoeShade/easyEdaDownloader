@@ -1,22 +1,24 @@
 /*
- * This background service worker handles the heavy lifting for the
- * extension. It fetches EasyEDA CAD data for a given LCSC id, converts it into
- * KiCad-friendly files, and triggers downloads (symbol, footprint, and 3D).
+ * This background service worker handles provider-aware preview and export
+ * flows. EasyEDA parts are converted locally, while Mouser/SamacSys parts use
+ * pre-generated KiCad assets from the upstream ZIP download.
  */
 
 import { convertEasyedaCadToKicad, convertObjToWrlString } from "./kicad_converter.js";
+import { readZipEntries } from "./vendor/zip_reader.js";
 
-// Ask the active tab's content script for the LCSC part number.
-async function getLcscIdFromTab(tabId) {
-  return chrome.tabs.sendMessage(tabId, { type: "GET_LCSC_ID" });
-}
+const EASYEDA_PROVIDER = "easyedaLcsc";
+const MOUSER_PROVIDER = "mouserSamacsys";
 
 // EasyEDA endpoints for CAD data and 3D model assets.
-const API_ENDPOINT =
+const EASYEDA_API_ENDPOINT =
   "https://easyeda.com/api/products/{lcscId}/components?version=6.4.19.5";
-const ENDPOINT_3D_MODEL_OBJ = "https://modules.easyeda.com/3dmodel/{uuid}";
-const ENDPOINT_3D_MODEL_STEP =
+const EASYEDA_MODEL_OBJ_ENDPOINT = "https://modules.easyeda.com/3dmodel/{uuid}";
+const EASYEDA_MODEL_STEP_ENDPOINT =
   "https://modules.easyeda.com/qAxj6KHrDKw4blvCG8QJPs7Y/{uuid}";
+
+const MOUSER_COMPONENTSEARCH_BASE_URL = "https://ms.componentsearchengine.com";
+const MOUSER_WRL_ENDPOINT = `${MOUSER_COMPONENTSEARCH_BASE_URL}/3D/0/{partId}.wrl`;
 
 // Default settings for download behavior.
 const DEFAULT_LIBRARY_DOWNLOAD_ROOT = "easyEDADownloader";
@@ -50,6 +52,34 @@ function normalizeLibraryDownloadRoot(value) {
   }
 
   return normalized;
+}
+
+function normalizePartContext(partContext) {
+  if (!partContext?.provider) {
+    return null;
+  }
+  return {
+    provider: partContext.provider,
+    sourcePartLabel: partContext.sourcePartLabel || null,
+    sourcePartNumber: partContext.sourcePartNumber || null,
+    manufacturerPartNumber: partContext.manufacturerPartNumber || null,
+    lookup: partContext.lookup || {}
+  };
+}
+
+function isFirefoxRuntime() {
+  return /firefox/i.test(String(globalThis.navigator?.userAgent || ""));
+}
+
+function isBlockedPartContext(partContext) {
+  return partContext?.provider === MOUSER_PROVIDER && isFirefoxRuntime();
+}
+
+function getBlockedPartContextError(partContext) {
+  if (isBlockedPartContext(partContext)) {
+    return "Mouser/SamacSys downloads require a proxy in Firefox. Chrome-only for now.";
+  }
+  return "";
 }
 
 // Load user settings from extension storage.
@@ -106,6 +136,13 @@ function normalizeUrl(value) {
   return url;
 }
 
+function ensureAbsoluteUrl(url, origin = MOUSER_COMPONENTSEARCH_BASE_URL) {
+  if (!url) {
+    return "";
+  }
+  return new URL(url, origin).toString();
+}
+
 chrome.downloads.onChanged.addListener((delta) => {
   if (!delta?.state?.current) {
     return;
@@ -122,7 +159,7 @@ chrome.downloads.onChanged.addListener((delta) => {
 
 // Convert an ArrayBuffer to base64 for data URLs.
 function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   let binary = "";
   const chunkSize = 0x8000;
   for (let i = 0; i < bytes.length; i += chunkSize) {
@@ -134,6 +171,19 @@ function arrayBufferToBase64(buffer) {
 // Convert a string to base64 for data URLs.
 function textToBase64(text) {
   return btoa(unescape(encodeURIComponent(text)));
+}
+
+function makeSvgDataUrl(svgText) {
+  return svgText
+    ? `data:image/svg+xml;utf8,${encodeURIComponent(svgText)}`
+    : null;
+}
+
+function makeBase64DataUrl(mimeType, base64Text) {
+  if (!base64Text) {
+    return null;
+  }
+  return `data:${mimeType};base64,${base64Text}`;
 }
 
 // Download a Blob URL so Firefox doesn't block data: URLs.
@@ -182,7 +232,9 @@ async function downloadTextFile(filename, text, mimeType, conflictAction) {
 // Download a binary file by creating a Blob URL or data URL fallback.
 async function downloadBinaryFile(filename, buffer, mimeType, conflictAction) {
   if (canUseBlobUrl) {
-    const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
+    const blob = new Blob([buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)], {
+      type: mimeType
+    });
     await downloadBlobUrl(filename, blob, conflictAction);
     return;
   }
@@ -221,7 +273,7 @@ async function downloadUrlFile(filename, url, conflictAction) {
 
 // Fetch the EasyEDA CAD payload for the given LCSC id.
 async function fetchCadData(lcscId) {
-  const response = await fetch(API_ENDPOINT.replace("{lcscId}", lcscId), {
+  const response = await fetch(EASYEDA_API_ENDPOINT.replace("{lcscId}", lcscId), {
     headers: {
       Accept: "application/json"
     }
@@ -536,17 +588,381 @@ function getDatasheetInfo(cadData, lcscId) {
   };
 }
 
-// Main workflow: fetch, convert, and download the requested assets.
-async function exportPart(lcscId, options = {}) {
+function ensureEasyedaLcscId(partContext) {
+  const lcscId = partContext?.lookup?.lcscId;
   if (!lcscId) {
     throw new Error("No LCSC part number found on the page.");
   }
+  return lcscId;
+}
 
+async function buildEasyedaPreviewResponse(partContext) {
+  const lcscId = ensureEasyedaLcscId(partContext);
+  const cadData = await fetchCadData(lcscId);
+  return {
+    previews: {
+      symbolUrl: makeSvgDataUrl(buildSymbolPreviewSvg(cadData)),
+      footprintUrl: makeSvgDataUrl(buildFootprintPreviewSvg(cadData))
+    },
+    metadata: {
+      datasheetAvailable: Boolean(getDatasheetInfo(cadData, lcscId).url)
+    }
+  };
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractTagAttributeValue(tagText, attributeName) {
+  const match = String(tagText || "").match(
+    new RegExp(`${attributeName}\\s*=\\s*["']([^"']*)["']`, "i")
+  );
+  return match ? match[1] : "";
+}
+
+function parseFormById(html, formId) {
+  const match = String(html || "").match(
+    new RegExp(
+      `<form\\b[^>]*id=["']${escapeRegExp(formId)}["'][^>]*>[\\s\\S]*?<\\/form>`,
+      "i"
+    )
+  );
+  if (!match) {
+    return null;
+  }
+
+  const formText = match[0];
+  const openTagMatch = formText.match(/<form\b[^>]*>/i);
+  const openTag = openTagMatch ? openTagMatch[0] : "";
+  const inputs = {};
+
+  for (const inputMatch of formText.matchAll(/<input\b[^>]*name=["']([^"']+)["'][^>]*>/gi)) {
+    const tagText = inputMatch[0];
+    const name = inputMatch[1];
+    inputs[name] = extractTagAttributeValue(tagText, "value");
+  }
+
+  return {
+    action: extractTagAttributeValue(openTag, "action"),
+    method: extractTagAttributeValue(openTag, "method") || "GET",
+    inputs
+  };
+}
+
+function parseSamacsysPartId(url, zipForm) {
+  try {
+    const partId = new URL(url).searchParams.get("partID");
+    if (partId) {
+      return partId;
+    }
+  } catch (error) {
+    console.warn("Failed to parse SamacSys part URL:", error);
+  }
+
+  return zipForm?.inputs?.partID || "";
+}
+
+function buildMouserPreviewPageUrl(partId) {
+  return `${MOUSER_COMPONENTSEARCH_BASE_URL}/preview_newDesign.php?o3=0&partID=${encodeURIComponent(partId)}&ev=0&fmt=zip&pna=Mouser`;
+}
+
+function parseSamacsysPageMetadata(html, finalUrl) {
+  const zipForm = parseFormById(html, "zipForm");
+  const partId = parseSamacsysPartId(finalUrl, zipForm);
+  const token = zipForm?.inputs?.tok || "";
+  if (!partId) {
+    throw new Error("SamacSys part ID was not found.");
+  }
+  if (!zipForm?.action) {
+    throw new Error("SamacSys ZIP download form was not found.");
+  }
+  if (!token) {
+    throw new Error("SamacSys preview token was not found.");
+  }
+
+  return {
+    partId,
+    token,
+    pageUrl: finalUrl,
+    zipActionUrl: ensureAbsoluteUrl(zipForm.action),
+    zipMethod: String(zipForm.method || "GET").toUpperCase(),
+    zipFormInputs: {
+      ...zipForm.inputs,
+      tok: token,
+      partID: zipForm.inputs.partID || partId,
+      fmt: zipForm.inputs.fmt || "zip"
+    }
+  };
+}
+
+async function fetchMouserSamacsysPageMetadata(partContext) {
+  const entryUrl = partContext?.lookup?.entryUrl;
+  if (!entryUrl) {
+    throw new Error("Mouser SamacSys entry URL was not found on the page.");
+  }
+
+  const response = await fetch(entryUrl, {
+    credentials: "include",
+    headers: {
+      Accept: "text/html"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`SamacSys entry request failed: ${response.status}`);
+  }
+
+  const entryHtml = await response.text();
+  const entryFinalUrl = response.url || entryUrl;
+  const entryZipForm = parseFormById(entryHtml, "zipForm");
+  const partId = parseSamacsysPartId(entryFinalUrl, entryZipForm);
+  if (!partId) {
+    throw new Error("SamacSys part ID was not found.");
+  }
+
+  const previewPageUrl = buildMouserPreviewPageUrl(partId);
+  const previewResponse = await fetch(previewPageUrl, {
+    credentials: "include",
+    headers: {
+      Accept: "text/html"
+    }
+  });
+  if (!previewResponse.ok) {
+    throw new Error(`SamacSys preview page request failed: ${previewResponse.status}`);
+  }
+
+  const previewHtml = await previewResponse.text();
+  return parseSamacsysPageMetadata(previewHtml, previewResponse.url || previewPageUrl);
+}
+
+async function fetchSamacsysPreview(url) {
+  const response = await fetch(url, {
+    credentials: "include",
+    headers: {
+      Accept: "application/json"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`SamacSys preview request failed: ${response.status}`);
+  }
+  const payload = await response.json();
+  return payload?.Image || "";
+}
+
+async function buildMouserPreviewResponse(partContext) {
+  const metadata = await fetchMouserSamacsysPageMetadata(partContext);
+  const symbolUrl = `${MOUSER_COMPONENTSEARCH_BASE_URL}/symbol.php?scale=4&format=JSON&partID=${encodeURIComponent(metadata.partId)}&showKeepout=0&u=0&tok=${encodeURIComponent(metadata.token)}`;
+  const footprintUrl = `${MOUSER_COMPONENTSEARCH_BASE_URL}/footprint.php?scale=100&format=JSON&partID=${encodeURIComponent(metadata.partId)}&showKeepout=0&u=0&tok=${encodeURIComponent(metadata.token)}&sz=N`;
+
+  const [symbolImage, footprintImage] = await Promise.all([
+    fetchSamacsysPreview(symbolUrl),
+    fetchSamacsysPreview(footprintUrl)
+  ]);
+
+  return {
+    previews: {
+      symbolUrl: makeBase64DataUrl("image/png", symbolImage),
+      footprintUrl: makeBase64DataUrl("image/png", footprintImage)
+    },
+    metadata: {
+      datasheetAvailable: false
+    }
+  };
+}
+
+function ensureZipPayload(buffer) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const signature = String.fromCharCode(...bytes.subarray(0, 2));
+  if (signature !== "PK") {
+    throw new Error("SamacSys ZIP download did not return a ZIP archive.");
+  }
+  return bytes;
+}
+
+function basenameFromZipPath(filePath) {
+  return String(filePath || "").split("/").pop() || "";
+}
+
+function filenameWithoutExtension(filename) {
+  return String(filename || "").replace(/\.[^.]+$/, "");
+}
+
+function buildQueryString(entries) {
+  return Object.entries(entries)
+    .filter(([, value]) => value !== null && value !== undefined)
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`
+    )
+    .join("&");
+}
+
+function decodeZipText(bytes) {
+  return new TextDecoder().decode(bytes);
+}
+
+async function extractSamacsysKiCadAssets(zipBuffer) {
+  const entries = await readZipEntries(zipBuffer);
+  const symbolEntries = entries.filter(
+    (entry) => entry.name.includes("/KiCad/") && entry.name.endsWith(".kicad_sym")
+  );
+  const footprintEntries = entries.filter(
+    (entry) => entry.name.includes("/KiCad/") && entry.name.endsWith(".kicad_mod")
+  );
+  const stepEntries = entries.filter(
+    (entry) => entry.name.includes("/3D/") && entry.name.toLowerCase().endsWith(".stp")
+  );
+  const wrlEntries = entries.filter(
+    (entry) => entry.name.includes("/3D/") && entry.name.toLowerCase().endsWith(".wrl")
+  );
+
+  if (!symbolEntries.length && !footprintEntries.length && !stepEntries.length) {
+    throw new Error("SamacSys ZIP did not contain KiCad assets.");
+  }
+
+  return {
+    symbols: symbolEntries.map((entry) => ({
+      path: entry.name,
+      filename: basenameFromZipPath(entry.name),
+      name: filenameWithoutExtension(basenameFromZipPath(entry.name)),
+      content: decodeZipText(entry.data)
+    })),
+    footprints: footprintEntries.map((entry) => ({
+      path: entry.name,
+      filename: basenameFromZipPath(entry.name),
+      name: filenameWithoutExtension(basenameFromZipPath(entry.name)),
+      content: decodeZipText(entry.data)
+    })),
+    stepModels: stepEntries.map((entry) => ({
+      path: entry.name,
+      filename: basenameFromZipPath(entry.name),
+      name: filenameWithoutExtension(basenameFromZipPath(entry.name)),
+      data: entry.data
+    })),
+    wrlModels: wrlEntries.map((entry) => ({
+      path: entry.name,
+      filename: basenameFromZipPath(entry.name),
+      name: filenameWithoutExtension(basenameFromZipPath(entry.name)),
+      content: decodeZipText(entry.data)
+    }))
+  };
+}
+
+function parseKicadSymbolName(symbolLibraryText) {
+  const match = String(symbolLibraryText || "").match(/\(symbol "([^"]+)"/);
+  return match ? match[1] : null;
+}
+
+function rewriteSamacsysSymbolFootprintReference(symbolLibraryText, footprintName, libraryName) {
+  if (!footprintName || !libraryName) {
+    return symbolLibraryText;
+  }
+  return String(symbolLibraryText).replace(
+    /(\(property "Footprint" ")([^"]*)(")/,
+    `$1${libraryName}:${footprintName}$3`
+  );
+}
+
+function rewriteSamacsysFootprintModelPath(footprintText, modelFilename, libraryName) {
+  if (!modelFilename || !libraryName) {
+    return footprintText;
+  }
+  return String(footprintText).replace(
+    /(\(model\s+)(\"?)([^"\s)]+)(\"?)/,
+    `$1$2../${libraryName}.3dshapes/${modelFilename}$4`
+  );
+}
+
+function stripKicadFootprintModels(footprintText) {
+  const text = String(footprintText || "");
+  let result = "";
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const modelStart = text.indexOf("(model", cursor);
+    if (modelStart === -1) {
+      result += text.slice(cursor);
+      break;
+    }
+
+    let blockStart = modelStart;
+    while (blockStart > cursor && /[ \t]/.test(text[blockStart - 1])) {
+      blockStart -= 1;
+    }
+    if (blockStart > cursor && /[\r\n]/.test(text[blockStart - 1])) {
+      blockStart -= 1;
+    }
+
+    result += text.slice(cursor, blockStart);
+
+    let depth = 0;
+    let blockEnd = modelStart;
+    for (; blockEnd < text.length; blockEnd += 1) {
+      if (text[blockEnd] === "(") {
+        depth += 1;
+      } else if (text[blockEnd] === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          blockEnd += 1;
+          break;
+        }
+      }
+    }
+
+    cursor = blockEnd;
+  }
+
+  return result.replace(/\n{3,}/g, "\n\n");
+}
+
+function getMouserAuthenticationErrorMessage() {
+  return "Mouser/SamacSys download requires you to be signed in before CAD files can be downloaded.";
+}
+
+async function fetchMouserZipArchive(metadata) {
+  const body = buildQueryString(metadata.zipFormInputs || {});
+  const method = String(metadata.zipMethod || "GET").toUpperCase();
+  const requestUrl =
+    method === "GET" && body ? `${metadata.zipActionUrl}?${body}` : metadata.zipActionUrl;
+  const requestOptions = {
+    method,
+    credentials: "include"
+  };
+
+  if (method !== "GET") {
+    requestOptions.headers = {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+    };
+    requestOptions.body = body;
+  }
+
+  const response = await fetch(requestUrl, requestOptions);
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error(getMouserAuthenticationErrorMessage());
+    }
+    throw new Error(`SamacSys ZIP request failed: ${response.status}`);
+  }
+
+  return ensureZipPayload(await response.arrayBuffer());
+}
+
+async function fetchMouserWrlModel(partId) {
+  const response = await fetch(MOUSER_WRL_ENDPOINT.replace("{partId}", partId), {
+    credentials: "include"
+  });
+  if (!response.ok) {
+    return null;
+  }
+  return response.text();
+}
+
+async function exportEasyedaPart(partContext, options = {}) {
+  const lcscId = ensureEasyedaLcscId(partContext);
   const settings = await loadSettings();
   const libraryPaths = buildLibraryPaths(settings.libraryDownloadRoot);
   const symbolLibraryKey = `symbolLibrary:${libraryPaths.symbolFile}`;
 
-  // Default to exporting everything unless explicitly disabled.
   const resolvedOptions = {
     symbol: options.symbol !== false,
     footprint: options.footprint !== false,
@@ -568,14 +984,11 @@ async function exportPart(lcscId, options = {}) {
 
   const cadData = await fetchCadData(lcscId);
   const datasheetInfo = getDatasheetInfo(cadData, lcscId);
-
-  // Convert the EasyEDA CAD payload into KiCad symbol/footprint text.
   const kicadFiles = convertEasyedaCadToKicad(cadData, {
     symbol: resolvedOptions.symbol,
     footprint: resolvedOptions.footprint
   });
 
-  // Download the symbol if requested.
   if (kicadFiles.symbol) {
     if (settings.downloadIndividually) {
       await downloadTextFile(
@@ -603,7 +1016,6 @@ async function exportPart(lcscId, options = {}) {
     }
   }
 
-  // Download the footprint if requested.
   if (kicadFiles.footprint) {
     if (settings.downloadIndividually) {
       await downloadTextFile(
@@ -622,13 +1034,12 @@ async function exportPart(lcscId, options = {}) {
     }
   }
 
-  // Download 3D assets (STEP + OBJ -> VRML) if requested.
   if (resolvedOptions.model3d) {
     const modelInfo = find3dModelInfo(cadData.packageDetail);
     if (modelInfo) {
       const safeModelName = modelInfo.name.replace(/[^\w.-]+/g, "_");
       const stepResponse = await fetch(
-        ENDPOINT_3D_MODEL_STEP.replace("{uuid}", modelInfo.uuid)
+        EASYEDA_MODEL_STEP_ENDPOINT.replace("{uuid}", modelInfo.uuid)
       );
       if (stepResponse.ok) {
         const stepData = await stepResponse.arrayBuffer();
@@ -645,7 +1056,7 @@ async function exportPart(lcscId, options = {}) {
       }
 
       const objResponse = await fetch(
-        ENDPOINT_3D_MODEL_OBJ.replace("{uuid}", modelInfo.uuid)
+        EASYEDA_MODEL_OBJ_ENDPOINT.replace("{uuid}", modelInfo.uuid)
       );
       if (objResponse.ok) {
         const objData = await objResponse.text();
@@ -686,20 +1097,210 @@ async function exportPart(lcscId, options = {}) {
   return { warnings, downloadCount };
 }
 
-// Listen for UI requests to export the current part.
+async function exportMouserPart(partContext, options = {}) {
+  const settings = await loadSettings();
+  const libraryPaths = buildLibraryPaths(settings.libraryDownloadRoot);
+  const symbolLibraryKey = `symbolLibrary:${libraryPaths.symbolFile}`;
+  const resolvedOptions = {
+    symbol: options.symbol !== false,
+    footprint: options.footprint !== false,
+    model3d: options.model3d !== false,
+    datasheet: options.datasheet === true
+  };
+
+  let downloadCount = 0;
+  const warnings = [];
+
+  if (
+    !resolvedOptions.symbol &&
+    !resolvedOptions.footprint &&
+    !resolvedOptions.model3d &&
+    !resolvedOptions.datasheet
+  ) {
+    throw new Error("No download options selected.");
+  }
+
+  if (resolvedOptions.datasheet) {
+    warnings.push("Datasheet export is not available for Mouser SamacSys parts.");
+  }
+
+  const metadata = await fetchMouserSamacsysPageMetadata(partContext);
+  const zipBuffer = await fetchMouserZipArchive(metadata);
+  const assets = await extractSamacsysKiCadAssets(zipBuffer);
+  const libraryName =
+    libraryPaths.symbolFile.split("/").pop()?.replace(/\.kicad_sym$/, "") ||
+    DEFAULT_LIBRARY_DOWNLOAD_ROOT;
+  const primaryFootprintName = assets.footprints[0]?.name || null;
+  const primaryStepFilename = assets.stepModels[0]?.filename || null;
+  const shouldIncludeModelReferences = resolvedOptions.model3d && primaryStepFilename;
+
+  if (resolvedOptions.symbol) {
+    for (const symbol of assets.symbols) {
+      const rewrittenSymbol = settings.downloadIndividually
+        ? symbol.content
+        : rewriteSamacsysSymbolFootprintReference(
+            symbol.content,
+            primaryFootprintName,
+            libraryName
+          );
+
+      if (settings.downloadIndividually) {
+        await downloadTextFile(
+          symbol.filename,
+          rewrittenSymbol,
+          "application/octet-stream"
+        );
+        downloadCount += 1;
+        continue;
+      }
+
+      const symbolBlock = extractSymbolBlock(rewrittenSymbol);
+      const symbolName = parseKicadSymbolName(rewrittenSymbol) || symbol.name;
+      const existingLibrary = await loadStoredSymbolLibrary(symbolLibraryKey);
+      const mergedLibrary = mergeSymbolIntoLibrary(
+        existingLibrary || rewrittenSymbol,
+        symbolBlock,
+        symbolName
+      );
+      await saveStoredSymbolLibrary(symbolLibraryKey, mergedLibrary);
+      await downloadTextFile(
+        libraryPaths.symbolFile,
+        mergedLibrary,
+        "application/octet-stream",
+        "overwrite"
+      );
+      downloadCount += 1;
+    }
+  }
+
+  if (resolvedOptions.footprint) {
+    for (const footprint of assets.footprints) {
+      let footprintContent = stripKicadFootprintModels(footprint.content);
+      if (shouldIncludeModelReferences) {
+        footprintContent = settings.downloadIndividually
+          ? footprint.content
+          : rewriteSamacsysFootprintModelPath(
+              footprint.content,
+              primaryStepFilename,
+              libraryName
+            );
+      }
+
+      if (settings.downloadIndividually) {
+        await downloadTextFile(
+          footprint.filename,
+          footprintContent,
+          "application/octet-stream"
+        );
+        downloadCount += 1;
+      } else {
+        await downloadTextFile(
+          `${libraryPaths.footprintDir}/${footprint.filename}`,
+          footprintContent,
+          "application/octet-stream"
+        );
+        downloadCount += 1;
+      }
+    }
+  }
+
+  if (resolvedOptions.model3d) {
+    for (const stepModel of assets.stepModels) {
+      await downloadBinaryFile(
+        settings.downloadIndividually
+          ? stepModel.filename
+          : `${libraryPaths.modelDir}/${stepModel.filename}`,
+        stepModel.data,
+        "application/octet-stream"
+      );
+      downloadCount += 1;
+    }
+
+    for (const wrlModel of assets.wrlModels) {
+      await downloadTextFile(
+        settings.downloadIndividually
+          ? wrlModel.filename
+          : `${libraryPaths.modelDir}/${wrlModel.filename}`,
+        wrlModel.content,
+        "application/octet-stream"
+      );
+      downloadCount += 1;
+    }
+
+    if (!assets.wrlModels.length) {
+      const remoteWrl = await fetchMouserWrlModel(metadata.partId);
+      if (remoteWrl) {
+        const wrlFilename = `${filenameWithoutExtension(
+          primaryStepFilename || metadata.partId
+        )}.wrl`;
+        await downloadTextFile(
+          settings.downloadIndividually
+            ? wrlFilename
+            : `${libraryPaths.modelDir}/${wrlFilename}`,
+          remoteWrl,
+          "application/octet-stream"
+        );
+        downloadCount += 1;
+      } else {
+        warnings.push("SamacSys WRL model not available for this part.");
+      }
+    }
+  }
+
+  return { warnings, downloadCount };
+}
+
+async function getPartPreviews(partContext) {
+  const normalizedPartContext = normalizePartContext(partContext);
+  if (!normalizedPartContext) {
+    throw new Error("No supported part found on the page.");
+  }
+
+  const blockedError = getBlockedPartContextError(normalizedPartContext);
+  if (blockedError) {
+    throw new Error(blockedError);
+  }
+
+  if (normalizedPartContext.provider === EASYEDA_PROVIDER) {
+    return buildEasyedaPreviewResponse(normalizedPartContext);
+  }
+  if (normalizedPartContext.provider === MOUSER_PROVIDER) {
+    return buildMouserPreviewResponse(normalizedPartContext);
+  }
+
+  throw new Error("Unsupported provider.");
+}
+
+async function exportPart(partContext, options = {}) {
+  const normalizedPartContext = normalizePartContext(partContext);
+  if (!normalizedPartContext) {
+    throw new Error("No supported part found on the page.");
+  }
+
+  const blockedError = getBlockedPartContextError(normalizedPartContext);
+  if (blockedError) {
+    throw new Error(blockedError);
+  }
+
+  if (normalizedPartContext.provider === EASYEDA_PROVIDER) {
+    return exportEasyedaPart(normalizedPartContext, options);
+  }
+  if (normalizedPartContext.provider === MOUSER_PROVIDER) {
+    return exportMouserPart(normalizedPartContext, options);
+  }
+
+  throw new Error("Unsupported provider.");
+}
+
+// Listen for UI requests to preview or export the current part.
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === "GET_PREVIEW_SVGS") {
-    fetchCadData(message.lcscId)
-      .then((cadData) => {
+  if (message?.type === "GET_PART_PREVIEWS") {
+    getPartPreviews(message.partContext)
+      .then((result) => {
         sendResponse({
           ok: true,
-          previews: {
-            symbolSvg: buildSymbolPreviewSvg(cadData),
-            footprintSvg: buildFootprintPreviewSvg(cadData)
-          },
-          metadata: {
-            datasheetAvailable: Boolean(getDatasheetInfo(cadData, message.lcscId).url)
-          }
+          previews: result.previews,
+          metadata: result.metadata
         });
       })
       .catch((error) => {
@@ -710,7 +1311,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "EXPORT_PART") {
-    exportPart(message.lcscId, message.options)
+    exportPart(message.partContext, message.options)
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => {
         console.error("easy EDA downloader extension error:", error);

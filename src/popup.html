@@ -1,7 +1,7 @@
 <!--
-  Explainer: This is the extension popup UI. It shows the detected LCSC part
-  number, lets the user choose which assets to download, and displays status
-  messages during export.
+  Explainer: This is the extension popup UI. It shows the detected provider-
+  specific source part plus manufacturer part number, lets the user choose
+  which assets to download, and displays status messages during export.
 -->
 <!doctype html>
 <html lang="en">
@@ -20,9 +20,9 @@
         <span class="label">Mfr. Part #</span>
         <span id="manufacturerPartNumber" class="value">Searching...</span>
       </div>
-      <!-- Row showing the detected LCSC part number. -->
+      <!-- Row showing the detected provider-specific source part number. -->
       <div class="row">
-        <span class="label">LCSC part</span>
+        <span id="sourcePartLabel" class="label">Part</span>
         <span id="partNumber" class="value">Searching...</span>
       </div>
       <!-- Preview images for symbol and footprint. -->

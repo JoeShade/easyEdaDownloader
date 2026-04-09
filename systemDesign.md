@@ -4,69 +4,61 @@
 
 This document describes the current implemented design of the EasyEDA Downloader browser extension.
 
-The extension is intentionally narrow:
+The extension supports two provider flows:
 
-- detect an LCSC part id from supported product pages
-- detect a manufacturer part number from supported page metadata when present
-- fetch EasyEDA-backed CAD data for that part
-- generate KiCad-compatible symbol, footprint, and 3D outputs
-- optionally download a datasheet when the upstream payload exposes one
-- save outputs either as loose files or under a KiCad-style library directory
+- EasyEDA-backed JLCPCB and LCSC pages
+- Mouser pages that expose the SamacSys / Component Search Engine ECAD button
 
-This document should describe what the repository actually does today. If code and design diverge, update one of them in the same change.
+The repository remains intentionally compact. If code and design diverge, update one of them in the same change.
 
-## 2. Scope and non-goals
+## 2. Implemented workflow
 
-### 2.1 Implemented workflow
+### 2.1 Supported operator flow
 
-The current extension supports this operator flow:
-
-1. Open a supported JLCPCB or LCSC product page.
+1. Open a supported JLCPCB, LCSC, or Mouser product page.
 2. Open the extension popup.
-3. Ask the content script to detect the LCSC part id and manufacturer part number from the current page.
-4. Ask the service worker for symbol and footprint previews plus datasheet availability metadata.
+3. Ask the content script for a provider-aware part context via `GET_PART_CONTEXT`.
+4. Ask the service worker for `GET_PART_PREVIEWS`.
 5. Choose which artifacts to export and whether to download them individually.
-6. Ask the service worker to fetch EasyEDA CAD data, convert it, and trigger downloads.
+6. Ask the service worker to export the current part with `EXPORT_PART`.
 
 ### 2.2 Explicit non-goals
 
 The current repository does not implement:
 
 - browser automation outside the popup/content-script/service-worker model
-- a fake multi-layer application architecture beyond the existing file split
-- end-to-end browser-run integration tests inside real Chrome or Firefox
-- production refactors for testability
-- custom network backends beyond the currently hard-coded EasyEDA and module endpoints
+- end-to-end browser-run integration tests in real Chrome or Firefox
+- a proxy or cloud backend for Mouser / SamacSys Firefox support
+- a broader application-layer architecture beyond the existing file split
 
 ## 3. Supported contexts and assumptions
 
-- The content script is injected only on matching JLCPCB and LCSC pages.
-- The extension assumes the page exposes an LCSC-style part id such as `C12345` somewhere in a definition list, product table, or the broader page text.
-- The extension reads the manufacturer part number only from targeted page metadata labeled `Mfr. Part #`.
-- The popup assumes it is opened against an active tab and that the content script can answer `GET_LCSC_ID` on supported pages.
-- EasyEDA API responses are treated as the authoritative CAD payload source.
-- 3D model downloads depend on footprint metadata exposing a model UUID.
-- Datasheet download availability depends on URLs present in the EasyEDA payload.
-- The configurable library download root must remain a path relative to the browser's Downloads directory, not an absolute filesystem path.
+- The content script is injected only on matching JLCPCB, LCSC, and Mouser pages.
+- EasyEDA-backed pages expose an LCSC-style part id such as `C12345`.
+- Mouser support depends on the ECAD button `#lnk_CadModel[data-testid="ProductInfoECAD"]`.
+- The content script returns a generic part context, not a provider-specific ad hoc message shape.
+- EasyEDA previews are generated locally from CAD payload primitives.
+- Mouser previews come from SamacSys JSON preview endpoints and are displayed as PNG data URLs.
+- EasyEDA datasheet availability comes from URLs exposed by the upstream payload.
+- Mouser datasheet export is currently unsupported.
+- Mouser / SamacSys preview and export are Chrome-first. Firefox currently returns a structured unsupported error because proxy-backed CORS work is out of scope.
+- Mouser / SamacSys ZIP export may still require upstream authentication; when the ZIP endpoint returns `401`, the worker surfaces a sign-in-required error instead of a generic download failure.
 - The Manifest V3 background is declared for both Chrome and Firefox: Chrome uses `background.service_worker`, while Firefox uses the background-document fallback from `background.scripts`. This combined manifest relies on Firefox 121 or newer.
+- The configurable library download root must remain relative to the browser's Downloads directory.
 
 ## 4. Repository architecture
-
-The runtime is intentionally direct and file-oriented.
 
 ### 4.1 `src/content_script.js`
 
 Owns page inspection only:
 
-- label normalization
-- LCSC id extraction from text
-- manufacturer part number extraction from targeted labels
-- definition-list scanning
-- table scanning
-- full-page text fallback
-- reply to popup-originated `GET_LCSC_ID` requests
+- detect EasyEDA/LCSC identifiers from definition lists, known tables, and page text
+- detect Mouser SamacSys ECAD availability from the ECAD button
+- read provider-specific source part metadata from the page DOM
+- reconstruct the Mouser SamacSys entry URL from `loadPartDiv(...)`
+- reply to popup-originated `GET_PART_CONTEXT` requests
 
-It should remain a small DOM-reading boundary with no network or download logic.
+It remains a DOM-reading boundary with no network or download logic.
 
 ### 4.2 `src/popup.js`
 
@@ -74,157 +66,180 @@ Owns popup UI state and user interaction:
 
 - cache popup DOM elements
 - load and save popup settings through `chrome.storage.local`
-- query the active tab and request the current LCSC id plus manufacturer part number
+- query the active tab and request the current provider-aware part context
+- render the fixed `Mfr. Part #` row plus a dynamic provider-specific source row
 - request previews and datasheet availability
-- keep the Download button enabled only when a part id and at least one selected artifact exist
-- show the manufacturer part number above the LCSC id in the popup
-- collect and validate the library-mode Downloads subfolder setting
-- display normal, warning, and error status text
+- gate downloads based on provider support and checkbox selection
+- block Mouser export in Firefox with a user-facing proxy-required message
 - send `EXPORT_PART` requests to the service worker
 
-It should remain the UI-facing boundary. It should not own EasyEDA fetches, conversion logic, or download orchestration.
+It remains the UI-facing boundary. It does not own fetch, archive extraction, or conversion logic.
 
 ### 4.3 `src/service_worker.js`
 
 Owns orchestration and browser-integrated work:
 
 - settings load for download behavior
-- library-mode download root resolution
-- EasyEDA CAD payload fetches
-- preview SVG generation from CAD payload data
-- datasheet URL normalization and filename derivation
+- provider-aware preview and export branching
+- EasyEDA CAD payload fetches, preview generation, conversion, and downloads
+- Mouser SamacSys entry-page fetches, preview JSON fetches, ZIP download, archive extraction, and downloads
 - symbol-library merge behavior backed by `chrome.storage.local`
-- STEP and OBJ fetches for 3D model export
-- OBJ-to-WRL conversion via the converter module
-- download triggering through `chrome.downloads`
+- library-mode path rewriting for Mouser symbol footprint references and footprint model paths
 - warning accumulation and response shaping for popup requests
 
 This file is the operational core of the extension.
 
 ### 4.4 `src/kicad_converter.js`
 
-Owns conversion rules that are largely testable without browser APIs:
+Owns conversion rules for EasyEDA-backed parts:
 
 - EasyEDA symbol parsing
 - EasyEDA footprint parsing
 - coordinate, unit, and text-style conversion
 - KiCad symbol text generation
 - KiCad footprint text generation
-- OBJ/MTL-style parsing and WRL emission
+- OBJ-to-WRL conversion
 
-It should remain the main pure conversion boundary.
+Mouser parts do not flow through this converter for symbol or footprint generation because the upstream ZIP already contains KiCad assets.
 
-### 4.5 `tests`
+### 4.5 `src/vendor/zip_reader.js`
 
-The test suite is the primary regression net for:
+Owns small runtime archive extraction support:
 
-- pure conversion behavior
+- ZIP central-directory parsing
+- stored-entry reads
+- deflate-entry reads through runtime decompression primitives
+
+It exists so the service worker can extract the KiCad subtree from the SamacSys ZIP without adding a build step.
+
+### 4.6 `tests`
+
+The test suite remains the primary regression net for:
+
 - page-detection logic
 - popup state transitions and messaging
 - service-worker orchestration and download behavior
+- EasyEDA conversion behavior
 - repository governance and footer discipline
 
 ## 5. Core data flow
 
-### 5.1 Detect popup identifiers
+### 5.1 Detect the current part
 
 - The popup queries the active tab.
-- The popup asks the content script for `GET_LCSC_ID`.
-- The content script checks definition lists first, then the known table layout, then falls back to a page-wide scan for the LCSC id only.
-- The manufacturer part number is read only from targeted definition-list and table metadata labeled `Mfr. Part #`.
-- The popup stores the detected values, renders the manufacturer part number above the LCSC id, and uses only the LCSC id to gate export actions.
+- The popup asks the content script for `GET_PART_CONTEXT`.
+- On EasyEDA-backed pages, the content script returns:
+  - provider `easyedaLcsc`
+  - source label `LCSC part`
+  - source part number equal to the detected LCSC id
+  - manufacturer part number when the page exposes `Mfr. Part #`
+  - lookup metadata containing the LCSC id
+- On Mouser pages, the content script returns:
+  - provider `mouserSamacsys`
+  - source label `Mouser part`
+  - source part number equal to `Mouser No`
+  - manufacturer part number equal to `Mfr. No`
+  - lookup metadata containing manufacturer name and a reconstructed SamacSys entry URL
 
 ### 5.2 Request previews
 
-- Once a part id is available, the popup asks the service worker for `GET_PREVIEW_SVGS`.
-- The service worker fetches the EasyEDA CAD payload.
-- The service worker derives lightweight SVG previews from the symbol and footprint portions of the payload.
-- The popup renders those previews and updates datasheet availability state.
+- The popup asks the service worker for `GET_PART_PREVIEWS`.
+- EasyEDA-backed pages:
+  - fetch the EasyEDA CAD payload
+  - synthesize symbol and footprint SVG previews
+  - derive datasheet availability from the payload
+- Mouser pages:
+  - fetch the SamacSys entry URL
+  - follow the part-page redirect and parse the ZIP form and preview token
+  - fetch `symbol.php` and `footprint.php` JSON previews
+  - return PNG data URLs
+  - report datasheet unavailable
+- In Firefox, Mouser preview requests fail early with a structured unsupported error.
 
-### 5.3 Fetch EasyEDA CAD payload
+### 5.3 Export EasyEDA-backed parts
 
-- The service worker fetches the EasyEDA component payload using the detected LCSC id.
-- Missing or invalid payloads are treated as errors.
-- The fetched payload is reused for preview generation, datasheet inspection, and export orchestration.
+- The service worker fetches the EasyEDA payload using the detected LCSC id.
+- The converter produces KiCad symbol and footprint text.
+- Symbol, footprint, 3D, and datasheet exports follow the existing current-provider settings:
+  - loose-file downloads when `downloadIndividually` is `true`
+  - KiCad-style library structure when `downloadIndividually` is `false`
+- Library-mode symbol exports merge into a stored symbol library keyed by the resolved library root.
 
-### 5.4 Generate KiCad outputs
+### 5.4 Export Mouser / SamacSys parts
 
-- The service worker asks `src/kicad_converter.js` to convert symbol and footprint data when those exports are requested.
-- The converter parses EasyEDA payload strings, normalizes geometry/text, and emits KiCad-compatible text files.
-- When a footprint exposes 3D model metadata, the service worker fetches STEP and OBJ assets and converts OBJ to WRL.
-
-### 5.5 Handle datasheet URL
-
-- The service worker derives datasheet availability from payload URLs in package, symbol, or LCSC metadata.
-- URL normalization handles protocol-relative URLs.
-- Datasheet filenames are derived from package/title metadata and preserve the upstream file extension when one can be determined.
-- Missing datasheets do not fail the whole export; they surface as warnings.
-
-### 5.6 Download behavior
-
-- If `downloadIndividually` is `true`, artifacts are downloaded as loose files.
-- Otherwise, downloads use a KiCad-style directory structure rooted at a user-configurable folder under Downloads.
-- The default library-mode root is `easyEDADownloader/`.
-- Symbol downloads in library mode merge into `<libraryRoot>/<libraryName>.kicad_sym`.
-- Footprints download into `<libraryRoot>/<libraryName>.pretty/`.
-- 3D assets download into `<libraryRoot>/<libraryName>.3dshapes/`.
-- Datasheets download either as loose files or under `<libraryRoot>/`.
+- The service worker fetches the SamacSys entry URL and resolves the part page.
+- The part page supplies:
+  - a stable `partID`
+  - a preview token
+  - ZIP download form metadata
+- The service worker downloads the SamacSys ZIP and extracts only:
+  - `KiCad/*.kicad_sym`
+  - `KiCad/*.kicad_mod`
+  - `3D/*.stp`
+  - optional `3D/*.wrl`
+- Loose-file mode downloads the extracted files directly into Downloads.
+- Library mode repackages the extracted assets into the current KiCad structure:
+  - symbol library merge into `<libraryRoot>/<libraryName>.kicad_sym`
+  - footprints into `<libraryRoot>/<libraryName>.pretty/`
+  - 3D assets into `<libraryRoot>/<libraryName>.3dshapes/`
+- Library mode rewrites:
+  - the symbol `Footprint` property to `<libraryName>:<footprintName>`
+  - the footprint `(model ...)` path to `../<libraryName>.3dshapes/<modelFilename>`
+- When 3D export is selected, the worker also attempts the direct SamacSys WRL endpoint; a missing WRL becomes a warning rather than a hard failure.
 
 ## 6. Storage and settings behavior
 
-- `chrome.storage.local` stores popup settings, currently `downloadIndividually` plus the library-mode Downloads root.
-- `chrome.storage.local` also stores the accumulated symbol library content used for append-style symbol exports in library mode.
-- Popup settings are convenience state for UI behavior.
-- Stored symbol library content is keyed by the resolved library root so separate library folders keep separate merged symbol libraries.
+- `chrome.storage.local` stores popup settings:
+  - `downloadIndividually`
+  - `libraryDownloadRoot`
+- `chrome.storage.local` also stores accumulated symbol library text used for append-style symbol exports in library mode.
+- Stored symbol-library content is keyed by the resolved library root so separate library folders keep separate merged symbol libraries.
 
-## 7. Preview generation behavior
-
-- Preview generation happens in the service worker, not in the popup.
-- Symbol previews are synthesized from EasyEDA symbol primitives.
-- Footprint previews are synthesized from footprint pads and selected graphics primitives.
-- Preview generation is best-effort. Missing previewable data produces unavailable-state UI rather than blocking the popup entirely.
-
-## 8. Error and warning handling
+## 7. Error and warning handling
 
 - Detection failures in the popup produce user-facing status messages and disable export.
 - Service-worker preview failures return structured error responses to the popup.
 - Export failures return structured error responses to the popup.
-- Partial export issues that do not invalidate the whole request, such as missing datasheets, are accumulated as warnings.
-- The popup distinguishes default, warning, and error status tones.
+- Partial export issues that do not invalidate the whole request, such as missing datasheets or unavailable Mouser WRL files, are accumulated as warnings.
+- Mouser requests in Firefox fail early with a structured unsupported error message rather than attempting cross-origin fetches that require a proxy.
+- Mouser ZIP `401 Unauthorized` responses are rewritten into a sign-in-required error so the popup can tell the user what upstream precondition is missing.
 
-## 9. External dependencies and browser APIs
+## 8. External dependencies and browser APIs
 
-### 9.1 Network dependencies
+### 8.1 Network dependencies
 
 - EasyEDA component API for CAD payloads
 - EasyEDA module endpoints for STEP and OBJ assets
+- SamacSys / Component Search Engine entry page, preview JSON endpoints, ZIP download endpoint, and optional WRL endpoint
 
-### 9.2 Browser APIs
+### 8.2 Browser APIs
 
 - `chrome.tabs`
 - `chrome.runtime`
 - `chrome.storage.local`
 - `chrome.downloads`
-- `Blob` and `URL.createObjectURL` when available for download-safe object URLs
+- `Blob` and `URL.createObjectURL`
+- runtime decompression primitives used by the vendored ZIP reader
 
-## 10. Output artifacts and naming rules
+## 9. Output artifacts and naming rules
 
-- Symbol output uses KiCad symbol library text and either a standalone `<lcscId>-<symbolName>.kicad_sym` file or the shared library file.
-- Footprint output uses `<footprintName>.kicad_mod`.
-- 3D outputs use sanitized model names for downloaded STEP and WRL files.
-- Datasheet output uses a sanitized base name plus `-datasheet` and the detected file extension.
+- EasyEDA symbol output uses a standalone `<lcscId>-<symbolName>.kicad_sym` file in loose mode or the shared library file in library mode.
+- Mouser loose-file symbol output keeps the extracted `.kicad_sym` filename from the ZIP.
+- Footprint output uses the extracted or generated `.kicad_mod` filename.
+- Mouser footprint library-mode downloads rewrite the model path into the library `.3dshapes` directory.
+- EasyEDA datasheet output uses a sanitized base name plus `-datasheet` and the detected extension.
 - The library root name defaults to `easyEDADownloader` and can be changed to another Downloads-relative folder for library mode.
 
-## 11. Maintainability and testing boundaries
+## 10. Maintainability and testing boundaries
 
 - `src/kicad_converter.js` should stay the main unit-test target for pure conversion rules.
 - `src/content_script.js` should stay small enough to test through DOM fixtures and message mocks.
 - `src/popup.js` should be tested with DOM fixtures and mocked browser APIs rather than real extension runs.
-- `src/service_worker.js` should be tested with mocked browser APIs, mocked fetch, and controlled converter stubs.
+- `src/service_worker.js` should be tested with mocked browser APIs, mocked fetch, mocked archive extraction, and controlled converter stubs.
 - The current Vitest/Vite/jsdom test stack requires Node `20.19.0+`, `22.13.0+`, or `24+`.
 - Production source should not be refactored solely to make tests easier; harnesses should adapt to the existing code shape.
 
-## 12. Repository rules that should remain true
+## 11. Repository rules that should remain true
 
 - Do not change extension runtime behavior casually.
 - Do not reorganize production files without a real architectural reason.
