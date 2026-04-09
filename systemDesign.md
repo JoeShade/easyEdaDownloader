@@ -217,6 +217,7 @@ The test suite is the primary regression net for:
 - `src/content_script.js` should stay small enough to test through DOM fixtures and message mocks.
 - `src/popup.js` should be tested with DOM fixtures and mocked browser APIs rather than real extension runs.
 - `src/service_worker.js` should be tested with mocked browser APIs, mocked fetch, and controlled converter stubs.
+- The current Vitest/Vite/jsdom test stack requires Node `20.19.0+`, `22.13.0+`, or `24+`.
 - Production source should not be refactored solely to make tests easier; harnesses should adapt to the existing code shape.
 
 ## 12. Repository rules that should remain true
