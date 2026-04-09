@@ -1,8 +1,14 @@
 /*
- * This content script runs in JLCPCB/LCSC pages and tries to
- * locate the LCSC part number by scanning common page layouts. It looks in
- * definition lists and table rows first, then falls back to a full-page scan.
+ * This content script inspects supported product pages and returns a provider-
+ * aware part context for the popup. EasyEDA/LCSC pages expose an LCSC part id,
+ * while Mouser pages expose SamacSys lookup metadata through the ECAD button.
  */
+
+const EASYEDA_PROVIDER = "easyedaLcsc";
+const MOUSER_PROVIDER = "mouserSamacsys";
+const MOUSER_SOURCE_LABEL = "Mouser part";
+const EASYEDA_SOURCE_LABEL = "LCSC part";
+const MOUSER_ENTRY_ORIGIN = "https://ms.componentsearchengine.com";
 
 // Normalize a label so we can compare it reliably.
 function normalizeLabel(text) {
@@ -16,6 +22,16 @@ function matchesKnownLabel(label, expectedLabels) {
 function normalizeDetectedValue(text) {
   const value = String(text || "").replace(/\s+/g, " ").trim();
   return value || null;
+}
+
+function buildQueryString(entries) {
+  return Object.entries(entries)
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`
+    )
+    .join("&");
 }
 
 // Pull the LCSC part id (e.g., C12345) out of a text string.
@@ -94,15 +110,160 @@ function findLcscId() {
   return findInDefinitionLists() || findInTables() || extractLcscId(document.body.textContent);
 }
 
-// Listen for extension messages and reply with the detected LCSC id.
+function getInputValue(id) {
+  const input = document.getElementById(id);
+  return normalizeDetectedValue(input?.value);
+}
+
+function getTextContent(selector) {
+  const element = document.querySelector(selector);
+  return normalizeDetectedValue(element?.textContent);
+}
+
+function extractEventValueFromOnclick(onclickText, key) {
+  const text = String(onclickText || "");
+  const match = text.match(new RegExp(`"${key}":"([^"]*)"`, "i"));
+  return normalizeDetectedValue(match?.[1] || "");
+}
+
+function parseLoadPartDivCall(onclickText) {
+  const text = String(onclickText || "");
+  const match = text.match(
+    /loadPartDiv\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*[^,]+,\s*"([^"]*)"\s*,\s*[^,]+,\s*"([^"]*)"\s*,\s*"([^"]*)"/i
+  );
+  if (!match) {
+    return null;
+  }
+  return {
+    manufacturerName: normalizeDetectedValue(match[1]),
+    manufacturerPartNumber: normalizeDetectedValue(match[2]),
+    partnerName: normalizeDetectedValue(match[3]),
+    format: normalizeDetectedValue(match[4]),
+    logo: normalizeDetectedValue(match[5]),
+    lang: normalizeDetectedValue(match[6])
+  };
+}
+
+function buildMouserEntryUrl(loadPartDivData) {
+  if (!loadPartDivData?.manufacturerName || !loadPartDivData?.manufacturerPartNumber) {
+    return null;
+  }
+
+  const queryString = buildQueryString({
+    mna: loadPartDivData.manufacturerName,
+    mpn: loadPartDivData.manufacturerPartNumber,
+    pna: "mouser",
+    vrq: "multi",
+    fmt: "zip",
+    logo: loadPartDivData.logo,
+    lang: loadPartDivData.lang
+  });
+  return `${MOUSER_ENTRY_ORIGIN}/entry_u_newDesign.php?${queryString}`;
+}
+
+function findMouserPartNumber(ecadButton) {
+  return (
+    getInputValue("MouserPartNumFormattedForProdInfo") ||
+    getTextContent("#spnMouserPartNumFormattedForProdInfo") ||
+    normalizeDetectedValue(
+      extractEventValueFromOnclick(ecadButton?.getAttribute("onclick"), "event_mouserpn")
+    )?.toUpperCase() ||
+    null
+  );
+}
+
+function findMouserManufacturerPartNumber(ecadButton) {
+  return (
+    getInputValue("ManufacturerPartNumber") ||
+    getTextContent("#spnManufacturerPartNumber") ||
+    normalizeDetectedValue(
+      extractEventValueFromOnclick(
+        ecadButton?.getAttribute("onclick"),
+        "event_manufacturerpn"
+      )
+    )?.toUpperCase() ||
+    null
+  );
+}
+
+function findMouserPartContext() {
+  const ecadButton = document.querySelector(
+    '#lnk_CadModel[data-testid="ProductInfoECAD"]'
+  );
+  if (!ecadButton) {
+    return null;
+  }
+
+  const onclickText = ecadButton.getAttribute("onclick") || "";
+  const loadPartDivData = parseLoadPartDivCall(onclickText);
+  const sourcePartNumber = findMouserPartNumber(ecadButton);
+  const manufacturerPartNumber =
+    findMouserManufacturerPartNumber(ecadButton) ||
+    loadPartDivData?.manufacturerPartNumber ||
+    null;
+  const manufacturerName =
+    loadPartDivData?.manufacturerName ||
+    extractEventValueFromOnclick(onclickText, "event_manufacturer") ||
+    null;
+  const entryUrl = buildMouserEntryUrl({
+    ...loadPartDivData,
+    manufacturerName,
+    manufacturerPartNumber
+  });
+
+  if (!sourcePartNumber || !entryUrl) {
+    return null;
+  }
+
+  return {
+    provider: MOUSER_PROVIDER,
+    sourcePartLabel: MOUSER_SOURCE_LABEL,
+    sourcePartNumber,
+    manufacturerPartNumber,
+    lookup: {
+      manufacturerName,
+      entryUrl
+    }
+  };
+}
+
+function findEasyedaPartContext() {
+  const lcscId = findLcscId();
+  if (!lcscId) {
+    return null;
+  }
+
+  return {
+    provider: EASYEDA_PROVIDER,
+    sourcePartLabel: EASYEDA_SOURCE_LABEL,
+    sourcePartNumber: lcscId,
+    manufacturerPartNumber: findManufacturerPartNumber(),
+    lookup: {
+      lcscId
+    }
+  };
+}
+
+function findPartContext() {
+  return (
+    findMouserPartContext() ||
+    findEasyedaPartContext() || {
+      provider: null,
+      sourcePartLabel: null,
+      sourcePartNumber: null,
+      manufacturerPartNumber: null,
+      lookup: null
+    }
+  );
+}
+
+// Listen for extension messages and reply with the detected part context.
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "GET_LCSC_ID") {
+  if (message?.type !== "GET_PART_CONTEXT") {
     return false;
   }
 
-  const lcscId = findLcscId();
-  const manufacturerPartNumber = findManufacturerPartNumber();
-  sendResponse({ lcscId, manufacturerPartNumber });
+  sendResponse(findPartContext());
   return true;
 });
 /*

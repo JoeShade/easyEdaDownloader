@@ -1,12 +1,16 @@
 /*
- * This script powers the extension popup UI. It fetches the manufacturer and
- * LCSC part numbers from the active tab, lets the user choose what to
- * download, and sends a request to the background service worker to start the
- * export.
+ * This script powers the extension popup UI. It fetches the provider-aware
+ * part context from the active tab, lets the user choose what to download, and
+ * sends a request to the background service worker to start the export.
  */
+
+const EASYEDA_PROVIDER = "easyedaLcsc";
+const MOUSER_PROVIDER = "mouserSamacsys";
+const DEFAULT_SOURCE_PART_LABEL = "Part";
 
 // Cache UI elements for quick updates.
 const manufacturerPartNumberEl = document.getElementById("manufacturerPartNumber");
+const sourcePartLabelEl = document.getElementById("sourcePartLabel");
 const partNumberEl = document.getElementById("partNumber");
 const downloadButton = document.getElementById("downloadButton");
 const statusEl = document.getElementById("status");
@@ -31,15 +35,26 @@ const DEFAULT_SETTINGS = {
   libraryDownloadRoot: DEFAULT_LIBRARY_DOWNLOAD_ROOT
 };
 
-// Store the most recently detected LCSC id.
-let currentLcscId = null;
-let currentManufacturerPartNumber = null;
+// Store the most recently detected part context.
+let currentPartContext = null;
 
 // Show a status message and optionally mark it as an error.
 function setStatus(message, tone = "default") {
   statusEl.textContent = message;
   statusEl.classList.toggle("error", tone === "error");
   statusEl.classList.toggle("warning", tone === "warning");
+}
+
+function isFirefoxRuntime() {
+  return /firefox/i.test(String(window.navigator?.userAgent || ""));
+}
+
+function isBlockedProvider(partContext = currentPartContext) {
+  return partContext?.provider === MOUSER_PROVIDER && isFirefoxRuntime();
+}
+
+function hasSupportedPartContext() {
+  return Boolean(currentPartContext?.provider);
 }
 
 // Determine if the user selected any download option.
@@ -52,9 +67,10 @@ function hasSelection() {
   );
 }
 
-// Enable the download button only when there is a part id and a selection.
+// Enable the download button only when there is a supported provider and a selection.
 function updateDownloadEnabled() {
-  downloadButton.disabled = !currentLcscId || !hasSelection();
+  downloadButton.disabled =
+    !hasSupportedPartContext() || isBlockedProvider() || !hasSelection();
 }
 
 function setPreviewLoading(fallbackEl, imgEl) {
@@ -88,38 +104,6 @@ function setPreviewImage(fallbackEl, imgEl, url) {
   imgEl.src = url;
 }
 
-function requestPreviews(lcscId) {
-  setPreviewLoading(symbolPreviewFallbackEl, symbolPreviewEl);
-  setPreviewLoading(footprintPreviewFallbackEl, footprintPreviewEl);
-  setDatasheetAvailability(null);
-  chrome.runtime.sendMessage(
-    { type: "GET_PREVIEW_SVGS", lcscId },
-    (response) => {
-      if (chrome.runtime.lastError || !response?.ok) {
-        setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl);
-        setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl);
-        setDatasheetAvailability(null);
-        return;
-      }
-      const symbolSvg = response.previews?.symbolSvg;
-      const footprintSvg = response.previews?.footprintSvg;
-      const symbolUrl = symbolSvg
-        ? `data:image/svg+xml;utf8,${encodeURIComponent(symbolSvg)}`
-        : null;
-      const footprintUrl = footprintSvg
-        ? `data:image/svg+xml;utf8,${encodeURIComponent(footprintSvg)}`
-        : null;
-      setPreviewImage(symbolPreviewFallbackEl, symbolPreviewEl, symbolUrl);
-      setPreviewImage(
-        footprintPreviewFallbackEl,
-        footprintPreviewEl,
-        footprintUrl
-      );
-      setDatasheetAvailability(response.metadata?.datasheetAvailable === true);
-    }
-  );
-}
-
 function setDatasheetAvailability(isAvailable) {
   if (isAvailable === false) {
     downloadDatasheetEl.checked = false;
@@ -134,6 +118,62 @@ function setDatasheetAvailability(isAvailable) {
   downloadDatasheetOptionEl.classList.remove("disabled");
   downloadDatasheetLabelEl.textContent = "Datasheet";
   updateDownloadEnabled();
+}
+
+function getPreviewDefaultDatasheetAvailability(partContext) {
+  return partContext?.provider === MOUSER_PROVIDER ? false : null;
+}
+
+function setIdentifierDisplay(sourcePartLabel, sourcePartNumber, manufacturerPartNumber) {
+  sourcePartLabelEl.textContent = sourcePartLabel || DEFAULT_SOURCE_PART_LABEL;
+  manufacturerPartNumberEl.textContent = manufacturerPartNumber || "Not found";
+  partNumberEl.textContent = sourcePartNumber || "Not found";
+}
+
+function setUnavailableDisplay(statusMessage) {
+  currentPartContext = null;
+  sourcePartLabelEl.textContent = DEFAULT_SOURCE_PART_LABEL;
+  manufacturerPartNumberEl.textContent = "Unavailable";
+  partNumberEl.textContent = "Unavailable";
+  downloadButton.disabled = true;
+  setStatus(statusMessage, "error");
+  setDatasheetAvailability(false);
+  setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Unavailable");
+  setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Unavailable");
+}
+
+function requestPreviews(partContext) {
+  const fallbackDatasheetAvailability =
+    getPreviewDefaultDatasheetAvailability(partContext);
+  setPreviewLoading(symbolPreviewFallbackEl, symbolPreviewEl);
+  setPreviewLoading(footprintPreviewFallbackEl, footprintPreviewEl);
+  setDatasheetAvailability(fallbackDatasheetAvailability);
+  chrome.runtime.sendMessage(
+    { type: "GET_PART_PREVIEWS", partContext },
+    (response) => {
+      if (chrome.runtime.lastError || !response?.ok) {
+        setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl);
+        setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl);
+        setDatasheetAvailability(fallbackDatasheetAvailability);
+        return;
+      }
+      setPreviewImage(
+        symbolPreviewFallbackEl,
+        symbolPreviewEl,
+        response.previews?.symbolUrl || null
+      );
+      setPreviewImage(
+        footprintPreviewFallbackEl,
+        footprintPreviewEl,
+        response.previews?.footprintUrl || null
+      );
+      setDatasheetAvailability(
+        partContext?.provider === MOUSER_PROVIDER
+          ? false
+          : response.metadata?.datasheetAvailable === true
+      );
+    }
+  );
 }
 
 // Normalize the library-mode download root so it stays relative to Downloads.
@@ -230,64 +270,62 @@ function saveSettings() {
   });
 }
 
-// Update UI state based on whether a part number was found.
-function setPartNumber(lcscId, manufacturerPartNumber = null) {
-  currentLcscId = lcscId;
-  currentManufacturerPartNumber = manufacturerPartNumber;
-  if (lcscId) {
-    manufacturerPartNumberEl.textContent = manufacturerPartNumber || "Not found";
-    partNumberEl.textContent = lcscId;
-    updateDownloadEnabled();
-    setStatus("");
-    requestPreviews(lcscId);
-  } else {
-    manufacturerPartNumberEl.textContent = "Not found";
-    partNumberEl.textContent = "Not found";
+// Update UI state based on whether a supported provider was found.
+function setPartContext(partContext) {
+  currentPartContext = partContext?.provider ? partContext : null;
+
+  if (!currentPartContext) {
+    setIdentifierDisplay(DEFAULT_SOURCE_PART_LABEL, null, null);
     downloadButton.disabled = true;
-    setStatus("No LCSC part number found on this page.", "error");
+    setStatus("No supported part found on this page.", "error");
     setDatasheetAvailability(false);
     setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Not found");
     setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Not found");
+    return;
   }
-}
 
-// Ask the content script in the active tab for the LCSC id.
-function requestLcscIdFromTab(tabId) {
-  chrome.tabs.sendMessage(tabId, { type: "GET_LCSC_ID" }, (response) => {
-    if (chrome.runtime.lastError) {
-      currentLcscId = null;
-      currentManufacturerPartNumber = null;
-      manufacturerPartNumberEl.textContent = "Unavailable";
-      partNumberEl.textContent = "Unavailable";
-      downloadButton.disabled = true;
-      setStatus("Open a JLCPCB or LCSC product page.", "error");
-      setDatasheetAvailability(false);
-      setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Unavailable");
-      setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Unavailable");
-      return;
-    }
-    setPartNumber(
-      response?.lcscId || null,
-      response?.manufacturerPartNumber || null
+  setIdentifierDisplay(
+    currentPartContext.sourcePartLabel,
+    currentPartContext.sourcePartNumber,
+    currentPartContext.manufacturerPartNumber
+  );
+
+  if (isBlockedProvider(currentPartContext)) {
+    setStatus(
+      "Mouser/SamacSys downloads require a proxy in Firefox. Chrome-only for now.",
+      "error"
     );
-  });
-}
-
-// On popup open, query the active tab and request the LCSC id.
-chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-  const tab = tabs[0];
-  if (!tab?.id) {
-    currentLcscId = null;
-    currentManufacturerPartNumber = null;
-    manufacturerPartNumberEl.textContent = "Unavailable";
-    partNumberEl.textContent = "Unavailable";
     setDatasheetAvailability(false);
     setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Unavailable");
     setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Unavailable");
-    setStatus("No active tab detected.", "error");
+    updateDownloadEnabled();
     return;
   }
-  requestLcscIdFromTab(tab.id);
+
+  updateDownloadEnabled();
+  setStatus("");
+  requestPreviews(currentPartContext);
+}
+
+// Ask the content script in the active tab for the provider-aware part context.
+function requestPartContextFromTab(tabId) {
+  chrome.tabs.sendMessage(tabId, { type: "GET_PART_CONTEXT" }, (response) => {
+    if (chrome.runtime.lastError) {
+      setUnavailableDisplay("Open a supported product page.");
+      return;
+    }
+    setPartContext(response || null);
+  });
+}
+
+// On popup open, query the active tab and request the current part context.
+chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  const tab = tabs[0];
+  if (!tab?.id) {
+    setUnavailableDisplay("No active tab detected.");
+    return;
+  }
+  requestPartContextFromTab(tab.id);
 });
 
 // Load settings when the popup opens.
@@ -307,7 +345,7 @@ resetLibraryDownloadRootEl.addEventListener("click", () => {
 
 // When clicked, validate selections and ask the background worker to export.
 downloadButton.addEventListener("click", () => {
-  if (!currentLcscId) {
+  if (!hasSupportedPartContext() || isBlockedProvider()) {
     return;
   }
 
@@ -319,17 +357,15 @@ downloadButton.addEventListener("click", () => {
   downloadButton.disabled = true;
   setStatus("Starting download...");
 
-  // Send request to service worker with chosen export options.
   chrome.runtime.sendMessage(
     {
       type: "EXPORT_PART",
-      lcscId: currentLcscId,
+      partContext: currentPartContext,
       options: {
         symbol: downloadSymbolEl.checked,
         footprint: downloadFootprintEl.checked,
         model3d: downloadModelEl.checked,
-        datasheet: downloadDatasheetEl.checked,
-        downloadIndividually: downloadIndividuallyEl.checked
+        datasheet: downloadDatasheetEl.checked
       }
     },
     (response) => {
@@ -355,7 +391,6 @@ downloadButton.addEventListener("click", () => {
     }
   );
 });
-
 /*
 ######################################################################################################################
 
