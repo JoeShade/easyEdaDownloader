@@ -19,11 +19,38 @@ const ENDPOINT_3D_MODEL_STEP =
   "https://modules.easyeda.com/qAxj6KHrDKw4blvCG8QJPs7Y/{uuid}";
 
 // Default settings for download behavior.
+const DEFAULT_LIBRARY_DOWNLOAD_ROOT = "easyEDADownloader";
 const DEFAULT_SETTINGS = {
-  downloadIndividually: false
+  downloadIndividually: false,
+  libraryDownloadRoot: DEFAULT_LIBRARY_DOWNLOAD_ROOT
 };
 
-const DEFAULT_LIBRARY_DIR = "easyEDADownloader";
+function normalizeLibraryDownloadRoot(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return DEFAULT_LIBRARY_DOWNLOAD_ROOT;
+  }
+  if (
+    raw.startsWith("/") ||
+    raw.startsWith("\\") ||
+    raw.startsWith("\\\\") ||
+    /^[a-zA-Z]:/.test(raw)
+  ) {
+    return DEFAULT_LIBRARY_DOWNLOAD_ROOT;
+  }
+
+  const normalized = raw.replace(/[\\/]+/g, "/").replace(/^\/+|\/+$/g, "");
+  if (!normalized) {
+    return DEFAULT_LIBRARY_DOWNLOAD_ROOT;
+  }
+
+  const segments = normalized.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+    return DEFAULT_LIBRARY_DOWNLOAD_ROOT;
+  }
+
+  return normalized;
+}
 
 // Load user settings from extension storage.
 async function loadSettings() {
@@ -38,18 +65,22 @@ async function loadSettings() {
         downloadIndividually:
           typeof settings.downloadIndividually === "boolean"
             ? settings.downloadIndividually
-            : DEFAULT_SETTINGS.downloadIndividually
+            : DEFAULT_SETTINGS.downloadIndividually,
+        libraryDownloadRoot: normalizeLibraryDownloadRoot(
+          settings.libraryDownloadRoot
+        )
       });
     });
   });
 }
 
 // Build KiCad library paths relative to the user's Downloads directory.
-function buildLibraryPaths() {
+function buildLibraryPaths(libraryDownloadRoot = DEFAULT_LIBRARY_DOWNLOAD_ROOT) {
+  const libraryName = libraryDownloadRoot.split("/").pop() || DEFAULT_LIBRARY_DOWNLOAD_ROOT;
   return {
-    symbolFile: `${DEFAULT_LIBRARY_DIR}/${DEFAULT_LIBRARY_DIR}.kicad_sym`,
-    footprintDir: `${DEFAULT_LIBRARY_DIR}/${DEFAULT_LIBRARY_DIR}.pretty`,
-    modelDir: `${DEFAULT_LIBRARY_DIR}/${DEFAULT_LIBRARY_DIR}.3dshapes`
+    symbolFile: `${libraryDownloadRoot}/${libraryName}.kicad_sym`,
+    footprintDir: `${libraryDownloadRoot}/${libraryName}.pretty`,
+    modelDir: `${libraryDownloadRoot}/${libraryName}.3dshapes`
   };
 }
 
@@ -512,7 +543,7 @@ async function exportPart(lcscId, options = {}) {
   }
 
   const settings = await loadSettings();
-  const libraryPaths = buildLibraryPaths();
+  const libraryPaths = buildLibraryPaths(settings.libraryDownloadRoot);
   const symbolLibraryKey = `symbolLibrary:${libraryPaths.symbolFile}`;
 
   // Default to exporting everything unless explicitly disabled.
@@ -641,7 +672,7 @@ async function exportPart(lcscId, options = {}) {
         await downloadUrlFile(
           settings.downloadIndividually
             ? datasheetInfo.filename
-            : `${DEFAULT_LIBRARY_DIR}/${datasheetInfo.filename}`,
+            : `${settings.libraryDownloadRoot}/${datasheetInfo.filename}`,
           datasheetInfo.url
         );
         downloadCount += 1;

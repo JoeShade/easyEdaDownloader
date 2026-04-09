@@ -24,7 +24,7 @@ body {
 
 /* Main card container. */
 .card {
-  width: 260px;
+  width: 300px;
   padding: 16px;
   background: transparent;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
@@ -128,6 +128,21 @@ h1 {
   cursor: not-allowed;
 }
 
+.secondary {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: #ffffff;
+  color: #1c1f24;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.secondary:hover,
+.secondary:focus {
+  border-color: #1663d6;
+}
+
 /* Download option list layout. */
 .options {
   display: flex;
@@ -151,10 +166,41 @@ h1 {
   font-size: 12px;
 }
 
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-label {
+  color: #1c1f24;
+}
+
+.settings-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+  color: #1c1f24;
+  background: #ffffff;
+}
+
+.settings-input:focus {
+  outline: 2px solid rgba(22, 99, 214, 0.18);
+  outline-offset: 1px;
+  border-color: #1663d6;
+}
+
 .settings-hint {
   margin: 0;
   color: #5b6470;
   font-size: 11px;
+}
+
+.settings-actions {
+  display: flex;
 }
 
 /* Individual option row. */

@@ -70,6 +70,25 @@
           <input type="checkbox" id="downloadIndividually" />
           Download individually (loose files)
         </label>
+        <label class="settings-field" for="libraryDownloadRoot">
+          <span class="settings-label">Library folder in Downloads</span>
+          <input
+            type="text"
+            id="libraryDownloadRoot"
+            class="settings-input"
+            value="easyEDADownloader"
+            spellcheck="false"
+          />
+        </label>
+        <p class="settings-hint">
+          Used only for library mode. Enter a folder relative to Downloads, such as
+          <code>KiCad/easyEDA</code>.
+        </p>
+        <div class="settings-actions">
+          <button id="resetLibraryDownloadRoot" type="button" class="secondary">
+            Reset folder
+          </button>
+        </div>
       </section>
       <!-- Status text updated by popup.js. -->
       <p id="status" class="status" aria-live="polite"></p>

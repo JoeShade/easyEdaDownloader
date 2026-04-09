@@ -17,14 +17,18 @@ const downloadDatasheetEl = document.getElementById("downloadDatasheet");
 const downloadDatasheetOptionEl = document.getElementById("downloadDatasheetOption");
 const downloadDatasheetLabelEl = document.getElementById("downloadDatasheetLabel");
 const downloadIndividuallyEl = document.getElementById("downloadIndividually");
+const libraryDownloadRootEl = document.getElementById("libraryDownloadRoot");
+const resetLibraryDownloadRootEl = document.getElementById("resetLibraryDownloadRoot");
 const symbolPreviewEl = document.getElementById("symbolPreview");
 const footprintPreviewEl = document.getElementById("footprintPreview");
 const symbolPreviewFallbackEl = document.getElementById("symbolPreviewFallback");
 const footprintPreviewFallbackEl = document.getElementById("footprintPreviewFallback");
 
 // Default settings for download organization.
+const DEFAULT_LIBRARY_DOWNLOAD_ROOT = "easyEDADownloader";
 const DEFAULT_SETTINGS = {
-  downloadIndividually: false
+  downloadIndividually: false,
+  libraryDownloadRoot: DEFAULT_LIBRARY_DOWNLOAD_ROOT
 };
 
 // Store the most recently detected LCSC id.
@@ -132,18 +136,67 @@ function setDatasheetAvailability(isAvailable) {
   updateDownloadEnabled();
 }
 
+// Normalize the library-mode download root so it stays relative to Downloads.
+function normalizeLibraryDownloadRoot(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return {
+      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+      isValid: false
+    };
+  }
+  if (
+    raw.startsWith("/") ||
+    raw.startsWith("\\") ||
+    raw.startsWith("\\\\") ||
+    /^[a-zA-Z]:/.test(raw)
+  ) {
+    return {
+      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+      isValid: false
+    };
+  }
+
+  const normalized = raw.replace(/[\\/]+/g, "/").replace(/^\/+|\/+$/g, "");
+  if (!normalized) {
+    return {
+      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+      isValid: false
+    };
+  }
+
+  const segments = normalized.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+    return {
+      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+      isValid: false
+    };
+  }
+
+  return {
+    value: normalized,
+    isValid: true
+  };
+}
+
 // Apply settings values to the UI controls.
 function applySettingsToUi(settings) {
+  const normalizedRoot = normalizeLibraryDownloadRoot(settings.libraryDownloadRoot);
   downloadIndividuallyEl.checked =
     typeof settings.downloadIndividually === "boolean"
       ? settings.downloadIndividually
       : DEFAULT_SETTINGS.downloadIndividually;
+  libraryDownloadRootEl.value = normalizedRoot.value;
 }
 
 // Read settings from the UI and normalize them.
 function readSettingsFromUi() {
+  const normalizedRoot = normalizeLibraryDownloadRoot(libraryDownloadRootEl.value);
+  libraryDownloadRootEl.value = normalizedRoot.value;
   return {
-    downloadIndividually: Boolean(downloadIndividuallyEl.checked)
+    downloadIndividually: Boolean(downloadIndividuallyEl.checked),
+    libraryDownloadRoot: normalizedRoot.value,
+    libraryDownloadRootIsValid: normalizedRoot.isValid
   };
 }
 
@@ -162,9 +215,17 @@ function loadSettings() {
 // Save settings to extension storage.
 function saveSettings() {
   const settings = readSettingsFromUi();
-  chrome.storage.local.set(settings, () => {
+  const { libraryDownloadRootIsValid, ...storedSettings } = settings;
+  chrome.storage.local.set(storedSettings, () => {
     if (chrome.runtime.lastError) {
       setStatus("Failed to save settings.", "error");
+      return;
+    }
+    if (!libraryDownloadRootIsValid) {
+      setStatus(
+        "Download folder must stay inside Downloads. Reset to the default library folder.",
+        "warning"
+      );
     }
   });
 }
@@ -238,6 +299,11 @@ downloadFootprintEl.addEventListener("change", updateDownloadEnabled);
 downloadModelEl.addEventListener("change", updateDownloadEnabled);
 downloadDatasheetEl.addEventListener("change", updateDownloadEnabled);
 downloadIndividuallyEl.addEventListener("change", saveSettings);
+libraryDownloadRootEl.addEventListener("change", saveSettings);
+resetLibraryDownloadRootEl.addEventListener("click", () => {
+  libraryDownloadRootEl.value = DEFAULT_LIBRARY_DOWNLOAD_ROOT;
+  saveSettings();
+});
 
 // When clicked, validate selections and ask the background worker to export.
 downloadButton.addEventListener("click", () => {

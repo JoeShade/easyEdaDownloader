@@ -64,10 +64,16 @@ https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/
 
 ## Settings
 
-The popup includes a Download individually option.
+The popup includes:
 
-- **Disabled** (default): files are saved under `Downloads/easyEDADownloader/` using KiCad library structure (`easyEDADownloader.kicad_sym`, `.pretty/`, `.3dshapes/`).
-- **Enabled**: files are downloaded as loose files directly into Downloads.
+- **Download individually**:
+  Disabled keeps the KiCad-style library structure.
+  Enabled downloads loose files directly into Downloads.
+- **Library folder in Downloads**:
+  Sets the library-mode root folder relative to Downloads, such as `easyEDADownloader` or `KiCad/easyEDA`.
+  This setting applies only when **Download individually** is disabled.
+
+In library mode, files are saved under `Downloads/<your folder>/` using KiCad library structure named after the final folder segment (`<folder name>.kicad_sym`, `.pretty/`, `.3dshapes/`).
 
 ## Testing
 
