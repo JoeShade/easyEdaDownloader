@@ -47,6 +47,7 @@ The current repository does not implement:
 - EasyEDA API responses are treated as the authoritative CAD payload source.
 - 3D model downloads depend on footprint metadata exposing a model UUID.
 - Datasheet download availability depends on URLs present in the EasyEDA payload.
+- The configurable library download root must remain a path relative to the browser's Downloads directory, not an absolute filesystem path.
 - The Manifest V3 background is declared for both Chrome and Firefox: Chrome uses `background.service_worker`, while Firefox uses the background-document fallback from `background.scripts`. This combined manifest relies on Firefox 121 or newer.
 
 ## 4. Repository architecture
@@ -77,6 +78,7 @@ Owns popup UI state and user interaction:
 - request previews and datasheet availability
 - keep the Download button enabled only when a part id and at least one selected artifact exist
 - show the manufacturer part number above the LCSC id in the popup
+- collect and validate the library-mode Downloads subfolder setting
 - display normal, warning, and error status text
 - send `EXPORT_PART` requests to the service worker
 
@@ -87,6 +89,7 @@ It should remain the UI-facing boundary. It should not own EasyEDA fetches, conv
 Owns orchestration and browser-integrated work:
 
 - settings load for download behavior
+- library-mode download root resolution
 - EasyEDA CAD payload fetches
 - preview SVG generation from CAD payload data
 - datasheet URL normalization and filename derivation
@@ -160,18 +163,19 @@ The test suite is the primary regression net for:
 ### 5.6 Download behavior
 
 - If `downloadIndividually` is `true`, artifacts are downloaded as loose files.
-- Otherwise, downloads use a KiCad-style directory structure rooted at `easyEDADownloader/`.
-- Symbol downloads in library mode merge into `easyEDADownloader/easyEDADownloader.kicad_sym`.
-- Footprints download into `easyEDADownloader/easyEDADownloader.pretty/`.
-- 3D assets download into `easyEDADownloader/easyEDADownloader.3dshapes/`.
-- Datasheets download either as loose files or under `easyEDADownloader/`.
+- Otherwise, downloads use a KiCad-style directory structure rooted at a user-configurable folder under Downloads.
+- The default library-mode root is `easyEDADownloader/`.
+- Symbol downloads in library mode merge into `<libraryRoot>/<libraryName>.kicad_sym`.
+- Footprints download into `<libraryRoot>/<libraryName>.pretty/`.
+- 3D assets download into `<libraryRoot>/<libraryName>.3dshapes/`.
+- Datasheets download either as loose files or under `<libraryRoot>/`.
 
 ## 6. Storage and settings behavior
 
-- `chrome.storage.local` stores popup settings, currently `downloadIndividually`.
+- `chrome.storage.local` stores popup settings, currently `downloadIndividually` plus the library-mode Downloads root.
 - `chrome.storage.local` also stores the accumulated symbol library content used for append-style symbol exports in library mode.
 - Popup settings are convenience state for UI behavior.
-- Stored symbol library content is operational state used to preserve prior symbol exports across popup sessions.
+- Stored symbol library content is keyed by the resolved library root so separate library folders keep separate merged symbol libraries.
 
 ## 7. Preview generation behavior
 
@@ -209,7 +213,7 @@ The test suite is the primary regression net for:
 - Footprint output uses `<footprintName>.kicad_mod`.
 - 3D outputs use sanitized model names for downloaded STEP and WRL files.
 - Datasheet output uses a sanitized base name plus `-datasheet` and the detected file extension.
-- The library root name is currently fixed as `easyEDADownloader`.
+- The library root name defaults to `easyEDADownloader` and can be changed to another Downloads-relative folder for library mode.
 
 ## 11. Maintainability and testing boundaries
 

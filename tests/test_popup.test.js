@@ -66,6 +66,7 @@ globalThis.__testExports = {
   updateDownloadEnabled,
   setDatasheetAvailability,
   hasSelection,
+  normalizeLibraryDownloadRoot,
   getCurrentLcscId: () => currentLcscId,
   getCurrentManufacturerPartNumber: () => currentManufacturerPartNumber,
   elements: {
@@ -80,6 +81,8 @@ globalThis.__testExports = {
     downloadDatasheetOptionEl,
     downloadDatasheetLabelEl,
     downloadIndividuallyEl,
+    libraryDownloadRootEl,
+    resetLibraryDownloadRootEl,
     symbolPreviewEl,
     footprintPreviewEl,
     symbolPreviewFallbackEl,
@@ -113,6 +116,7 @@ describe("popup", () => {
     expect(state.storageGetCalls).toHaveLength(1);
     expect(hooks.elements.manufacturerPartNumberEl.textContent).toBe("Searching...");
     expect(hooks.elements.partNumberEl.textContent).toBe("Searching...");
+    expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
     expect(hooks.elements.downloadButton.disabled).toBe(true);
     expect(hooks.elements.symbolPreviewFallbackEl.textContent).toBe("Loading...");
     expect(hooks.elements.footprintPreviewFallbackEl.textContent).toBe("Loading...");
@@ -121,8 +125,12 @@ describe("popup", () => {
   it("loads both detected identifiers and enables the download button only when a part and selection exist", async () => {
     const { dom, state, hooks } = loadPopup();
 
-    state.storageGetCalls[0].callback({ downloadIndividually: true });
+    state.storageGetCalls[0].callback({
+      downloadIndividually: true,
+      libraryDownloadRoot: "KiCad\\easyEDA"
+    });
     expect(hooks.elements.downloadIndividuallyEl.checked).toBe(true);
+    expect(hooks.elements.libraryDownloadRootEl.value).toBe("KiCad/easyEDA");
 
     state.queryCalls[0].callback([{ id: 7 }]);
     expect(state.tabMessages[0]).toMatchObject({
@@ -177,17 +185,76 @@ describe("popup", () => {
   it("saves settings when the download organization toggle changes", () => {
     const { dom, state, hooks } = loadPopup();
 
-    state.storageGetCalls[0].callback({ downloadIndividually: false });
+    state.storageGetCalls[0].callback({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
     hooks.elements.downloadIndividuallyEl.checked = true;
     dispatchChange(dom, hooks.elements.downloadIndividuallyEl);
 
-    expect(state.storageSetCalls).toEqual([{ downloadIndividually: true }]);
+    expect(state.storageSetCalls).toEqual([
+      {
+        downloadIndividually: true,
+        libraryDownloadRoot: "easyEDADownloader"
+      }
+    ]);
+  });
+
+  it("normalizes and saves the library download root from the popup", () => {
+    const { dom, state, hooks } = loadPopup();
+
+    state.storageGetCalls[0].callback({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
+    hooks.elements.libraryDownloadRootEl.value = "  KiCad\\\\easyEDA//Parts  ";
+    dispatchChange(dom, hooks.elements.libraryDownloadRootEl);
+
+    expect(hooks.elements.libraryDownloadRootEl.value).toBe("KiCad/easyEDA/Parts");
+    expect(state.storageSetCalls).toEqual([
+      {
+        downloadIndividually: false,
+        libraryDownloadRoot: "KiCad/easyEDA/Parts"
+      }
+    ]);
+  });
+
+  it("resets invalid or cleared library folder values to the default root", () => {
+    const { dom, state, hooks } = loadPopup();
+
+    state.storageGetCalls[0].callback({
+      downloadIndividually: false,
+      libraryDownloadRoot: "Projects/KiCad"
+    });
+
+    hooks.elements.libraryDownloadRootEl.value = "../outside";
+    dispatchChange(dom, hooks.elements.libraryDownloadRootEl);
+
+    expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
+    expect(hooks.elements.statusEl.textContent).toContain("inside Downloads");
+    expect(hooks.elements.statusEl.classList.contains("warning")).toBe(true);
+    expect(state.storageSetCalls[0]).toEqual({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
+
+    hooks.elements.libraryDownloadRootEl.value = "Nested/Parts";
+    hooks.elements.resetLibraryDownloadRootEl.click();
+
+    expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
+    expect(state.storageSetCalls[1]).toEqual({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
   });
 
   it("shows a manufacturer fallback when only the LCSC identifier is found", async () => {
     const { state, hooks } = loadPopup();
 
-    state.storageGetCalls[0].callback({ downloadIndividually: false });
+    state.storageGetCalls[0].callback({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
     state.queryCalls[0].callback([{ id: 8 }]);
     state.tabMessages[0].callback({
       lcscId: "C55555",
@@ -245,7 +312,10 @@ describe("popup", () => {
   it("shows both identifiers as unavailable when the content script cannot respond", () => {
     const { chrome, state, hooks } = loadPopup();
 
-    state.storageGetCalls[0].callback({ downloadIndividually: false });
+    state.storageGetCalls[0].callback({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
     state.queryCalls[0].callback([{ id: 11 }]);
     chrome.runtime.lastError = { message: "No receiver." };
     state.tabMessages[0].callback(undefined);
@@ -261,7 +331,10 @@ describe("popup", () => {
   it("surfaces export errors in the popup status area", async () => {
     const { state, hooks } = loadPopup();
 
-    state.storageGetCalls[0].callback({ downloadIndividually: false });
+    state.storageGetCalls[0].callback({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
     state.queryCalls[0].callback([{ id: 9 }]);
     state.tabMessages[0].callback({
       lcscId: "C90000",

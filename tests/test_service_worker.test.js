@@ -99,6 +99,7 @@ globalThis.__testExports = {
   exportPart,
   fetchCadData,
   buildLibraryPaths,
+  normalizeLibraryDownloadRoot,
   getDatasheetInfo,
   extractSymbolBlock,
   mergeSymbolIntoLibrary
@@ -150,7 +151,8 @@ describe("service worker", () => {
     const { chrome, listeners, storage } = createServiceWorkerChrome({
       storageState: {
         downloadIndividually: false,
-        "symbolLibrary:easyEDADownloader/easyEDADownloader.kicad_sym":
+        libraryDownloadRoot: "KiCad/Workspace",
+        "symbolLibrary:KiCad/Workspace/Workspace.kicad_sym":
           createSymbolLibrary()
       }
     });
@@ -224,27 +226,27 @@ describe("service worker", () => {
       footprint: true
     });
     expect(convertObjToWrlString).toHaveBeenCalledWith("obj data");
-    expect(storage["symbolLibrary:easyEDADownloader/easyEDADownloader.kicad_sym"]).toContain(
+    expect(storage["symbolLibrary:KiCad/Workspace/Workspace.kicad_sym"]).toContain(
       '(symbol "ExistingSymbol"'
     );
-    expect(storage["symbolLibrary:easyEDADownloader/easyEDADownloader.kicad_sym"]).toContain(
+    expect(storage["symbolLibrary:KiCad/Workspace/Workspace.kicad_sym"]).toContain(
       '(symbol "Logic_Buffer"'
     );
 
     const filenames = chrome.downloads.download.mock.calls.map(
       ([options]) => options.filename
     );
-    expect(filenames).toContain("easyEDADownloader/easyEDADownloader.kicad_sym");
+    expect(filenames).toContain("KiCad/Workspace/Workspace.kicad_sym");
     expect(filenames).toContain(
-      "easyEDADownloader/easyEDADownloader.pretty/QFN-16_Example.kicad_mod"
+      "KiCad/Workspace/Workspace.pretty/QFN-16_Example.kicad_mod"
     );
     expect(filenames).toContain(
-      "easyEDADownloader/easyEDADownloader.3dshapes/Model_QFN.step"
+      "KiCad/Workspace/Workspace.3dshapes/Model_QFN.step"
     );
     expect(filenames).toContain(
-      "easyEDADownloader/easyEDADownloader.3dshapes/Model_QFN.wrl"
+      "KiCad/Workspace/Workspace.3dshapes/Model_QFN.wrl"
     );
-    expect(filenames).toContain("easyEDADownloader/QFN-16_Example-datasheet.pdf");
+    expect(filenames).toContain("KiCad/Workspace/QFN-16_Example-datasheet.pdf");
 
     listeners.downloadsChanged[0]({
       id: 1,
@@ -285,6 +287,61 @@ describe("service worker", () => {
       downloadCount: 0
     });
     expect(chrome.downloads.download).not.toHaveBeenCalled();
+  });
+
+  it("keeps loose-file downloads rooted in Downloads even when a library folder is configured", async () => {
+    const cadData = createCadData();
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true,
+        libraryDownloadRoot: "KiCad/Workspace"
+      }
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl: vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ result: cadData })
+      })),
+      convertEasyedaCadToKicad: vi.fn(() => ({
+        symbol: {
+          name: "Logic_Buffer",
+          content: "(kicad_symbol_lib)"
+        },
+        footprint: {
+          name: "QFN-16_Example",
+          content: "(module easyeda2kicad:QFN-16_Example)"
+        }
+      }))
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      lcscId: "C12345",
+      options: {
+        symbol: true,
+        footprint: true,
+        model3d: false,
+        datasheet: true
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [],
+      downloadCount: 3
+    });
+
+    const filenames = chrome.downloads.download.mock.calls.map(
+      ([options]) => options.filename
+    );
+    expect(filenames).toContain("C12345-Logic_Buffer.kicad_sym");
+    expect(filenames).toContain("QFN-16_Example.kicad_mod");
+    expect(filenames).toContain("QFN-16_Example-datasheet.pdf");
+    expect(
+      filenames.some((filename) => filename.startsWith("KiCad/Workspace/"))
+    ).toBe(false);
   });
 
   it("reports invalid EasyEDA payloads as structured preview failures", async () => {
