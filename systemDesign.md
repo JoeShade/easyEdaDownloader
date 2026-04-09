@@ -7,6 +7,7 @@ This document describes the current implemented design of the EasyEDA Downloader
 The extension is intentionally narrow:
 
 - detect an LCSC part id from supported product pages
+- detect a manufacturer part number from supported page metadata when present
 - fetch EasyEDA-backed CAD data for that part
 - generate KiCad-compatible symbol, footprint, and 3D outputs
 - optionally download a datasheet when the upstream payload exposes one
@@ -22,7 +23,7 @@ The current extension supports this operator flow:
 
 1. Open a supported JLCPCB or LCSC product page.
 2. Open the extension popup.
-3. Ask the content script to detect the LCSC part id from the current page.
+3. Ask the content script to detect the LCSC part id and manufacturer part number from the current page.
 4. Ask the service worker for symbol and footprint previews plus datasheet availability metadata.
 5. Choose which artifacts to export and whether to download them individually.
 6. Ask the service worker to fetch EasyEDA CAD data, convert it, and trigger downloads.
@@ -41,10 +42,12 @@ The current repository does not implement:
 
 - The content script is injected only on matching JLCPCB and LCSC pages.
 - The extension assumes the page exposes an LCSC-style part id such as `C12345` somewhere in a definition list, product table, or the broader page text.
+- The extension reads the manufacturer part number only from targeted page metadata labeled `Mfr. Part #`.
 - The popup assumes it is opened against an active tab and that the content script can answer `GET_LCSC_ID` on supported pages.
 - EasyEDA API responses are treated as the authoritative CAD payload source.
 - 3D model downloads depend on footprint metadata exposing a model UUID.
 - Datasheet download availability depends on URLs present in the EasyEDA payload.
+- The Manifest V3 background is declared for both Chrome and Firefox: Chrome uses `background.service_worker`, while Firefox uses the background-document fallback from `background.scripts`. This combined manifest relies on Firefox 121 or newer.
 
 ## 4. Repository architecture
 
@@ -56,6 +59,7 @@ Owns page inspection only:
 
 - label normalization
 - LCSC id extraction from text
+- manufacturer part number extraction from targeted labels
 - definition-list scanning
 - table scanning
 - full-page text fallback
@@ -69,9 +73,10 @@ Owns popup UI state and user interaction:
 
 - cache popup DOM elements
 - load and save popup settings through `chrome.storage.local`
-- query the active tab and request the current LCSC id
+- query the active tab and request the current LCSC id plus manufacturer part number
 - request previews and datasheet availability
 - keep the Download button enabled only when a part id and at least one selected artifact exist
+- show the manufacturer part number above the LCSC id in the popup
 - display normal, warning, and error status text
 - send `EXPORT_PART` requests to the service worker
 
@@ -118,12 +123,13 @@ The test suite is the primary regression net for:
 
 ## 5. Core data flow
 
-### 5.1 Detect LCSC id
+### 5.1 Detect popup identifiers
 
 - The popup queries the active tab.
 - The popup asks the content script for `GET_LCSC_ID`.
-- The content script checks definition lists first, then the known table layout, then falls back to a page-wide scan.
-- The popup stores the detected id and updates UI state.
+- The content script checks definition lists first, then the known table layout, then falls back to a page-wide scan for the LCSC id only.
+- The manufacturer part number is read only from targeted definition-list and table metadata labeled `Mfr. Part #`.
+- The popup stores the detected values, renders the manufacturer part number above the LCSC id, and uses only the LCSC id to gate export actions.
 
 ### 5.2 Request previews
 

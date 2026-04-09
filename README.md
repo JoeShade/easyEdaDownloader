@@ -31,6 +31,12 @@ https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/
    - Visit `chrome://extensions`.
    - Enable **Developer mode**.
    - Click **Load unpacked** and select `easyEdaDownloader/`.
+2. Load the extension in Firefox:
+   - Visit `about:debugging#/runtime/this-firefox`.
+   - Click **Load Temporary Add-on**.
+   - Select `manifest.json` from `easyEdaDownloader/`.
+   - This development manifest expects Firefox 121 or newer so Firefox can use the background-document fallback while Chrome uses the Manifest V3 service worker.
+   - The repo uses a dev-only Gecko add-on ID so temporary installs do not collide with the AMO-installed release build.
 
 ## Features
 
@@ -40,7 +46,7 @@ https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/
 - Export **3D models**
 - Download accompanying datasheets when available
 - Reduce manual work when building KiCad libraries
-- Works as a lightweight Chrome extension
+- Works in Chrome and Firefox
 
 ## Use Cases
 
@@ -53,7 +59,8 @@ https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/
 
 1. Open a JLCPCB or LCSC product page.
 2. Click the extension action button.
-3. The extension will download the selected symbol, footprint, 3D model, and optional datasheet files to your default downloads folder.
+3. The popup shows the detected manufacturer part number when the page exposes `Mfr. Part #`, above the detected LCSC part number.
+4. The extension will download the selected symbol, footprint, 3D model, and optional datasheet files to your default downloads folder.
 
 ## Settings
 
