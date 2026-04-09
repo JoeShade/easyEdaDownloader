@@ -71,6 +71,10 @@ The popup includes a Download individually option.
 
 ## Testing
 
+Use Node `22.13.0+` (recommended), Node `20.19.0+`, or Node `24+` before installing dev dependencies and running the regression suite. Node `21.x` is not supported by the current Vitest/Vite/jsdom toolchain.
+
+The repository includes `.nvmrc` for the recommended Node version.
+
 Install the dev dependencies and run the regression suite:
 
 ```bash
