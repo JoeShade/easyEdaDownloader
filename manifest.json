@@ -11,6 +11,7 @@
   "background": {
     "service_worker": "src/service_worker.js",
     "scripts": ["src/service_worker.js"],
+    "preferred_environment": ["document", "service_worker"],
     "type": "module"
   },
   "action": {
@@ -37,7 +38,8 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "easyeda-downloader@joeshade.local",
+      "id": "easyeda-downloader-dev@joeshade.local",
+      "strict_min_version": "121.0",
       "data_collection_permissions": {
         "required": ["none"]
       }

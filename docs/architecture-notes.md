@@ -22,3 +22,4 @@ This file records short implementation notes that supplement, but do not replace
 - The service worker owns preview-generation behavior, so preview regressions belong to service-worker tests.
 - Symbol library append behavior depends on `chrome.storage.local`, not on local filesystem reads.
 - The current repository is intentionally compact; do not impose extra architectural layers that are not already implemented.
+- The manifest intentionally declares both `background.service_worker` and `background.scripts` so Chrome can run the service worker while Firefox falls back to a background document on Firefox 121+.

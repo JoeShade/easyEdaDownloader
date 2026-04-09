@@ -67,7 +67,9 @@ globalThis.__testExports = {
   setDatasheetAvailability,
   hasSelection,
   getCurrentLcscId: () => currentLcscId,
+  getCurrentManufacturerPartNumber: () => currentManufacturerPartNumber,
   elements: {
+    manufacturerPartNumberEl,
     partNumberEl,
     downloadButton,
     statusEl,
@@ -89,6 +91,7 @@ globalThis.__testExports = {
 
   return {
     dom,
+    chrome,
     state,
     hooks: context.__testExports
   };
@@ -108,13 +111,14 @@ describe("popup", () => {
       currentWindow: true
     });
     expect(state.storageGetCalls).toHaveLength(1);
+    expect(hooks.elements.manufacturerPartNumberEl.textContent).toBe("Searching...");
     expect(hooks.elements.partNumberEl.textContent).toBe("Searching...");
     expect(hooks.elements.downloadButton.disabled).toBe(true);
     expect(hooks.elements.symbolPreviewFallbackEl.textContent).toBe("Loading...");
     expect(hooks.elements.footprintPreviewFallbackEl.textContent).toBe("Loading...");
   });
 
-  it("loads settings and enables the download button only when a part and selection exist", async () => {
+  it("loads both detected identifiers and enables the download button only when a part and selection exist", async () => {
     const { dom, state, hooks } = loadPopup();
 
     state.storageGetCalls[0].callback({ downloadIndividually: true });
@@ -126,7 +130,10 @@ describe("popup", () => {
       message: { type: "GET_LCSC_ID" }
     });
 
-    state.tabMessages[0].callback({ lcscId: "C12345" });
+    state.tabMessages[0].callback({
+      lcscId: "C12345",
+      manufacturerPartNumber: "SN74LVC1G14DBVR"
+    });
     expect(state.runtimeMessages[0].message).toEqual({
       type: "GET_PREVIEW_SVGS",
       lcscId: "C12345"
@@ -145,6 +152,10 @@ describe("popup", () => {
     await flushAsyncWork();
 
     expect(hooks.getCurrentLcscId()).toBe("C12345");
+    expect(hooks.getCurrentManufacturerPartNumber()).toBe("SN74LVC1G14DBVR");
+    expect(hooks.elements.manufacturerPartNumberEl.textContent).toBe(
+      "SN74LVC1G14DBVR"
+    );
     expect(hooks.elements.partNumberEl.textContent).toBe("C12345");
     expect(hooks.elements.downloadButton.disabled).toBe(false);
     expect(hooks.elements.symbolPreviewEl.src).toContain("data:image/svg+xml;utf8,");
@@ -173,12 +184,15 @@ describe("popup", () => {
     expect(state.storageSetCalls).toEqual([{ downloadIndividually: true }]);
   });
 
-  it("updates datasheet availability and reports export warnings", async () => {
+  it("shows a manufacturer fallback when only the LCSC identifier is found", async () => {
     const { state, hooks } = loadPopup();
 
     state.storageGetCalls[0].callback({ downloadIndividually: false });
     state.queryCalls[0].callback([{ id: 8 }]);
-    state.tabMessages[0].callback({ lcscId: "C55555" });
+    state.tabMessages[0].callback({
+      lcscId: "C55555",
+      manufacturerPartNumber: null
+    });
 
     state.runtimeMessages[0].callback({
       ok: true,
@@ -192,6 +206,8 @@ describe("popup", () => {
     });
     await flushAsyncWork();
 
+    expect(hooks.elements.manufacturerPartNumberEl.textContent).toBe("Not found");
+    expect(hooks.elements.partNumberEl.textContent).toBe("C55555");
     expect(hooks.elements.downloadDatasheetEl.disabled).toBe(true);
     expect(hooks.elements.downloadDatasheetLabelEl.textContent).toBe(
       "Datasheet (not available)"
@@ -226,12 +242,31 @@ describe("popup", () => {
     expect(hooks.elements.downloadButton.disabled).toBe(false);
   });
 
+  it("shows both identifiers as unavailable when the content script cannot respond", () => {
+    const { chrome, state, hooks } = loadPopup();
+
+    state.storageGetCalls[0].callback({ downloadIndividually: false });
+    state.queryCalls[0].callback([{ id: 11 }]);
+    chrome.runtime.lastError = { message: "No receiver." };
+    state.tabMessages[0].callback(undefined);
+
+    expect(hooks.elements.manufacturerPartNumberEl.textContent).toBe("Unavailable");
+    expect(hooks.elements.partNumberEl.textContent).toBe("Unavailable");
+    expect(hooks.elements.statusEl.textContent).toBe(
+      "Open a JLCPCB or LCSC product page."
+    );
+    expect(hooks.elements.downloadButton.disabled).toBe(true);
+  });
+
   it("surfaces export errors in the popup status area", async () => {
     const { state, hooks } = loadPopup();
 
     state.storageGetCalls[0].callback({ downloadIndividually: false });
     state.queryCalls[0].callback([{ id: 9 }]);
-    state.tabMessages[0].callback({ lcscId: "C90000" });
+    state.tabMessages[0].callback({
+      lcscId: "C90000",
+      manufacturerPartNumber: "LM358PWR"
+    });
     state.runtimeMessages[0].callback({
       ok: true,
       previews: {

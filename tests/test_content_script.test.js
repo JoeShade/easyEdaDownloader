@@ -28,9 +28,13 @@ function loadContentScript(markup) {
 globalThis.__testExports = {
   normalizeLabel,
   extractLcscId,
+  extractManufacturerPartNumber,
   findInDefinitionLists,
   findInTables,
-  findLcscId
+  findLcscId,
+  findManufacturerPartNumberInDefinitionLists,
+  findManufacturerPartNumberInTables,
+  findManufacturerPartNumber
 };
 `
   });
@@ -47,16 +51,27 @@ describe("content script", () => {
 
     expect(hooks.normalizeLabel("  LCSC   Part #  ")).toBe("lcsc part #");
     expect(hooks.extractLcscId("Match c123456 here")).toBe("C123456");
+    expect(hooks.extractManufacturerPartNumber("  TPS62177DQCR  ")).toBe(
+      "TPS62177DQCR"
+    );
     expect(hooks.extractLcscId("No part id")).toBeNull();
   });
 
-  it("detects LCSC ids in definition lists and tables", () => {
+  it("detects LCSC ids and manufacturer part numbers in definition lists and tables", () => {
     const { hooks } = loadContentScript(`
+      <dl>
+        <dt>Mfr. Part #</dt>
+        <dd>SN74LVC1G14DBVR</dd>
+      </dl>
       <dl>
         <dt>JLCPCB Part #</dt>
         <dd>C2040</dd>
       </dl>
       <table class="tableInfoWrap">
+        <tr>
+          <td>Mfr. Part #</td>
+          <td>TPS562201DDCR</td>
+        </tr>
         <tr>
           <td>LCSC Part #</td>
           <td>C9988</td>
@@ -66,20 +81,53 @@ describe("content script", () => {
 
     expect(hooks.findInDefinitionLists()).toBe("C2040");
     expect(hooks.findInTables()).toBe("C9988");
+    expect(hooks.findManufacturerPartNumberInDefinitionLists()).toBe(
+      "SN74LVC1G14DBVR"
+    );
+    expect(hooks.findManufacturerPartNumberInTables()).toBe("TPS562201DDCR");
   });
 
-  it("falls back to a page-wide scan and answers extension messages", () => {
+  it("falls back to a page-wide LCSC scan, keeps manufacturer targeted, and answers extension messages", () => {
     const { hooks, listener } = loadContentScript(`
       <section>
         Product details mention c777888 in plain text.
       </section>
+      <dl>
+        <dt>Mfr. Part #</dt>
+        <dd>STM32F030F4P6</dd>
+      </dl>
     `);
 
     expect(hooks.findLcscId()).toBe("C777888");
+    expect(hooks.findManufacturerPartNumber()).toBe("STM32F030F4P6");
 
     const sendResponse = vi.fn();
     expect(listener({ type: "GET_LCSC_ID" }, null, sendResponse)).toBe(true);
-    expect(sendResponse).toHaveBeenCalledWith({ lcscId: "C777888" });
+    expect(sendResponse).toHaveBeenCalledWith({
+      lcscId: "C777888",
+      manufacturerPartNumber: "STM32F030F4P6"
+    });
+  });
+
+  it("returns a null manufacturer part number when only the LCSC identifier is present", () => {
+    const { hooks, listener } = loadContentScript(`
+      <table class="tableInfoWrap">
+        <tr>
+          <td>LCSC Part #</td>
+          <td>C424242</td>
+        </tr>
+      </table>
+    `);
+
+    expect(hooks.findInTables()).toBe("C424242");
+    expect(hooks.findManufacturerPartNumber()).toBeNull();
+
+    const sendResponse = vi.fn();
+    listener({ type: "GET_LCSC_ID" }, null, sendResponse);
+    expect(sendResponse).toHaveBeenCalledWith({
+      lcscId: "C424242",
+      manufacturerPartNumber: null
+    });
   });
 });
 

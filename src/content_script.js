@@ -9,6 +9,15 @@ function normalizeLabel(text) {
   return text.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+function matchesKnownLabel(label, expectedLabels) {
+  return expectedLabels.some((expectedLabel) => label.includes(expectedLabel));
+}
+
+function normalizeDetectedValue(text) {
+  const value = String(text || "").replace(/\s+/g, " ").trim();
+  return value || null;
+}
+
 // Pull the LCSC part id (e.g., C12345) out of a text string.
 function extractLcscId(text) {
   if (!text) {
@@ -18,8 +27,11 @@ function extractLcscId(text) {
   return match ? match[0] : null;
 }
 
-// Search definition list entries (<dl><dt><dd>) for the part number.
-function findInDefinitionLists() {
+function extractManufacturerPartNumber(text) {
+  return normalizeDetectedValue(text);
+}
+
+function findTextInDefinitionLists(expectedLabels) {
   const lists = document.querySelectorAll("dl");
   for (const list of lists) {
     const dt = list.querySelector("dt");
@@ -28,18 +40,14 @@ function findInDefinitionLists() {
       continue;
     }
     const label = normalizeLabel(dt.textContent || "");
-    if (label.includes("jlcpcb part #") || label.includes("lcsc part #")) {
-      const lcscId = extractLcscId(dd.textContent);
-      if (lcscId) {
-        return lcscId;
-      }
+    if (matchesKnownLabel(label, expectedLabels)) {
+      return normalizeDetectedValue(dd.textContent);
     }
   }
   return null;
 }
 
-// Search the common product table layout for the part number.
-function findInTables() {
+function findTextInTables(expectedLabels) {
   const rows = document.querySelectorAll("table.tableInfoWrap tr");
   for (const row of rows) {
     const cells = row.querySelectorAll("td");
@@ -47,14 +55,38 @@ function findInTables() {
       continue;
     }
     const label = normalizeLabel(cells[0].textContent || "");
-    if (label.includes("lcsc part #")) {
-      const lcscId = extractLcscId(cells[1].textContent);
-      if (lcscId) {
-        return lcscId;
-      }
+    if (matchesKnownLabel(label, expectedLabels)) {
+      return normalizeDetectedValue(cells[1].textContent);
     }
   }
   return null;
+}
+
+// Search definition list entries (<dl><dt><dd>) for the part number.
+function findInDefinitionLists() {
+  const value = findTextInDefinitionLists(["jlcpcb part #", "lcsc part #"]);
+  return extractLcscId(value);
+}
+
+// Search the common product table layout for the part number.
+function findInTables() {
+  const value = findTextInTables(["lcsc part #"]);
+  return extractLcscId(value);
+}
+
+function findManufacturerPartNumberInDefinitionLists() {
+  return extractManufacturerPartNumber(findTextInDefinitionLists(["mfr. part #"]));
+}
+
+function findManufacturerPartNumberInTables() {
+  return extractManufacturerPartNumber(findTextInTables(["mfr. part #"]));
+}
+
+function findManufacturerPartNumber() {
+  return (
+    findManufacturerPartNumberInDefinitionLists() ||
+    findManufacturerPartNumberInTables()
+  );
 }
 
 // Try the targeted searches first, then scan the entire page as a fallback.
@@ -69,7 +101,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   const lcscId = findLcscId();
-  sendResponse({ lcscId });
+  const manufacturerPartNumber = findManufacturerPartNumber();
+  sendResponse({ lcscId, manufacturerPartNumber });
   return true;
 });
 /*

@@ -1,10 +1,12 @@
 /*
- * This script powers the extension popup UI. It fetches the LCSC
- * part number from the active tab, lets the user choose what to download, and
- * sends a request to the background service worker to start the export.
+ * This script powers the extension popup UI. It fetches the manufacturer and
+ * LCSC part numbers from the active tab, lets the user choose what to
+ * download, and sends a request to the background service worker to start the
+ * export.
  */
 
 // Cache UI elements for quick updates.
+const manufacturerPartNumberEl = document.getElementById("manufacturerPartNumber");
 const partNumberEl = document.getElementById("partNumber");
 const downloadButton = document.getElementById("downloadButton");
 const statusEl = document.getElementById("status");
@@ -27,6 +29,7 @@ const DEFAULT_SETTINGS = {
 
 // Store the most recently detected LCSC id.
 let currentLcscId = null;
+let currentManufacturerPartNumber = null;
 
 // Show a status message and optionally mark it as an error.
 function setStatus(message, tone = "default") {
@@ -167,14 +170,17 @@ function saveSettings() {
 }
 
 // Update UI state based on whether a part number was found.
-function setPartNumber(lcscId) {
+function setPartNumber(lcscId, manufacturerPartNumber = null) {
   currentLcscId = lcscId;
+  currentManufacturerPartNumber = manufacturerPartNumber;
   if (lcscId) {
+    manufacturerPartNumberEl.textContent = manufacturerPartNumber || "Not found";
     partNumberEl.textContent = lcscId;
     updateDownloadEnabled();
     setStatus("");
     requestPreviews(lcscId);
   } else {
+    manufacturerPartNumberEl.textContent = "Not found";
     partNumberEl.textContent = "Not found";
     downloadButton.disabled = true;
     setStatus("No LCSC part number found on this page.", "error");
@@ -188,6 +194,9 @@ function setPartNumber(lcscId) {
 function requestLcscIdFromTab(tabId) {
   chrome.tabs.sendMessage(tabId, { type: "GET_LCSC_ID" }, (response) => {
     if (chrome.runtime.lastError) {
+      currentLcscId = null;
+      currentManufacturerPartNumber = null;
+      manufacturerPartNumberEl.textContent = "Unavailable";
       partNumberEl.textContent = "Unavailable";
       downloadButton.disabled = true;
       setStatus("Open a JLCPCB or LCSC product page.", "error");
@@ -196,7 +205,10 @@ function requestLcscIdFromTab(tabId) {
       setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Unavailable");
       return;
     }
-    setPartNumber(response?.lcscId || null);
+    setPartNumber(
+      response?.lcscId || null,
+      response?.manufacturerPartNumber || null
+    );
   });
 }
 
@@ -204,7 +216,13 @@ function requestLcscIdFromTab(tabId) {
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const tab = tabs[0];
   if (!tab?.id) {
+    currentLcscId = null;
+    currentManufacturerPartNumber = null;
+    manufacturerPartNumberEl.textContent = "Unavailable";
     partNumberEl.textContent = "Unavailable";
+    setDatasheetAvailability(false);
+    setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Unavailable");
+    setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Unavailable");
     setStatus("No active tab detected.", "error");
     return;
   }
