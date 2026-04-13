@@ -1,3 +1,9 @@
+/*
+ * Parses the EasyEDA footprint payload into a normalized intermediate shape.
+ * The emitter layer then converts this parsed structure into KiCad footprint
+ * text without having to understand the original EasyEDA wire format.
+ */
+
 import { toBool, toNumber } from "./shared.js";
 
 function parseEasyedaFootprint(cadData) {

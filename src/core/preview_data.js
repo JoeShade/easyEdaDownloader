@@ -1,3 +1,9 @@
+/*
+ * Shared filename, URL, and preview-data helpers. These keep provider modules
+ * from re-implementing small but easy-to-drift rules for datasheet filenames
+ * and image/SVG data URL generation.
+ */
+
 function sanitizeFilenamePart(value, fallback = "datasheet") {
   const sanitized = String(value || "").trim().replace(/[^\w.-]+/g, "_");
   return sanitized || fallback;

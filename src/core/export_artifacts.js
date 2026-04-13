@@ -1,3 +1,9 @@
+/*
+ * Shared export-writing helpers used by the provider adapters. This module
+ * centralizes settings resolution, library path handling, symbol-library merge
+ * behavior, and the repeated loose-file versus library-mode write paths.
+ */
+
 import {
   buildLibraryPaths,
   DEFAULT_LIBRARY_DOWNLOAD_ROOT,

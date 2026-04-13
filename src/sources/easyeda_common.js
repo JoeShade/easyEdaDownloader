@@ -1,3 +1,9 @@
+/*
+ * Shared EasyEDA fetch and preview helpers. This module owns upstream EasyEDA
+ * payload retrieval, preview generation, datasheet metadata, and 3D-model
+ * metadata lookup used by the EasyEDA provider adapter.
+ */
+
 import {
   makeBase64DataUrl,
   makeSvgDataUrl,

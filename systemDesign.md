@@ -138,6 +138,11 @@ The runtime is intentionally split into:
 - source adapters under `src/sources/`
 - shared worker business logic under `src/core/`
 
+Within `src/sources/`, the current SamacSys-backed distributors share:
+
+- `src/sources/samacsys_distributor_adapter.js` for provider-facing preview/export orchestration
+- `src/sources/samacsys_common.js` for shared SamacSys page, preview, ZIP, and asset-rewrite helpers
+
 This keeps the message boundary stable while allowing future sources to be added without expanding the entrypoint.
 
 ### 4.6 `src/kicad_converter.js`
@@ -192,7 +197,7 @@ The test suite remains the primary regression net for:
   - source label `Mouser part`
   - source part number equal to `Mouser No`
   - manufacturer part number equal to `Mfr. No`
-- lookup metadata containing manufacturer name and a reconstructed SamacSys entry URL
+  - lookup metadata containing manufacturer name and a reconstructed SamacSys entry URL
 - On Farnell pages, the content script returns:
   - provider `farnellSamacsys`
   - source label `Farnell part`
@@ -283,9 +288,9 @@ The test suite remains the primary regression net for:
 ## 9. Output artifacts and naming rules
 
 - EasyEDA symbol output uses a standalone `<lcscId>-<symbolName>.kicad_sym` file in loose mode or the shared library file in library mode.
-- Mouser loose-file symbol output keeps the extracted `.kicad_sym` filename from the ZIP.
+- SamacSys distributor loose-file symbol output keeps the extracted `.kicad_sym` filename from the ZIP.
 - Footprint output uses the extracted or generated `.kicad_mod` filename.
-- Mouser footprint library-mode downloads rewrite the model path into the library `.3dshapes` directory.
+- SamacSys distributor footprint library-mode downloads rewrite the model path into the library `.3dshapes` directory.
 - EasyEDA datasheet output uses a sanitized base name plus `-datasheet` and the detected extension.
 - The library root name defaults to `easyEDADownloader` and can be changed to another Downloads-relative folder for library mode.
 
@@ -294,7 +299,7 @@ The test suite remains the primary regression net for:
 - `src/kicad_converter.js` should stay the main unit-test target for pure conversion rules.
 - `src/content_script.js` should stay small enough to test through DOM fixtures and message mocks.
 - `src/popup.js` should be tested with DOM fixtures and mocked browser APIs rather than real extension runs.
-- `src/service_worker.js` should be tested with mocked browser APIs, mocked fetch, mocked archive extraction, and controlled converter stubs.
+- `src/service_worker_runtime.js` should be tested with mocked browser APIs, mocked fetch, mocked archive extraction, and controlled converter stubs.
 - The current Vitest/Vite/jsdom test stack requires Node `20.19.0+`, `22.13.0+`, or `24+`.
 - Production source should not be refactored solely to make tests easier; harnesses should adapt to the existing code shape.
 

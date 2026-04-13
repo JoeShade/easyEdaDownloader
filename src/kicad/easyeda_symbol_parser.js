@@ -1,3 +1,9 @@
+/*
+ * Parses the EasyEDA symbol payload into a normalized intermediate model. This
+ * keeps EasyEDA token handling separate from the KiCad symbol emitter so the
+ * output layer can stay focused on KiCad text generation.
+ */
+
 import { parseSvgPath, toBool, toNumber } from "./shared.js";
 
 function parseEasyedaSymbol(cadData) {

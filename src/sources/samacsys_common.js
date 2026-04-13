@@ -1,3 +1,9 @@
+/*
+ * Shared SamacSys distributor helpers used by both Mouser and Farnell flows.
+ * This module owns entry-page parsing, preview fetching, ZIP extraction, and
+ * KiCad asset rewriting for the pre-generated upstream SamacSys bundles.
+ */
+
 import { makeBase64DataUrl } from "../core/preview_data.js";
 import { readZipEntries } from "../vendor/zip_reader.js";
 
@@ -109,7 +115,7 @@ function parseSamacsysPageMetadata(html, finalUrl, baseUrl = DEFAULT_SAMACSYS_BA
   };
 }
 
-async function fetchMouserSamacsysPageMetadata(fetchImpl, partContext) {
+async function fetchSamacsysPageMetadata(fetchImpl, partContext) {
   const entryUrl = partContext?.lookup?.entryUrl;
   if (!entryUrl) {
     throw new Error("SamacSys entry URL was not found on the page.");
@@ -168,8 +174,8 @@ async function fetchSamacsysPreview(fetchImpl, url) {
   return payload?.Image || "";
 }
 
-async function buildMouserPreviewResponse(fetchImpl, partContext) {
-  const metadata = await fetchMouserSamacsysPageMetadata(fetchImpl, partContext);
+async function buildSamacsysPreviewResponse(fetchImpl, partContext) {
+  const metadata = await fetchSamacsysPageMetadata(fetchImpl, partContext);
   const symbolUrl = `${metadata.baseUrl}/symbol.php?scale=4&format=JSON&partID=${encodeURIComponent(metadata.partId)}&showKeepout=0&u=0&tok=${encodeURIComponent(metadata.token)}`;
   const footprintUrl = `${metadata.baseUrl}/footprint.php?scale=100&format=JSON&partID=${encodeURIComponent(metadata.partId)}&showKeepout=0&u=0&tok=${encodeURIComponent(metadata.token)}&sz=N`;
 
@@ -329,11 +335,11 @@ function stripKicadFootprintModels(footprintText) {
   return result.replace(/\n{3,}/g, "\n\n");
 }
 
-function getMouserAuthenticationErrorMessage() {
+function getSamacsysAuthenticationErrorMessage() {
   return "Mouser/SamacSys download requires you to be signed in before CAD files can be downloaded.";
 }
 
-async function fetchMouserZipArchive(fetchImpl, metadata) {
+async function fetchSamacsysZipArchive(fetchImpl, metadata) {
   const body = buildQueryString(metadata.zipFormInputs || {});
   const method = String(metadata.zipMethod || "GET").toUpperCase();
   const requestUrl =
@@ -353,7 +359,7 @@ async function fetchMouserZipArchive(fetchImpl, metadata) {
   const response = await fetchImpl(requestUrl, requestOptions);
   if (!response.ok) {
     if (response.status === 401) {
-      throw new Error(getMouserAuthenticationErrorMessage());
+      throw new Error(getSamacsysAuthenticationErrorMessage());
     }
     throw new Error(`SamacSys ZIP request failed: ${response.status}`);
   }
@@ -361,7 +367,7 @@ async function fetchMouserZipArchive(fetchImpl, metadata) {
   return ensureZipPayload(await response.arrayBuffer());
 }
 
-async function fetchMouserWrlModel(fetchImpl, partId, baseUrl = DEFAULT_SAMACSYS_BASE_URL) {
+async function fetchSamacsysWrlModel(fetchImpl, partId, baseUrl = DEFAULT_SAMACSYS_BASE_URL) {
   const response = await fetchImpl(`${baseUrl}/3D/0/${partId}.wrl`, {
     credentials: "include"
   });
@@ -373,13 +379,13 @@ async function fetchMouserWrlModel(fetchImpl, partId, baseUrl = DEFAULT_SAMACSYS
 
 export {
   basenameFromZipPath,
-  buildMouserPreviewResponse,
+  buildSamacsysPreviewResponse,
   extractSamacsysKiCadAssets,
-  fetchMouserSamacsysPageMetadata,
-  fetchMouserWrlModel,
-  fetchMouserZipArchive,
+  fetchSamacsysPageMetadata,
+  fetchSamacsysWrlModel,
+  fetchSamacsysZipArchive,
   filenameWithoutExtension,
-  getMouserAuthenticationErrorMessage,
+  getSamacsysAuthenticationErrorMessage,
   parseSamacsysPageMetadata,
   rewriteSamacsysFootprintModelPath,
   rewriteSamacsysSymbolFootprintReference,

@@ -10,6 +10,8 @@ This file records short implementation notes that supplement, but do not replace
 - `src/service_worker_runtime.js`: provider routing, runtime gating, response shaping, and composition of worker dependencies
 - `src/core/*.js`: shared worker business logic for settings, downloads, storage-backed symbol-library handling, shared export artifact writing, and common normalization
 - `src/sources/*.js`: source adapters plus source-specific fetch/parse/export helpers
+  - `src/sources/samacsys_distributor_adapter.js` is the shared backend adapter for Mouser and Farnell
+  - `src/sources/samacsys_common.js` holds the shared SamacSys preview, ZIP, and asset-rewrite helpers
 - `src/kicad_converter.js`: stable public converter facade
 - `src/kicad/*.js`: EasyEDA parsing, KiCad text generation, shared conversion math, and OBJ-to-WRL conversion
 - `src/vendor/zip_reader.js`: minimal runtime ZIP extraction for SamacSys archives
@@ -26,9 +28,10 @@ This file records short implementation notes that supplement, but do not replace
 
 - The popup does not fetch, extract, or convert CAD assets directly; it only requests that work.
 - The runtime/router owns provider branching, while source adapters own source-specific preview and export behavior.
+- Farnell does not have its own backend adapter file because it intentionally reuses the shared SamacSys distributor backend.
 - Symbol library append behavior depends on `chrome.storage.local`, not on local filesystem reads.
 - Library-mode download paths remain relative to Downloads and are resolved from popup settings, not absolute filesystem paths.
 - SamacSys distributor support is intentionally Chrome-first. Firefox currently returns an explicit unsupported error until a proxy path exists.
 - SamacSys ZIP-export `401` responses are mapped to a sign-in-required error because upstream authentication can be stricter for downloads than for previews.
-- The current repository is intentionally compact; add new sources as adapters rather than introducing a broader application framework.
+- The current repository is intentionally compact; add new sources through focused adapters or distributor detection changes rather than introducing a broader application framework.
 - The manifest intentionally declares both `background.service_worker` and `background.scripts` so Chrome can run the service worker while Firefox falls back to a background document on Firefox 121+.
