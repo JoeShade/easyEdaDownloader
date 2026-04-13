@@ -3,8 +3,8 @@ import { JSDOM } from "jsdom";
 
 import {
   flushAsyncWork,
+  importRepoModule,
   readRepoFile,
-  runSourceFile
 } from "./helpers/test_harness.js";
 
 function createPopupChrome() {
@@ -47,7 +47,7 @@ function createPopupChrome() {
   return { chrome, state };
 }
 
-function loadPopup({ userAgent = "Mozilla/5.0 Chrome/135.0.0.0" } = {}) {
+async function loadPopup({ userAgent = "Mozilla/5.0 Chrome/135.0.0.0" } = {}) {
   const dom = new JSDOM(readRepoFile("src/popup.html"), {
     url: "https://example.test/popup.html"
   });
@@ -56,51 +56,24 @@ function loadPopup({ userAgent = "Mozilla/5.0 Chrome/135.0.0.0" } = {}) {
     value: userAgent
   });
   const { chrome, state } = createPopupChrome();
-
-  const context = runSourceFile("src/popup.js", {
-    context: {
-      chrome,
-      document: dom.window.document,
-      window: dom.window,
-      Event: dom.window.Event
-    },
-    append: `
-globalThis.__testExports = {
-  setPartContext,
-  updateDownloadEnabled,
-  setDatasheetAvailability,
-  hasSelection,
-  normalizeLibraryDownloadRoot,
-  getCurrentPartContext: () => currentPartContext,
-  elements: {
-    manufacturerPartNumberEl,
-    sourcePartLabelEl,
-    partNumberEl,
-    downloadButton,
-    statusEl,
-    downloadSymbolEl,
-    downloadFootprintEl,
-    downloadModelEl,
-    downloadDatasheetEl,
-    downloadDatasheetOptionEl,
-    downloadDatasheetLabelEl,
-    downloadIndividuallyEl,
-    libraryDownloadRootEl,
-    resetLibraryDownloadRootEl,
-    symbolPreviewEl,
-    footprintPreviewEl,
-    symbolPreviewFallbackEl,
-    footprintPreviewFallbackEl
-  }
-};
-`
+  const testApi = {};
+  globalThis.chrome = chrome;
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.Event = dom.window.Event;
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: dom.window.navigator
   });
+  globalThis.__popupTestApi = testApi;
+  await importRepoModule("src/popup.js");
+  delete globalThis.__popupTestApi;
 
   return {
     dom,
     chrome,
     state,
-    hooks: context.__testExports
+    hooks: testApi
   };
 }
 
@@ -109,8 +82,8 @@ function dispatchChange(dom, element) {
 }
 
 describe("popup", () => {
-  it("starts in a loading state and requests the active tab plus saved settings", () => {
-    const { state, hooks } = loadPopup();
+  it("starts in a loading state and requests the active tab plus saved settings", async () => {
+    const { state, hooks } = await loadPopup();
 
     expect(state.queryCalls).toHaveLength(1);
     expect(state.queryCalls[0].queryInfo).toEqual({
@@ -128,12 +101,13 @@ describe("popup", () => {
   });
 
   it("loads an EasyEDA part context and enables download only when a selection exists", async () => {
-    const { dom, state, hooks } = loadPopup();
+    const { dom, state, hooks } = await loadPopup();
 
     state.storageGetCalls[0].callback({
       downloadIndividually: true,
       libraryDownloadRoot: "KiCad\\easyEDA"
     });
+    await flushAsyncWork();
     expect(hooks.elements.downloadIndividuallyEl.checked).toBe(true);
     expect(hooks.elements.libraryDownloadRootEl.value).toBe("KiCad/easyEDA");
 
@@ -194,12 +168,13 @@ describe("popup", () => {
   });
 
   it("renders a Mouser provider context, uses PNG previews, and disables datasheet export", async () => {
-    const { state, hooks } = loadPopup();
+    const { state, hooks } = await loadPopup();
 
     state.storageGetCalls[0].callback({
       downloadIndividually: false,
       libraryDownloadRoot: "easyEDADownloader"
     });
+    await flushAsyncWork();
     state.queryCalls[0].callback([{ id: 8 }]);
 
     const partContext = {
@@ -256,12 +231,13 @@ describe("popup", () => {
   });
 
   it("keeps Mouser datasheet export disabled when previews fail", async () => {
-    const { state, hooks } = loadPopup();
+    const { state, hooks } = await loadPopup();
 
     state.storageGetCalls[0].callback({
       downloadIndividually: false,
       libraryDownloadRoot: "easyEDADownloader"
     });
+    await flushAsyncWork();
     state.queryCalls[0].callback([{ id: 8 }]);
 
     const partContext = {
@@ -295,8 +271,8 @@ describe("popup", () => {
     );
   });
 
-  it("blocks Mouser downloads on Firefox with the proxy-required message", () => {
-    const { state, hooks } = loadPopup({
+  it("blocks Mouser downloads on Firefox with the proxy-required message", async () => {
+    const { state, hooks } = await loadPopup({
       userAgent: "Mozilla/5.0 Firefox/149.0"
     });
 
@@ -304,6 +280,7 @@ describe("popup", () => {
       downloadIndividually: false,
       libraryDownloadRoot: "easyEDADownloader"
     });
+    await flushAsyncWork();
     state.queryCalls[0].callback([{ id: 10 }]);
     state.tabMessages[0].callback({
       provider: "mouserSamacsys",
@@ -325,13 +302,44 @@ describe("popup", () => {
     expect(state.runtimeMessages).toHaveLength(0);
   });
 
-  it("saves settings when the download organization toggle changes", () => {
-    const { dom, state, hooks } = loadPopup();
+  it("treats Farnell SamacSys pages like Mouser for preview defaults and Firefox blocking", async () => {
+    const { state, hooks } = await loadPopup({
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
 
     state.storageGetCalls[0].callback({
       downloadIndividually: false,
       libraryDownloadRoot: "easyEDADownloader"
     });
+    await flushAsyncWork();
+    state.queryCalls[0].callback([{ id: 11 }]);
+    state.tabMessages[0].callback({
+      provider: "farnellSamacsys",
+      sourcePartLabel: "Farnell part",
+      sourcePartNumber: "1848693",
+      manufacturerPartNumber: "FQP27P06",
+      lookup: {
+        manufacturerName: "ONSEMI",
+        entryUrl: "https://farnell.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=FQP27P06&pna=farnell&vrq=multi&fmt=zip&lang=en-GB",
+        partnerName: "farnell",
+        samacsysBaseUrl: "https://farnell.componentsearchengine.com"
+      }
+    });
+
+    expect(hooks.elements.downloadDatasheetEl.disabled).toBe(true);
+    expect(hooks.elements.statusEl.textContent).toContain("Chrome-only for now");
+    expect(hooks.elements.downloadButton.disabled).toBe(true);
+    expect(state.runtimeMessages).toHaveLength(0);
+  });
+
+  it("saves settings when the download organization toggle changes", async () => {
+    const { dom, state, hooks } = await loadPopup();
+
+    state.storageGetCalls[0].callback({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader"
+    });
+    await flushAsyncWork();
     hooks.elements.downloadIndividuallyEl.checked = true;
     dispatchChange(dom, hooks.elements.downloadIndividuallyEl);
 
@@ -343,13 +351,14 @@ describe("popup", () => {
     ]);
   });
 
-  it("normalizes and saves the library download root from the popup", () => {
-    const { dom, state, hooks } = loadPopup();
+  it("normalizes and saves the library download root from the popup", async () => {
+    const { dom, state, hooks } = await loadPopup();
 
     state.storageGetCalls[0].callback({
       downloadIndividually: false,
       libraryDownloadRoot: "easyEDADownloader"
     });
+    await flushAsyncWork();
     hooks.elements.libraryDownloadRootEl.value = "  KiCad\\\\easyEDA//Parts  ";
     dispatchChange(dom, hooks.elements.libraryDownloadRootEl);
 
@@ -362,13 +371,14 @@ describe("popup", () => {
     ]);
   });
 
-  it("resets invalid or cleared library folder values to the default root", () => {
-    const { dom, state, hooks } = loadPopup();
+  it("resets invalid or cleared library folder values to the default root", async () => {
+    const { dom, state, hooks } = await loadPopup();
 
     state.storageGetCalls[0].callback({
       downloadIndividually: false,
       libraryDownloadRoot: "Projects/KiCad"
     });
+    await flushAsyncWork();
 
     hooks.elements.libraryDownloadRootEl.value = "../outside";
     dispatchChange(dom, hooks.elements.libraryDownloadRootEl);
@@ -391,13 +401,14 @@ describe("popup", () => {
     });
   });
 
-  it("shows identifiers as unavailable when the content script cannot respond", () => {
-    const { chrome, state, hooks } = loadPopup();
+  it("shows identifiers as unavailable when the content script cannot respond", async () => {
+    const { chrome, state, hooks } = await loadPopup();
 
     state.storageGetCalls[0].callback({
       downloadIndividually: false,
       libraryDownloadRoot: "easyEDADownloader"
     });
+    await flushAsyncWork();
     state.queryCalls[0].callback([{ id: 11 }]);
     chrome.runtime.lastError = { message: "No receiver." };
     state.tabMessages[0].callback(undefined);
@@ -411,12 +422,13 @@ describe("popup", () => {
   });
 
   it("surfaces export errors in the popup status area", async () => {
-    const { state, hooks } = loadPopup();
+    const { state, hooks } = await loadPopup();
 
     state.storageGetCalls[0].callback({
       downloadIndividually: false,
       libraryDownloadRoot: "easyEDADownloader"
     });
+    await flushAsyncWork();
     state.queryCalls[0].callback([{ id: 9 }]);
     const partContext = {
       provider: "easyedaLcsc",

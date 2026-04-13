@@ -1,11 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createCadData, createSymbolLibrary } from "./helpers/fixtures.js";
+import { flushAsyncWork } from "./helpers/test_harness.js";
 import {
-  flushAsyncWork,
-  replaceExactImport,
-  runSourceFile
-} from "./helpers/test_harness.js";
+  buildLibraryPaths,
+  normalizeLibraryDownloadRoot
+} from "../src/core/settings.js";
+import {
+  extractSymbolBlock,
+  mergeSymbolIntoLibrary
+} from "../src/core/library_store.js";
+import { registerServiceWorkerRuntime } from "../src/service_worker_runtime.js";
+import {
+  parseSamacsysPageMetadata,
+  rewriteSamacsysFootprintModelPath,
+  rewriteSamacsysSymbolFootprintReference,
+  stripKicadFootprintModels
+} from "../src/sources/mouser_samacsys_common.js";
 
 function createServiceWorkerChrome({ storageState = {} } = {}) {
   const listeners = {
@@ -62,67 +73,33 @@ function createServiceWorkerChrome({ storageState = {} } = {}) {
   return { chrome, listeners, storage };
 }
 
+function createMockUrlApi() {
+  class MockURL extends URL {}
+  MockURL.createObjectURL = vi.fn(() => "blob:download");
+  MockURL.revokeObjectURL = vi.fn();
+  return MockURL;
+}
+
 function loadServiceWorker({
   chrome,
   fetchImpl,
   userAgent = "Mozilla/5.0 Chrome/135.0.0.0",
   convertEasyedaCadToKicad = vi.fn(() => ({})),
   convertObjToWrlString = vi.fn(() => "#VRML"),
-  readZipEntries = vi.fn(async () => [])
+  readZipEntries = vi.fn(async () => []),
+  urlApi = createMockUrlApi()
 }) {
-  class MockURL extends URL {}
-  MockURL.createObjectURL = vi.fn(() => "blob:download");
-  MockURL.revokeObjectURL = vi.fn();
-
-  const context = runSourceFile("src/service_worker.js", {
-    context: {
-      chrome,
-      fetch: fetchImpl,
-      navigator: { userAgent },
-      URL: MockURL,
-      Blob,
-      __converter: {
-        convertEasyedaCadToKicad,
-        convertObjToWrlString
-      },
-      __zipReader: {
-        readZipEntries
-      }
-    },
-    transforms: [
-      (source) =>
-        replaceExactImport(
-          source,
-          'import { convertEasyedaCadToKicad, convertObjToWrlString } from "./kicad_converter.js";',
-          "const { convertEasyedaCadToKicad, convertObjToWrlString } = globalThis.__converter;"
-        ),
-      (source) =>
-        replaceExactImport(
-          source,
-          'import { readZipEntries } from "./vendor/zip_reader.js";',
-          "const { readZipEntries } = globalThis.__zipReader;"
-        )
-    ],
-    append: `
-globalThis.__testExports = {
-  exportPart,
-  getPartPreviews,
-  buildLibraryPaths,
-  normalizeLibraryDownloadRoot,
-  getDatasheetInfo,
-  extractSymbolBlock,
-  mergeSymbolIntoLibrary,
-  rewriteSamacsysSymbolFootprintReference,
-  rewriteSamacsysFootprintModelPath,
-  stripKicadFootprintModels
-};
-`
+  registerServiceWorkerRuntime(chrome, {
+    fetchImpl,
+    userAgent,
+    convertEasyedaCadToKicad,
+    convertObjToWrlString,
+    readZipEntries,
+    urlApi,
+    blobCtor: Blob
   });
 
-  return {
-    hooks: context.__testExports,
-    urlApi: MockURL
-  };
+  return { urlApi };
 }
 
 function sendRuntimeMessage(listener, message) {
@@ -143,7 +120,25 @@ function createMouserPartContext() {
     lookup: {
       manufacturerName: "STMicroelectronics",
       entryUrl:
-        "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB"
+        "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB",
+      partnerName: "mouser",
+      samacsysBaseUrl: "https://ms.componentsearchengine.com"
+    }
+  };
+}
+
+function createFarnellPartContext() {
+  return {
+    provider: "farnellSamacsys",
+    sourcePartLabel: "Farnell part",
+    sourcePartNumber: "1848693",
+    manufacturerPartNumber: "FQP27P06",
+    lookup: {
+      manufacturerName: "ONSEMI",
+      entryUrl:
+        "https://farnell.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=FQP27P06&pna=farnell&vrq=multi&fmt=zip&lang=en-GB",
+      partnerName: "farnell",
+      samacsysBaseUrl: "https://farnell.componentsearchengine.com"
     }
   };
 }
@@ -187,6 +182,71 @@ const MOUSER_FOOTPRINT = `(module "QFN50P500X500X60-33N-D" (layer F.Cu)
 `;
 
 describe("service worker", () => {
+  it("normalizes library roots and builds KiCad library paths", () => {
+    expect(normalizeLibraryDownloadRoot("KiCad\\Workspace")).toBe("KiCad/Workspace");
+    expect(normalizeLibraryDownloadRoot("../outside")).toBe("easyEDADownloader");
+    expect(buildLibraryPaths("KiCad/Workspace")).toEqual({
+      symbolFile: "KiCad/Workspace/Workspace.kicad_sym",
+      footprintDir: "KiCad/Workspace/Workspace.pretty",
+      modelDir: "KiCad/Workspace/Workspace.3dshapes"
+    });
+  });
+
+  it("merges symbol blocks without duplicating existing ids", () => {
+    const symbolBlock = extractSymbolBlock(MOUZER_SYMBOL);
+    const merged = mergeSymbolIntoLibrary(createSymbolLibrary(), symbolBlock, "STM32C552KEU6");
+
+    expect(symbolBlock).toContain('(symbol "STM32C552KEU6"');
+    expect(merged).toContain('(symbol "ExistingSymbol"');
+    expect(merged).toContain('(symbol "STM32C552KEU6"');
+    expect(mergeSymbolIntoLibrary(merged, symbolBlock, "STM32C552KEU6")).toBe(merged);
+  });
+
+  it("rewrites Mouser symbol and footprint library references", () => {
+    expect(
+      rewriteSamacsysSymbolFootprintReference(
+        MOUZER_SYMBOL,
+        "QFN50P500X500X60-33N-D",
+        "Workspace"
+      )
+    ).toContain('Workspace:QFN50P500X500X60-33N-D');
+    expect(
+      rewriteSamacsysFootprintModelPath(
+        MOUSER_FOOTPRINT,
+        "STM32C552KEU6.stp",
+        "Workspace"
+      )
+    ).toContain("../Workspace.3dshapes/STM32C552KEU6.stp");
+    expect(stripKicadFootprintModels(MOUSER_FOOTPRINT)).not.toContain("(model");
+  });
+
+  it("parses the SamacSys ZIP form metadata from the part page", () => {
+    expect(
+      parseSamacsysPageMetadata(
+        createMouserPartHtml(),
+        "https://ms.componentsearchengine.com/part.php?partID=21790508",
+        "https://ms.componentsearchengine.com"
+      )
+    ).toEqual({
+      partId: "21790508",
+      token: "tok123",
+      pageUrl: "https://ms.componentsearchengine.com/part.php?partID=21790508",
+      baseUrl: "https://ms.componentsearchengine.com",
+      zipActionUrl: "https://ms.componentsearchengine.com/ga/model.php",
+      zipMethod: "GET",
+      zipFormInputs: {
+        partner: "Mouser",
+        tok: "tok123",
+        partID: "21790508",
+        fmt: "zip",
+        lang: "en-GB",
+        datasheet: "",
+        emb: "1",
+        pna: "Mouser"
+      }
+    });
+  });
+
   it("returns EasyEDA preview URLs and datasheet availability for a valid CAD payload", async () => {
     const cadData = createCadData();
     const { chrome, listeners } = createServiceWorkerChrome();
@@ -213,6 +273,35 @@ describe("service worker", () => {
     expect(result.response.previews.symbolUrl).toContain("data:image/svg+xml");
     expect(result.response.previews.footprintUrl).toContain("data:image/svg+xml");
     expect(result.response.metadata.datasheetAvailable).toBe(true);
+  });
+
+  it("registers the download cleanup listener only once across repeated runtime messages", async () => {
+    const cadData = createCadData();
+    const { chrome, listeners } = createServiceWorkerChrome();
+    loadServiceWorker({
+      chrome,
+      fetchImpl: vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ result: cadData })
+      }))
+    });
+
+    expect(listeners.downloadsChanged).toHaveLength(1);
+
+    const message = {
+      type: "GET_PART_PREVIEWS",
+      partContext: {
+        provider: "easyedaLcsc",
+        lookup: {
+          lcscId: "C12345"
+        }
+      }
+    };
+
+    await sendRuntimeMessage(listeners.runtimeMessage[0], message);
+    await sendRuntimeMessage(listeners.runtimeMessage[0], message);
+
+    expect(listeners.downloadsChanged).toHaveLength(1);
   });
 
   it("exports EasyEDA library downloads, merges symbol storage, and cleans up blob URLs", async () => {
@@ -367,6 +456,59 @@ describe("service worker", () => {
       previews: {
         symbolUrl: "data:image/png;base64,AAAA",
         footprintUrl: "data:image/png;base64,BBBB"
+      },
+      metadata: {
+        datasheetAvailable: false
+      }
+    });
+  });
+
+  it("routes Farnell previews through the shared SamacSys host from part context", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome();
+    const fetchImpl = vi.fn(async (url) => {
+      if (String(url).includes("farnell.componentsearchengine.com/entry_u_newDesign.php")) {
+        return {
+          ok: true,
+          url: "https://farnell.componentsearchengine.com/part.php?partID=9988",
+          text: async () => "<html><body>entry ok</body></html>"
+        };
+      }
+      if (String(url).includes("farnell.componentsearchengine.com/preview_newDesign.php")) {
+        return {
+          ok: true,
+          url: String(url),
+          text: async () => createMouserPartHtml({ partId: "9988" })
+        };
+      }
+      if (String(url).includes("farnell.componentsearchengine.com/symbol.php")) {
+        return {
+          ok: true,
+          json: async () => ({ Image: "CCCC" })
+        };
+      }
+      if (String(url).includes("farnell.componentsearchengine.com/footprint.php")) {
+        return {
+          ok: true,
+          json: async () => ({ Image: "DDDD" })
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "GET_PART_PREVIEWS",
+      partContext: createFarnellPartContext()
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      previews: {
+        symbolUrl: "data:image/png;base64,CCCC",
+        footprintUrl: "data:image/png;base64,DDDD"
       },
       metadata: {
         datasheetAvailable: false
@@ -607,16 +749,14 @@ describe("service worker", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const { hooks } = loadServiceWorker({
+    loadServiceWorker({
       chrome,
       fetchImpl,
       readZipEntries
     });
 
-    expect(hooks.stripKicadFootprintModels(MOUSER_FOOTPRINT)).not.toContain(
-      "(model"
-    );
-    expect(hooks.stripKicadFootprintModels(MOUSER_FOOTPRINT)).not.toContain(
+    expect(stripKicadFootprintModels(MOUSER_FOOTPRINT)).not.toContain("(model");
+    expect(stripKicadFootprintModels(MOUSER_FOOTPRINT)).not.toContain(
       "STM32C552KEU6.stp"
     );
 
@@ -727,11 +867,11 @@ describe("service worker", () => {
 
     expect(previewResult.response).toEqual({
       ok: false,
-      error: "Mouser/SamacSys downloads require a proxy in Firefox. Chrome-only for now."
+      error: "SamacSys distributor downloads require a proxy in Firefox. Chrome-only for now."
     });
     expect(exportResult.response).toEqual({
       ok: false,
-      error: "Mouser/SamacSys downloads require a proxy in Firefox. Chrome-only for now."
+      error: "SamacSys distributor downloads require a proxy in Firefox. Chrome-only for now."
     });
     expect(fetchImpl).not.toHaveBeenCalled();
   });

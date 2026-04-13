@@ -1,0 +1,184 @@
+import {
+  buildLibraryPaths,
+  DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+  loadSettings
+} from "./settings.js";
+import {
+  extractSymbolBlock,
+  loadStoredSymbolLibrary,
+  mergeSymbolIntoLibrary,
+  saveStoredSymbolLibrary
+} from "./library_store.js";
+
+function resolveExportOptions(options = {}) {
+  const resolvedOptions = {
+    symbol: options.symbol !== false,
+    footprint: options.footprint !== false,
+    model3d: options.model3d !== false,
+    datasheet: options.datasheet === true
+  };
+
+  if (
+    !resolvedOptions.symbol &&
+    !resolvedOptions.footprint &&
+    !resolvedOptions.model3d &&
+    !resolvedOptions.datasheet
+  ) {
+    throw new Error("No download options selected.");
+  }
+
+  return resolvedOptions;
+}
+
+async function createExportContext(chromeApi) {
+  const settings = await loadSettings(chromeApi);
+  const libraryPaths = buildLibraryPaths(settings.libraryDownloadRoot);
+
+  return {
+    settings,
+    libraryPaths,
+    symbolLibraryKey: `symbolLibrary:${libraryPaths.symbolFile}`
+  };
+}
+
+function getLibraryName(libraryPaths, fallbackName = DEFAULT_LIBRARY_DOWNLOAD_ROOT) {
+  return libraryPaths.symbolFile.split("/").pop()?.replace(/\.kicad_sym$/, "") || fallbackName;
+}
+
+async function writeSymbolArtifact({
+  chromeApi,
+  downloads,
+  exportContext,
+  symbolContent,
+  symbolName,
+  individualFilename
+}) {
+  if (exportContext.settings.downloadIndividually) {
+    await downloads.downloadTextFile(
+      individualFilename,
+      symbolContent,
+      "application/octet-stream"
+    );
+    return 1;
+  }
+
+  const symbolBlock = extractSymbolBlock(symbolContent);
+  const existingLibrary = await loadStoredSymbolLibrary(
+    chromeApi,
+    exportContext.symbolLibraryKey
+  );
+  const mergedLibrary = mergeSymbolIntoLibrary(
+    existingLibrary || symbolContent,
+    symbolBlock,
+    symbolName
+  );
+  await saveStoredSymbolLibrary(
+    chromeApi,
+    exportContext.symbolLibraryKey,
+    mergedLibrary
+  );
+  await downloads.downloadTextFile(
+    exportContext.libraryPaths.symbolFile,
+    mergedLibrary,
+    "application/octet-stream",
+    "overwrite"
+  );
+  return 1;
+}
+
+async function writeTextArtifact({
+  downloads,
+  exportContext,
+  content,
+  individualFilename,
+  libraryPath
+}) {
+  await downloads.downloadTextFile(
+    exportContext.settings.downloadIndividually ? individualFilename : libraryPath,
+    content,
+    "application/octet-stream"
+  );
+  return 1;
+}
+
+async function writeBinaryArtifact({
+  downloads,
+  exportContext,
+  data,
+  individualFilename,
+  libraryPath
+}) {
+  await downloads.downloadBinaryFile(
+    exportContext.settings.downloadIndividually ? individualFilename : libraryPath,
+    data,
+    "application/octet-stream"
+  );
+  return 1;
+}
+
+async function writeUrlArtifact({
+  downloads,
+  exportContext,
+  url,
+  individualFilename,
+  libraryPath
+}) {
+  await downloads.downloadUrlFile(
+    exportContext.settings.downloadIndividually ? individualFilename : libraryPath,
+    url
+  );
+  return 1;
+}
+
+export {
+  createExportContext,
+  getLibraryName,
+  resolveExportOptions,
+  writeBinaryArtifact,
+  writeSymbolArtifact,
+  writeTextArtifact,
+  writeUrlArtifact
+};
+
+/*
+######################################################################################################################
+
+
+                                        AAAAAAAA
+                                      AAAA    AAAAA              AAAAAAAA
+                                    AAA          AAA           AAAA    AAA
+                                    AA            AA          AAA       AAA
+                                    AA            AAAAAAAAAA  AAA       AAAAAAAAAA
+                                    AAA                  AAA  AAA               AA
+                                     AAA                AAA    AAAAA            AA
+                                      AAAAA            AAA        AAA           AA
+                                         AAA          AAA                       AA
+                                         AAA         AAA                        AA
+                                         AA         AAA                         AA
+                                         AA        AAA                          AA
+                                        AAA       AAAAAAAAA                     AA
+                                        AAA       AAAAAAAAA                     AA
+                                        AA                   AAAAAAAAAAAAAA     AA
+                                        AA  AAAAAAAAAAAAAAAAAAAAAAAA    AAAAAAA AA
+                                       AAAAAAAAAAA                           AA AA
+                                                                           AAA  AA
+                                                                         AAAA   AA
+                                                                      AAAA      AA
+                                                                   AAAAA        AA
+                                                               AAAAA            AA
+                                                            AAAAA               AA
+                                                        AAAAAA                  AA
+                                                    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+
+######################################################################################################################
+
+                                                Copyright (c) JoeShade
+                              Licensed under the GNU Affero General Public License v3.0
+
+######################################################################################################################
+
+                                        +44 (0) 7356 042702 | joe@jshade.co.uk
+
+######################################################################################################################
+*/

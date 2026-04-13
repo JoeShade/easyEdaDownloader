@@ -4,36 +4,42 @@
  * sends a request to the background service worker to start the export.
  */
 
-const EASYEDA_PROVIDER = "easyedaLcsc";
-const MOUSER_PROVIDER = "mouserSamacsys";
+import {
+  DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+  DEFAULT_SETTINGS,
+  loadSettings as loadStoredSettings,
+  parseLibraryDownloadRoot
+} from "./core/settings.js";
+import {
+  getBlockedPartContextError,
+  isBlockedPartContext,
+  isSamacsysProvider as isSamacsysProviderShared
+} from "./core/part_context.js";
+
 const DEFAULT_SOURCE_PART_LABEL = "Part";
+const chromeApi = globalThis.chrome;
+const popupWindow = globalThis.window;
+const popupDocument = globalThis.document;
 
 // Cache UI elements for quick updates.
-const manufacturerPartNumberEl = document.getElementById("manufacturerPartNumber");
-const sourcePartLabelEl = document.getElementById("sourcePartLabel");
-const partNumberEl = document.getElementById("partNumber");
-const downloadButton = document.getElementById("downloadButton");
-const statusEl = document.getElementById("status");
-const downloadSymbolEl = document.getElementById("downloadSymbol");
-const downloadFootprintEl = document.getElementById("downloadFootprint");
-const downloadModelEl = document.getElementById("downloadModel");
-const downloadDatasheetEl = document.getElementById("downloadDatasheet");
-const downloadDatasheetOptionEl = document.getElementById("downloadDatasheetOption");
-const downloadDatasheetLabelEl = document.getElementById("downloadDatasheetLabel");
-const downloadIndividuallyEl = document.getElementById("downloadIndividually");
-const libraryDownloadRootEl = document.getElementById("libraryDownloadRoot");
-const resetLibraryDownloadRootEl = document.getElementById("resetLibraryDownloadRoot");
-const symbolPreviewEl = document.getElementById("symbolPreview");
-const footprintPreviewEl = document.getElementById("footprintPreview");
-const symbolPreviewFallbackEl = document.getElementById("symbolPreviewFallback");
-const footprintPreviewFallbackEl = document.getElementById("footprintPreviewFallback");
-
-// Default settings for download organization.
-const DEFAULT_LIBRARY_DOWNLOAD_ROOT = "easyEDADownloader";
-const DEFAULT_SETTINGS = {
-  downloadIndividually: false,
-  libraryDownloadRoot: DEFAULT_LIBRARY_DOWNLOAD_ROOT
-};
+const manufacturerPartNumberEl = popupDocument.getElementById("manufacturerPartNumber");
+const sourcePartLabelEl = popupDocument.getElementById("sourcePartLabel");
+const partNumberEl = popupDocument.getElementById("partNumber");
+const downloadButton = popupDocument.getElementById("downloadButton");
+const statusEl = popupDocument.getElementById("status");
+const downloadSymbolEl = popupDocument.getElementById("downloadSymbol");
+const downloadFootprintEl = popupDocument.getElementById("downloadFootprint");
+const downloadModelEl = popupDocument.getElementById("downloadModel");
+const downloadDatasheetEl = popupDocument.getElementById("downloadDatasheet");
+const downloadDatasheetOptionEl = popupDocument.getElementById("downloadDatasheetOption");
+const downloadDatasheetLabelEl = popupDocument.getElementById("downloadDatasheetLabel");
+const downloadIndividuallyEl = popupDocument.getElementById("downloadIndividually");
+const libraryDownloadRootEl = popupDocument.getElementById("libraryDownloadRoot");
+const resetLibraryDownloadRootEl = popupDocument.getElementById("resetLibraryDownloadRoot");
+const symbolPreviewEl = popupDocument.getElementById("symbolPreview");
+const footprintPreviewEl = popupDocument.getElementById("footprintPreview");
+const symbolPreviewFallbackEl = popupDocument.getElementById("symbolPreviewFallback");
+const footprintPreviewFallbackEl = popupDocument.getElementById("footprintPreviewFallback");
 
 // Store the most recently detected part context.
 let currentPartContext = null;
@@ -45,12 +51,12 @@ function setStatus(message, tone = "default") {
   statusEl.classList.toggle("warning", tone === "warning");
 }
 
-function isFirefoxRuntime() {
-  return /firefox/i.test(String(window.navigator?.userAgent || ""));
+function isSamacsysProvider(partContext = currentPartContext) {
+  return isSamacsysProviderShared(partContext?.provider);
 }
 
 function isBlockedProvider(partContext = currentPartContext) {
-  return partContext?.provider === MOUSER_PROVIDER && isFirefoxRuntime();
+  return isBlockedPartContext(partContext, popupWindow.navigator?.userAgent);
 }
 
 function hasSupportedPartContext() {
@@ -121,7 +127,7 @@ function setDatasheetAvailability(isAvailable) {
 }
 
 function getPreviewDefaultDatasheetAvailability(partContext) {
-  return partContext?.provider === MOUSER_PROVIDER ? false : null;
+  return isSamacsysProvider(partContext) ? false : null;
 }
 
 function setIdentifierDisplay(sourcePartLabel, sourcePartNumber, manufacturerPartNumber) {
@@ -148,10 +154,10 @@ function requestPreviews(partContext) {
   setPreviewLoading(symbolPreviewFallbackEl, symbolPreviewEl);
   setPreviewLoading(footprintPreviewFallbackEl, footprintPreviewEl);
   setDatasheetAvailability(fallbackDatasheetAvailability);
-  chrome.runtime.sendMessage(
+  chromeApi.runtime.sendMessage(
     { type: "GET_PART_PREVIEWS", partContext },
     (response) => {
-      if (chrome.runtime.lastError || !response?.ok) {
+      if (chromeApi.runtime.lastError || !response?.ok) {
         setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl);
         setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl);
         setDatasheetAvailability(fallbackDatasheetAvailability);
@@ -168,7 +174,7 @@ function requestPreviews(partContext) {
         response.previews?.footprintUrl || null
       );
       setDatasheetAvailability(
-        partContext?.provider === MOUSER_PROVIDER
+        isSamacsysProvider(partContext)
           ? false
           : response.metadata?.datasheetAvailable === true
       );
@@ -176,47 +182,8 @@ function requestPreviews(partContext) {
   );
 }
 
-// Normalize the library-mode download root so it stays relative to Downloads.
 function normalizeLibraryDownloadRoot(value) {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    return {
-      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
-      isValid: false
-    };
-  }
-  if (
-    raw.startsWith("/") ||
-    raw.startsWith("\\") ||
-    raw.startsWith("\\\\") ||
-    /^[a-zA-Z]:/.test(raw)
-  ) {
-    return {
-      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
-      isValid: false
-    };
-  }
-
-  const normalized = raw.replace(/[\\/]+/g, "/").replace(/^\/+|\/+$/g, "");
-  if (!normalized) {
-    return {
-      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
-      isValid: false
-    };
-  }
-
-  const segments = normalized.split("/");
-  if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
-    return {
-      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
-      isValid: false
-    };
-  }
-
-  return {
-    value: normalized,
-    isValid: true
-  };
+  return parseLibraryDownloadRoot(value);
 }
 
 // Apply settings values to the UI controls.
@@ -242,12 +209,7 @@ function readSettingsFromUi() {
 
 // Load settings from extension storage.
 function loadSettings() {
-  chrome.storage.local.get(DEFAULT_SETTINGS, (settings) => {
-    if (chrome.runtime.lastError) {
-      console.warn("Failed to load settings:", chrome.runtime.lastError);
-      applySettingsToUi(DEFAULT_SETTINGS);
-      return;
-    }
+  loadStoredSettings(chromeApi).then((settings) => {
     applySettingsToUi(settings);
   });
 }
@@ -256,8 +218,8 @@ function loadSettings() {
 function saveSettings() {
   const settings = readSettingsFromUi();
   const { libraryDownloadRootIsValid, ...storedSettings } = settings;
-  chrome.storage.local.set(storedSettings, () => {
-    if (chrome.runtime.lastError) {
+  chromeApi.storage.local.set(storedSettings, () => {
+    if (chromeApi.runtime.lastError) {
       setStatus("Failed to save settings.", "error");
       return;
     }
@@ -291,10 +253,7 @@ function setPartContext(partContext) {
   );
 
   if (isBlockedProvider(currentPartContext)) {
-    setStatus(
-      "Mouser/SamacSys downloads require a proxy in Firefox. Chrome-only for now.",
-      "error"
-    );
+    setStatus(getBlockedPartContextError(currentPartContext, popupWindow.navigator?.userAgent), "error");
     setDatasheetAvailability(false);
     setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Unavailable");
     setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Unavailable");
@@ -309,8 +268,8 @@ function setPartContext(partContext) {
 
 // Ask the content script in the active tab for the provider-aware part context.
 function requestPartContextFromTab(tabId) {
-  chrome.tabs.sendMessage(tabId, { type: "GET_PART_CONTEXT" }, (response) => {
-    if (chrome.runtime.lastError) {
+  chromeApi.tabs.sendMessage(tabId, { type: "GET_PART_CONTEXT" }, (response) => {
+    if (chromeApi.runtime.lastError) {
       setUnavailableDisplay("Open a supported product page.");
       return;
     }
@@ -319,7 +278,7 @@ function requestPartContextFromTab(tabId) {
 }
 
 // On popup open, query the active tab and request the current part context.
-chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+chromeApi.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const tab = tabs[0];
   if (!tab?.id) {
     setUnavailableDisplay("No active tab detected.");
@@ -357,7 +316,7 @@ downloadButton.addEventListener("click", () => {
   downloadButton.disabled = true;
   setStatus("Starting download...");
 
-  chrome.runtime.sendMessage(
+  chromeApi.runtime.sendMessage(
     {
       type: "EXPORT_PART",
       partContext: currentPartContext,
@@ -370,7 +329,7 @@ downloadButton.addEventListener("click", () => {
     },
     (response) => {
       updateDownloadEnabled();
-      if (chrome.runtime.lastError) {
+      if (chromeApi.runtime.lastError) {
         setStatus("Download failed. Check the console.", "error");
         return;
       }
@@ -391,6 +350,37 @@ downloadButton.addEventListener("click", () => {
     }
   );
 });
+
+if (globalThis.__popupTestApi) {
+  Object.assign(globalThis.__popupTestApi, {
+    setPartContext,
+    updateDownloadEnabled,
+    setDatasheetAvailability,
+    hasSelection,
+    normalizeLibraryDownloadRoot,
+    getCurrentPartContext: () => currentPartContext,
+    elements: {
+      manufacturerPartNumberEl,
+      sourcePartLabelEl,
+      partNumberEl,
+      downloadButton,
+      statusEl,
+      downloadSymbolEl,
+      downloadFootprintEl,
+      downloadModelEl,
+      downloadDatasheetEl,
+      downloadDatasheetOptionEl,
+      downloadDatasheetLabelEl,
+      downloadIndividuallyEl,
+      libraryDownloadRootEl,
+      resetLibraryDownloadRootEl,
+      symbolPreviewEl,
+      footprintPreviewEl,
+      symbolPreviewFallbackEl,
+      footprintPreviewFallbackEl
+    }
+  });
+}
 /*
 ######################################################################################################################
 

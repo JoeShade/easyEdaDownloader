@@ -4,10 +4,11 @@
 
 This document describes the current implemented design of the EasyEDA Downloader browser extension.
 
-The extension supports two provider flows:
+The extension supports three provider flows:
 
 - EasyEDA-backed JLCPCB and LCSC pages
 - Mouser pages that expose the SamacSys / Component Search Engine ECAD button
+- Farnell pages that expose the Supplyframe / SamacSys ECAD link
 
 The repository remains intentionally compact. If code and design diverge, update one of them in the same change.
 
@@ -15,7 +16,7 @@ The repository remains intentionally compact. If code and design diverge, update
 
 ### 2.1 Supported operator flow
 
-1. Open a supported JLCPCB, LCSC, or Mouser product page.
+1. Open a supported JLCPCB, LCSC, Mouser, or Farnell product page.
 2. Open the extension popup.
 3. Ask the content script for a provider-aware part context via `GET_PART_CONTEXT`.
 4. Ask the service worker for `GET_PART_PREVIEWS`.
@@ -33,34 +34,73 @@ The current repository does not implement:
 
 ## 3. Supported contexts and assumptions
 
-- The content script is injected only on matching JLCPCB, LCSC, and Mouser pages.
+- The content script is injected only on matching JLCPCB, LCSC, Mouser, and Farnell pages.
 - EasyEDA-backed pages expose an LCSC-style part id such as `C12345`.
 - Mouser support depends on the ECAD button `#lnk_CadModel[data-testid="ProductInfoECAD"]`.
+- Farnell support depends on a Supplyframe / SamacSys link exposed in the `ECAD / MCAD` section.
 - The content script returns a generic part context, not a provider-specific ad hoc message shape.
 - EasyEDA previews are generated locally from CAD payload primitives.
-- Mouser previews come from SamacSys JSON preview endpoints and are displayed as PNG data URLs.
+- SamacSys distributor previews come from SamacSys JSON preview endpoints and are displayed as PNG data URLs.
 - EasyEDA datasheet availability comes from URLs exposed by the upstream payload.
-- Mouser datasheet export is currently unsupported.
-- Mouser / SamacSys preview and export are Chrome-first. Firefox currently returns a structured unsupported error because proxy-backed CORS work is out of scope.
-- Mouser / SamacSys ZIP export may still require upstream authentication; when the ZIP endpoint returns `401`, the worker surfaces a sign-in-required error instead of a generic download failure.
+- SamacSys distributor datasheet export is currently unsupported.
+- SamacSys distributor preview and export are Chrome-first. Firefox currently returns a structured unsupported error because proxy-backed CORS work is out of scope.
+- SamacSys ZIP export may still require upstream authentication; when the ZIP endpoint returns `401`, the worker surfaces a sign-in-required error instead of a generic download failure.
 - The Manifest V3 background is declared for both Chrome and Firefox: Chrome uses `background.service_worker`, while Firefox uses the background-document fallback from `background.scripts`. This combined manifest relies on Firefox 121 or newer.
 - The configurable library download root must remain relative to the browser's Downloads directory.
 
 ## 4. Repository architecture
 
-### 4.1 `src/content_script.js`
+### 4.1 User-to-backend flow
+
+There is no application-owned cloud backend in this repository. The service worker is the browser-local backend boundary, and it calls external upstream provider services when previews or exports require network data.
+
+```mermaid
+flowchart LR
+    user["User on supported product page"]
+    productPage["JLCPCB / LCSC / Mouser / Farnell DOM"]
+    contentScript["Content script\nsrc/content_script.js"]
+    popup["Extension popup\nsrc/popup.js"]
+    storage["Browser storage\nchrome.storage.local"]
+    serviceWorker["Extension backend\nsrc/service_worker.js"]
+    converter["EasyEDA converter\nsrc/kicad_converter.js"]
+    zipReader["SamacSys ZIP reader\nsrc/vendor/zip_reader.js"]
+    downloads["Browser downloads\nchrome.downloads"]
+    easyeda["EasyEDA APIs\nCAD, STEP, OBJ, datasheet URLs"]
+    samacsys["SamacSys / Component Search Engine\nentry, preview, ZIP, WRL"]
+
+    user --> productPage
+    user --> popup
+    popup -- "GET_PART_CONTEXT" --> contentScript
+    contentScript --> productPage
+    contentScript -- "provider-aware part context" --> popup
+    popup <--> storage
+    popup -- "GET_PART_PREVIEWS / EXPORT_PART" --> serviceWorker
+    serviceWorker <--> storage
+    serviceWorker --> easyeda
+    serviceWorker --> samacsys
+    serviceWorker --> converter
+    serviceWorker --> zipReader
+    converter --> serviceWorker
+    zipReader --> serviceWorker
+    serviceWorker --> downloads
+    downloads --> user
+```
+
+### 4.2 `src/content_script.js`
 
 Owns page inspection only:
 
 - detect EasyEDA/LCSC identifiers from definition lists, known tables, and page text
 - detect Mouser SamacSys ECAD availability from the ECAD button
+- detect Farnell SamacSys ECAD availability from the `Supply Frame Models Link`
 - read provider-specific source part metadata from the page DOM
 - reconstruct the Mouser SamacSys entry URL from `loadPartDiv(...)`
+- reconstruct the Farnell SamacSys entry URL from the Supplyframe link metadata
 - reply to popup-originated `GET_PART_CONTEXT` requests
 
 It remains a DOM-reading boundary with no network or download logic.
 
-### 4.2 `src/popup.js`
+### 4.3 `src/popup.js`
 
 Owns popup UI state and user interaction:
 
@@ -70,28 +110,41 @@ Owns popup UI state and user interaction:
 - render the fixed `Mfr. Part #` row plus a dynamic provider-specific source row
 - request previews and datasheet availability
 - gate downloads based on provider support and checkbox selection
-- block Mouser export in Firefox with a user-facing proxy-required message
+- block SamacSys distributor export in Firefox with a user-facing proxy-required message
 - send `EXPORT_PART` requests to the service worker
 
 It remains the UI-facing boundary. It does not own fetch, archive extraction, or conversion logic.
 
-### 4.3 `src/service_worker.js`
+### 4.4 `src/service_worker.js`
 
-Owns orchestration and browser-integrated work:
+Owns runtime registration only:
 
-- settings load for download behavior
-- provider-aware preview and export branching
-- EasyEDA CAD payload fetches, preview generation, conversion, and downloads
-- Mouser SamacSys entry-page fetches, preview JSON fetches, ZIP download, archive extraction, and downloads
-- symbol-library merge behavior backed by `chrome.storage.local`
-- library-mode path rewriting for Mouser symbol footprint references and footprint model paths
-- warning accumulation and response shaping for popup requests
+- register the Manifest V3 background message listener
+- delegate request handling to the runtime/router module
 
-This file is the operational core of the extension.
+The operational core now lives behind this entrypoint rather than inside one file.
 
-### 4.4 `src/kicad_converter.js`
+### 4.5 `src/service_worker_runtime.js` and supporting modules
 
-Owns conversion rules for EasyEDA-backed parts:
+Own the service-worker backend orchestration:
+
+- normalize part context and route preview/export requests by provider
+- enforce runtime-specific blocking such as Firefox SamacSys gating
+- compose source adapters with shared download, storage, and settings helpers
+- shape success and error responses back to the popup
+
+The runtime is intentionally split into:
+
+- source adapters under `src/sources/`
+- shared worker business logic under `src/core/`
+
+This keeps the message boundary stable while allowing future sources to be added without expanding the entrypoint.
+
+### 4.6 `src/kicad_converter.js`
+
+Keeps the public conversion API stable and delegates implementation to focused converter modules under `src/kicad/`.
+
+Those modules own:
 
 - EasyEDA symbol parsing
 - EasyEDA footprint parsing
@@ -102,7 +155,7 @@ Owns conversion rules for EasyEDA-backed parts:
 
 Mouser parts do not flow through this converter for symbol or footprint generation because the upstream ZIP already contains KiCad assets.
 
-### 4.5 `src/vendor/zip_reader.js`
+### 4.7 `src/vendor/zip_reader.js`
 
 Owns small runtime archive extraction support:
 
@@ -112,7 +165,7 @@ Owns small runtime archive extraction support:
 
 It exists so the service worker can extract the KiCad subtree from the SamacSys ZIP without adding a build step.
 
-### 4.6 `tests`
+### 4.8 `tests`
 
 The test suite remains the primary regression net for:
 
@@ -139,6 +192,12 @@ The test suite remains the primary regression net for:
   - source label `Mouser part`
   - source part number equal to `Mouser No`
   - manufacturer part number equal to `Mfr. No`
+- lookup metadata containing manufacturer name and a reconstructed SamacSys entry URL
+- On Farnell pages, the content script returns:
+  - provider `farnellSamacsys`
+  - source label `Farnell part`
+  - source part number equal to the detected Farnell order code or page part identifier
+  - manufacturer part number from the SamacSys link metadata or page text
   - lookup metadata containing manufacturer name and a reconstructed SamacSys entry URL
 
 ### 5.2 Request previews
@@ -148,13 +207,13 @@ The test suite remains the primary regression net for:
   - fetch the EasyEDA CAD payload
   - synthesize symbol and footprint SVG previews
   - derive datasheet availability from the payload
-- Mouser pages:
+- Mouser and Farnell pages:
   - fetch the SamacSys entry URL
   - follow the part-page redirect and parse the ZIP form and preview token
   - fetch `symbol.php` and `footprint.php` JSON previews
   - return PNG data URLs
   - report datasheet unavailable
-- In Firefox, Mouser preview requests fail early with a structured unsupported error.
+- In Firefox, SamacSys preview requests fail early with a structured unsupported error.
 
 ### 5.3 Export EasyEDA-backed parts
 
@@ -165,7 +224,7 @@ The test suite remains the primary regression net for:
   - KiCad-style library structure when `downloadIndividually` is `false`
 - Library-mode symbol exports merge into a stored symbol library keyed by the resolved library root.
 
-### 5.4 Export Mouser / SamacSys parts
+### 5.4 Export SamacSys distributor parts
 
 - The service worker fetches the SamacSys entry URL and resolves the part page.
 - The part page supplies:
@@ -200,9 +259,9 @@ The test suite remains the primary regression net for:
 - Detection failures in the popup produce user-facing status messages and disable export.
 - Service-worker preview failures return structured error responses to the popup.
 - Export failures return structured error responses to the popup.
-- Partial export issues that do not invalidate the whole request, such as missing datasheets or unavailable Mouser WRL files, are accumulated as warnings.
-- Mouser requests in Firefox fail early with a structured unsupported error message rather than attempting cross-origin fetches that require a proxy.
-- Mouser ZIP `401 Unauthorized` responses are rewritten into a sign-in-required error so the popup can tell the user what upstream precondition is missing.
+- Partial export issues that do not invalidate the whole request, such as missing datasheets or unavailable SamacSys WRL files, are accumulated as warnings.
+- SamacSys distributor requests in Firefox fail early with a structured unsupported error message rather than attempting cross-origin fetches that require a proxy.
+- SamacSys ZIP `401 Unauthorized` responses are rewritten into a sign-in-required error so the popup can tell the user what upstream precondition is missing.
 
 ## 8. External dependencies and browser APIs
 

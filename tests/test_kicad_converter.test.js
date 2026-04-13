@@ -2,39 +2,22 @@ import { describe, expect, it } from "vitest";
 
 import { createCadData } from "./helpers/fixtures.js";
 import {
-  runSourceFile,
-  stripEsmFunctionExports
-} from "./helpers/test_harness.js";
-
-function loadConverter() {
-  const context = runSourceFile("src/kicad_converter.js", {
-    transforms: [stripEsmFunctionExports],
-    append: `
-globalThis.__testExports = {
-  applyTextStyle,
   applyPinNameStyle,
-  parseSvgPath,
-  drillToKi,
+  applyTextStyle,
   convertEasyedaCadToKicad,
-  convertObjToWrlString
-};
-`
-  });
-
-  return context.__testExports;
-}
+  convertObjToWrlString,
+  drillToKi,
+  parseSvgPath
+} from "../src/kicad_converter.js";
 
 describe("kicad converter", () => {
   it("applies EasyEDA text styling rules to suffix-marked labels", () => {
-    const hooks = loadConverter();
-
-    expect(hooks.applyTextStyle("RESET#")).toBe("~{RESET}");
-    expect(hooks.applyPinNameStyle("CLK#/RESET#")).toBe("~{CLK}/~{RESET}");
+    expect(applyTextStyle("RESET#")).toBe("~{RESET}");
+    expect(applyPinNameStyle("CLK#/RESET#")).toBe("~{CLK}/~{RESET}");
   });
 
   it("converts representative symbol data into a KiCad symbol library", () => {
-    const hooks = loadConverter();
-    const result = hooks.convertEasyedaCadToKicad(createCadData(), {
+    const result = convertEasyedaCadToKicad(createCadData(), {
       symbol: true
     });
 
@@ -46,8 +29,7 @@ describe("kicad converter", () => {
   });
 
   it("converts representative footprint data into KiCad footprint text", () => {
-    const hooks = loadConverter();
-    const result = hooks.convertEasyedaCadToKicad(createCadData(), {
+    const result = convertEasyedaCadToKicad(createCadData(), {
       footprint: true
     });
 
@@ -57,20 +39,19 @@ describe("kicad converter", () => {
     expect(result.footprint.content).toContain("(pad 1 smd rect");
     expect(result.footprint.content).toContain("(primitives");
     expect(result.footprint.content).toContain('(model "${KIPRJMOD}/Model QFN.wrl"');
+    expect(result.footprint.content).toContain("(rotate (xyz 0 270 180))");
     expect(result.footprint.content).toContain("(layer F.Fab)");
   });
 
   it("keeps key geometry helpers stable for parsed paths and drill output", () => {
-    const hooks = loadConverter();
-    const parsed = hooks.parseSvgPath("M 0 0 A 5 5 0 0 1 10 10 L 20 20 Z");
+    const parsed = parseSvgPath("M 0 0 A 5 5 0 0 1 10 10 L 20 20 Z");
 
     expect(parsed.map((step) => step.type)).toEqual(["M", "A", "L", "Z"]);
-    expect(hooks.drillToKi(0.5, 1.5, 2, 1)).toBe("(drill oval 1.00 1.50)");
-    expect(hooks.drillToKi(0.5, 0, 2, 1)).toBe("(drill 1.00)");
+    expect(drillToKi(0.5, 1.5, 2, 1)).toBe("(drill oval 1.00 1.50)");
+    expect(drillToKi(0.5, 0, 2, 1)).toBe("(drill 1.00)");
   });
 
   it("converts OBJ material groups into WRL output", () => {
-    const hooks = loadConverter();
     const objData = `
 newmtl body
 Ka 0.1 0.1 0.1
@@ -85,7 +66,7 @@ usemtl body
 f 1 2 3
 `.trim();
 
-    const wrl = hooks.convertObjToWrlString(objData);
+    const wrl = convertObjToWrlString(objData);
 
     expect(wrl).toContain("#VRML V2.0 utf8");
     expect(wrl).toContain("diffuseColor 0.4 0.5 0.6");

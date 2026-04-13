@@ -1,11 +1,46 @@
-/*
- * This service worker entrypoint stays intentionally thin.
- * Source routing and business logic live in service_worker_runtime.js.
- */
+import { parseEasyedaFootprint } from "./easyeda_footprint_parser.js";
+import { parseEasyedaSymbol } from "./easyeda_symbol_parser.js";
+import { convertFootprintToKiCad, drillToKi, exportKiCadFootprint } from "./kicad_footprint_emitter.js";
+import { convertSymbolToKiCad, exportKiCadSymbolLibrary } from "./kicad_symbol_emitter.js";
+import { convertObjToWrl } from "./obj_to_wrl.js";
+import { applyPinNameStyle, applyTextStyle, parseSvgPath, sanitizeFields } from "./shared.js";
 
-import { registerServiceWorkerRuntime } from "./service_worker_runtime.js";
+function convertEasyedaCadToKicad(cadData, options = {}) {
+  const result = {};
 
-registerServiceWorkerRuntime(globalThis.chrome);
+  if (options.symbol) {
+    const eeSymbol = parseEasyedaSymbol(cadData);
+    const kiSymbol = convertSymbolToKiCad(eeSymbol);
+    result.symbol = {
+      name: sanitizeFields(eeSymbol.info.name || "symbol"),
+      content: exportKiCadSymbolLibrary(kiSymbol)
+    };
+  }
+
+  if (options.footprint) {
+    const eeFootprint = parseEasyedaFootprint(cadData);
+    const kiFootprint = convertFootprintToKiCad(eeFootprint);
+    result.footprint = {
+      name: eeFootprint.info.name || "footprint",
+      content: exportKiCadFootprint(kiFootprint, "${KIPRJMOD}")
+    };
+  }
+
+  return result;
+}
+
+function convertObjToWrlString(objData) {
+  return convertObjToWrl(objData);
+}
+
+export {
+  applyPinNameStyle,
+  applyTextStyle,
+  convertEasyedaCadToKicad,
+  convertObjToWrlString,
+  drillToKi,
+  parseSvgPath
+};
 
 /*
 ######################################################################################################################

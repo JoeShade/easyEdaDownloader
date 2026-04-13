@@ -1,11 +1,54 @@
-/*
- * This service worker entrypoint stays intentionally thin.
- * Source routing and business logic live in service_worker_runtime.js.
- */
+function sanitizeFilenamePart(value, fallback = "datasheet") {
+  const sanitized = String(value || "").trim().replace(/[^\w.-]+/g, "_");
+  return sanitized || fallback;
+}
 
-import { registerServiceWorkerRuntime } from "./service_worker_runtime.js";
+function normalizeUrl(value) {
+  const url = String(value || "").trim();
+  if (!url) {
+    return "";
+  }
+  if (url.startsWith("//")) {
+    return `https:${url}`;
+  }
+  return url;
+}
 
-registerServiceWorkerRuntime(globalThis.chrome);
+function arrayBufferToBase64(buffer) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function textToBase64(text) {
+  return btoa(unescape(encodeURIComponent(text)));
+}
+
+function makeSvgDataUrl(svgText) {
+  return svgText
+    ? `data:image/svg+xml;utf8,${encodeURIComponent(svgText)}`
+    : null;
+}
+
+function makeBase64DataUrl(mimeType, base64Text) {
+  if (!base64Text) {
+    return null;
+  }
+  return `data:${mimeType};base64,${base64Text}`;
+}
+
+export {
+  sanitizeFilenamePart,
+  normalizeUrl,
+  arrayBufferToBase64,
+  textToBase64,
+  makeSvgDataUrl,
+  makeBase64DataUrl
+};
 
 /*
 ######################################################################################################################

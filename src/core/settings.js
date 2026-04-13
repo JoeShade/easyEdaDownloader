@@ -1,11 +1,94 @@
-/*
- * This service worker entrypoint stays intentionally thin.
- * Source routing and business logic live in service_worker_runtime.js.
- */
+const DEFAULT_LIBRARY_DOWNLOAD_ROOT = "easyEDADownloader";
 
-import { registerServiceWorkerRuntime } from "./service_worker_runtime.js";
+const DEFAULT_SETTINGS = {
+  downloadIndividually: false,
+  libraryDownloadRoot: DEFAULT_LIBRARY_DOWNLOAD_ROOT
+};
 
-registerServiceWorkerRuntime(globalThis.chrome);
+function parseLibraryDownloadRoot(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return {
+      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+      isValid: false
+    };
+  }
+  if (
+    raw.startsWith("/") ||
+    raw.startsWith("\\") ||
+    raw.startsWith("\\\\") ||
+    /^[a-zA-Z]:/.test(raw)
+  ) {
+    return {
+      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+      isValid: false
+    };
+  }
+
+  const normalized = raw.replace(/[\\/]+/g, "/").replace(/^\/+|\/+$/g, "");
+  if (!normalized) {
+    return {
+      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+      isValid: false
+    };
+  }
+
+  const segments = normalized.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+    return {
+      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+      isValid: false
+    };
+  }
+
+  return {
+    value: normalized,
+    isValid: true
+  };
+}
+
+function normalizeLibraryDownloadRoot(value) {
+  return parseLibraryDownloadRoot(value).value;
+}
+
+async function loadSettings(chromeApi) {
+  return new Promise((resolve) => {
+    chromeApi.storage.local.get(DEFAULT_SETTINGS, (settings) => {
+      if (chromeApi.runtime.lastError) {
+        console.warn("Failed to load settings:", chromeApi.runtime.lastError);
+        resolve({ ...DEFAULT_SETTINGS });
+        return;
+      }
+      resolve({
+        downloadIndividually:
+          typeof settings.downloadIndividually === "boolean"
+            ? settings.downloadIndividually
+            : DEFAULT_SETTINGS.downloadIndividually,
+        libraryDownloadRoot: normalizeLibraryDownloadRoot(
+          settings.libraryDownloadRoot
+        )
+      });
+    });
+  });
+}
+
+function buildLibraryPaths(libraryDownloadRoot = DEFAULT_LIBRARY_DOWNLOAD_ROOT) {
+  const libraryName = libraryDownloadRoot.split("/").pop() || DEFAULT_LIBRARY_DOWNLOAD_ROOT;
+  return {
+    symbolFile: `${libraryDownloadRoot}/${libraryName}.kicad_sym`,
+    footprintDir: `${libraryDownloadRoot}/${libraryName}.pretty`,
+    modelDir: `${libraryDownloadRoot}/${libraryName}.3dshapes`
+  };
+}
+
+export {
+  DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+  DEFAULT_SETTINGS,
+  parseLibraryDownloadRoot,
+  normalizeLibraryDownloadRoot,
+  loadSettings,
+  buildLibraryPaths
+};
 
 /*
 ######################################################################################################################
