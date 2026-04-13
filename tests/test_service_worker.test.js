@@ -16,7 +16,7 @@ import {
   rewriteSamacsysFootprintModelPath,
   rewriteSamacsysSymbolFootprintReference,
   stripKicadFootprintModels
-} from "../src/sources/mouser_samacsys_common.js";
+} from "../src/sources/samacsys_common.js";
 
 function createServiceWorkerChrome({ storageState = {} } = {}) {
   const listeners = {

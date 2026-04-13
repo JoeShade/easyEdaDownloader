@@ -1,3 +1,9 @@
+/*
+ * Shared converter constants and math/text helpers used across the EasyEDA
+ * parsers and KiCad emitters. This file intentionally holds the common unit,
+ * geometry, and formatting utilities that would otherwise drift between stages.
+ */
+
 const KI_SYMBOL_LIB_VERSION = "20211014";
 const KI_SYMBOL_GENERATOR = "easy EDA downloader";
 

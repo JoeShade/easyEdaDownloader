@@ -1,3 +1,9 @@
+/*
+ * Shared provider adapter for SamacSys-backed distributor pages. Distributor-
+ * specific detection happens in the content script, while this adapter owns the
+ * common preview and export path for Mouser, Farnell, and similar partners.
+ */
+
 import { parseKicadSymbolName } from "../core/library_store.js";
 import {
   createExportContext,
@@ -8,23 +14,23 @@ import {
   writeTextArtifact
 } from "../core/export_artifacts.js";
 import {
-  buildMouserPreviewResponse,
+  buildSamacsysPreviewResponse,
   extractSamacsysKiCadAssets,
-  fetchMouserSamacsysPageMetadata,
-  fetchMouserWrlModel,
-  fetchMouserZipArchive,
+  fetchSamacsysPageMetadata,
+  fetchSamacsysWrlModel,
+  fetchSamacsysZipArchive,
   filenameWithoutExtension,
   rewriteSamacsysFootprintModelPath,
   rewriteSamacsysSymbolFootprintReference,
   stripKicadFootprintModels
-} from "./mouser_samacsys_common.js";
+} from "./samacsys_common.js";
 
-function createMouserSamacsysAdapter(deps) {
+function createSamacsysDistributorAdapter(deps) {
   const { chromeApi, fetchImpl, downloads, readZipEntries } = deps;
 
   return {
     async getPreviews(partContext) {
-      return buildMouserPreviewResponse(fetchImpl, partContext);
+      return buildSamacsysPreviewResponse(fetchImpl, partContext);
     },
 
     async exportPart(partContext, options = {}) {
@@ -38,8 +44,8 @@ function createMouserSamacsysAdapter(deps) {
         warnings.push("Datasheet export is not available for Mouser SamacSys parts.");
       }
 
-      const metadata = await fetchMouserSamacsysPageMetadata(fetchImpl, partContext);
-      const zipBuffer = await fetchMouserZipArchive(fetchImpl, metadata);
+      const metadata = await fetchSamacsysPageMetadata(fetchImpl, partContext);
+      const zipBuffer = await fetchSamacsysZipArchive(fetchImpl, metadata);
       const assets = await extractSamacsysKiCadAssets(zipBuffer, readZipEntries);
       const libraryName = getLibraryName(exportContext.libraryPaths);
       const primaryFootprintName = assets.footprints[0]?.name || null;
@@ -113,7 +119,7 @@ function createMouserSamacsysAdapter(deps) {
         }
 
         if (!assets.wrlModels.length) {
-          const remoteWrl = await fetchMouserWrlModel(
+          const remoteWrl = await fetchSamacsysWrlModel(
             fetchImpl,
             metadata.partId,
             metadata.baseUrl
@@ -140,7 +146,7 @@ function createMouserSamacsysAdapter(deps) {
   };
 }
 
-export { createMouserSamacsysAdapter };
+export { createSamacsysDistributorAdapter };
 
 /*
 ######################################################################################################################

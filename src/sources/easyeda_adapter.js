@@ -1,3 +1,9 @@
+/*
+ * Provider adapter for EasyEDA-backed JLCPCB/LCSC parts. It owns the EasyEDA
+ * fetch/convert/export flow while delegating shared settings, library, and
+ * artifact-writing behavior to the worker core helpers.
+ */
+
 import {
   buildEasyedaPreviewResponse,
   EASYEDA_MODEL_OBJ_ENDPOINT,

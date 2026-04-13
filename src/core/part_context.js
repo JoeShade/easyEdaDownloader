@@ -1,3 +1,9 @@
+/*
+ * Shared provider and gating helpers. These keep provider ids, runtime
+ * normalization, and Firefox SamacSys blocking rules consistent between the
+ * popup and the service worker.
+ */
+
 const EASYEDA_PROVIDER = "easyedaLcsc";
 const MOUSER_PROVIDER = "mouserSamacsys";
 const FARNELL_PROVIDER = "farnellSamacsys";

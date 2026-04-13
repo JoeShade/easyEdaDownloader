@@ -1,3 +1,9 @@
+/*
+ * This runtime module is the browser-local backend boundary. It normalizes the
+ * popup message payload, applies runtime-specific gating, and dispatches work
+ * to the provider adapters with shared worker dependencies.
+ */
+
 import {
   EASYEDA_PROVIDER,
   FARNELL_PROVIDER,
@@ -8,14 +14,14 @@ import {
 import { createDownloadApi } from "./core/downloads.js";
 import { readZipEntries } from "./vendor/zip_reader.js";
 import { createEasyedaAdapter } from "./sources/easyeda_adapter.js";
-import { createMouserSamacsysAdapter } from "./sources/mouser_samacsys_adapter.js";
+import { createSamacsysDistributorAdapter } from "./sources/samacsys_distributor_adapter.js";
 import { convertEasyedaCadToKicad, convertObjToWrlString } from "./kicad_converter.js";
 
 function createSourceAdapters(deps) {
   return {
     [EASYEDA_PROVIDER]: createEasyedaAdapter(deps),
-    [FARNELL_PROVIDER]: createMouserSamacsysAdapter(deps),
-    [MOUSER_PROVIDER]: createMouserSamacsysAdapter(deps)
+    [FARNELL_PROVIDER]: createSamacsysDistributorAdapter(deps),
+    [MOUSER_PROVIDER]: createSamacsysDistributorAdapter(deps)
   };
 }
 

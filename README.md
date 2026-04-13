@@ -1,120 +1,126 @@
-# EasyEDA Downloader – Export Symbols, Footprints & 3D Models to KiCad
+# EasyEDA Downloader
 
-[![GitHub stars](https://img.shields.io/github/stars/JoeShade/easyEdaDownloader.svg?style=flat-square)](https://github.com/JoeShade/easyEdaDownloader/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/JoeShade/easyEdaDownloader.svg?style=flat-square)](https://github.com/JoeShade/easyEdaDownloader/network/members)
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/egbkokdcahpjimldjjaobimnofbdnncb?style=flat-square)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
-[![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/egbkokdcahpjimldjjaobimnofbdnncb?style=flat-square)](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
-[![Firefox Add-ons](https://img.shields.io/amo/v/easyeda-downloader?style=flat-square)](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/)
-[![Firefox Add-on Users](https://img.shields.io/amo/users/easyeda-downloader?style=flat-square)](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/)
+EasyEDA Downloader is a browser extension that exports KiCad-compatible CAD assets from supported distributor product pages.
 
-EasyEDA Downloader is a Chrome and Firefox extension that lets you export electronic components from supported EasyEDA-backed JLCPCB/LCSC pages and supported SamacSys ECAD distributor pages such as Mouser and Farnell as **KiCad-compatible symbols, footprints, and 3D models**, with optional datasheet downloads for EasyEDA-backed parts.
+The extension currently supports:
 
-It streamlines PCB design workflows by eliminating manual library creation when sourcing components from JLCPCB, LCSC, and supported SamacSys-backed distributor listings.
+- EasyEDA-backed JLCPCB and LCSC pages
+- SamacSys-backed distributor pages for Mouser and Farnell
+
+For EasyEDA-backed parts, the extension can export symbols, footprints, 3D models, and datasheets when the upstream payload exposes them. For SamacSys-backed parts, the extension downloads the upstream KiCad assets and repackages them into the same loose-file or KiCad-library structure used by the rest of the extension.
 
 ## Disclaimer
 
-Generated library files may require manual review. Always double-check symbols, footprints, 3D models, and datasheets before use.
+Generated library files may require manual review. Always verify symbols, footprints, 3D models, and datasheets before use in a real design.
 
-## Setup
+## Install
 
-### Install from Chrome Web Store
+### Chrome
 
-https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb
+Install from the Chrome Web Store:
 
-### Install from Firefox Addons Store
+[EasyEDA Downloader](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
 
-https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/
+### Firefox
 
-### Manual Install for development builds
+Install from Firefox Add-ons:
 
-1. Load the extension in Chrome:
-   - Visit `chrome://extensions`.
-   - Enable **Developer mode**.
-   - Click **Load unpacked** and select `easyEdaDownloader/`.
-2. Load the extension in Firefox:
-   - Visit `about:debugging#/runtime/this-firefox`.
-   - Click **Load Temporary Add-on**.
-   - Select `manifest.json` from `easyEdaDownloader/`.
-   - This development manifest expects Firefox 121 or newer so Firefox can use the background-document fallback while Chrome uses the Manifest V3 service worker.
-   - The repo uses a dev-only Gecko add-on ID so temporary installs do not collide with the AMO-installed release build.
+[EasyEDA Downloader on AMO](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/)
 
-## Features
+### Manual install for development
 
-- Download components directly from EasyEDA-backed JLCPCB and LCSC pages
-- Download pre-generated KiCad assets from supported SamacSys ECAD distributor pages
-- Export **KiCad symbols**
-- Export **KiCad footprints**
-- Export **3D models**
-- Download accompanying datasheets when available for EasyEDA-backed parts
-- Reduce manual work when building KiCad libraries
-- Works in Chrome and Firefox, with SamacSys distributor export currently Chrome-only
+Chrome:
 
-## Use Cases
+1. Open `chrome://extensions`.
+2. Enable `Developer mode`.
+3. Click `Load unpacked`.
+4. Select the repository root that contains `manifest.json`.
 
-- KiCad users sourcing components from JLCPCB or LCSC
-- KiCad users sourcing components from Mouser or Farnell pages that expose the SamacSys ECAD link
-- PCB designers building custom component libraries
-- Electronics hobbyists and professionals using EasyEDA
-- Open-source hardware projects
+Firefox:
 
-## How to use
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Click `Load Temporary Add-on`.
+3. Select `manifest.json` from the repository root.
 
-1. Open a supported JLCPCB, LCSC, Mouser, or Farnell product page.
-2. Click the extension action button.
-3. The popup shows the detected manufacturer part number plus the provider-specific source part number (`LCSC part`, `Mouser part`, or `Farnell part`).
-4. On EasyEDA-backed pages, the extension fetches CAD data, renders previews, and exports the selected symbol, footprint, 3D model, and optional datasheet files.
-5. On supported SamacSys distributor pages, the extension uses the SamacSys / Component Search Engine assets behind the ECAD link, renders symbol and footprint previews, and exports the selected KiCad symbol, footprint, and 3D files.
+The development manifest expects Firefox `121+` so Firefox can use the background-document fallback while Chrome uses the Manifest V3 service worker.
 
-## Browser support notes
+## Supported workflows
+
+### EasyEDA-backed JLCPCB and LCSC pages
+
+- Detect the LCSC part id from the product page
+- Fetch the EasyEDA CAD payload
+- Render symbol and footprint previews in the popup
+- Export KiCad symbols, footprints, 3D models, and optional datasheets
+
+### SamacSys-backed Mouser and Farnell pages
+
+- Detect the distributor part metadata and upstream SamacSys entry point
+- Fetch symbol and footprint previews from the upstream preview endpoints
+- Download the upstream KiCad ZIP
+- Export the selected symbol, footprint, and 3D assets
+
+## Browser support
 
 - EasyEDA-backed JLCPCB and LCSC export works in Chrome and Firefox.
 - SamacSys distributor export currently works in Chrome only.
-- Firefox still needs a proxy or alternate backend for the required SamacSys cross-origin requests, which is intentionally out of scope in this repository.
-- SamacSys ZIP export may require the user to be signed in before the upstream service will authorize the CAD download, even when previews still load.
+- Firefox intentionally returns an unsupported error for SamacSys distributor export because the required cross-origin fetches need a proxy or alternate backend.
+- SamacSys ZIP export may require the user to be signed in to the upstream service even when previews still load.
 
 ## Settings
 
-The popup includes:
+The popup exposes two persistent settings:
 
-- **Download individually**:
-  Disabled keeps the KiCad-style library structure.
-  Enabled downloads loose files directly into Downloads.
-- **Library folder in Downloads**:
-  Sets the library-mode root folder relative to Downloads, such as `easyEDADownloader` or `KiCad/easyEDA`.
-  This setting applies only when **Download individually** is disabled.
-  SamacSys distributor exports are extracted from the upstream ZIP and repackaged into this KiCad library structure when library mode is enabled.
+- `Download individually`: when enabled, downloads loose files directly into `Downloads`
+- `Library folder in Downloads`: the Downloads-relative root used for KiCad library mode, such as `easyEDADownloader` or `KiCad/easyEDA`
 
-In library mode, files are saved under `Downloads/<your folder>/` using KiCad library structure named after the final folder segment (`<folder name>.kicad_sym`, `.pretty/`, `.3dshapes/`).
+When `Download individually` is disabled, the extension writes a KiCad-style library layout under:
 
-## Testing
+`Downloads/<library root>/`
 
-Use Node `22.13.0+` (recommended), Node `20.19.0+`, or Node `24+` before installing dev dependencies and running the regression suite. Node `21.x` is not supported by the current Vitest/Vite/jsdom toolchain.
+Library mode uses the final folder segment as the library name:
 
-The repository includes `.nvmrc` for the recommended Node version.
+- `<library name>.kicad_sym`
+- `<library name>.pretty/`
+- `<library name>.3dshapes/`
 
-Install the dev dependencies and run the regression suite:
+## Development
+
+Use Node `22.13.0+` (recommended), Node `20.19.0+`, or Node `24+`. Node `21.x` is not supported by the current Vitest/Vite/jsdom stack.
+
+Install dependencies and run the regression suite:
 
 ```bash
 npm install
 npm test
 ```
 
-Repository design and governance live in `systemDesign.md`, `AGENTS.md`,
-`docs/architecture-notes.md`, and `docs/deviations.md`.
+The repository includes `.nvmrc` for the recommended Node version.
+
+## Repository layout
+
+- `src/content_script.js`: DOM inspection and provider-aware part detection
+- `src/popup.js`: popup UI, settings, preview requests, and export requests
+- `src/service_worker.js`: thin runtime entrypoint
+- `src/service_worker_runtime.js`: provider routing and worker orchestration
+- `src/core/`: shared worker logic for settings, downloads, storage-backed symbol libraries, previews, and export artifact writing
+- `src/sources/`: source adapters and provider-specific fetch or archive helpers
+- `src/kicad_converter.js`: stable converter facade
+- `src/kicad/`: EasyEDA parsing, KiCad emitters, shared conversion helpers, and OBJ-to-WRL conversion
+- `tests/`: regression suite
+
+`systemDesign.md` is the design source of truth. `docs/architecture-notes.md` captures short implementation notes that supplement it.
 
 ## Contributing
 
-Pull requests and issues are welcome.  
-If you find a bug or want to improve support for additional components, feel free to open an issue.
-Before contributing, read `AGENTS.md` for repository working rules and
-`contributing.md` for the project’s contribution instructions.
+Read [contributing.md](contributing.md) for contribution expectations and [AGENTS.md](AGENTS.md) for repository working rules.
+
+## License and attribution
 
 This project includes and is derived from:
 
-easyeda2kicad.py  
+`easyeda2kicad.py`  
 Copyright (c) uPesy  
 Licensed under the GNU Affero General Public License v3.0
 
-Modifications and additional code:  
-Copyright (c) JoeShade  
-Licensed under the GNU Affero General Public License v3.0
+Additional code in this repository remains under the repository license.

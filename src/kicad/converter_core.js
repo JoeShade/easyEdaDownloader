@@ -1,3 +1,9 @@
+/*
+ * Internal converter orchestration for EasyEDA-backed parts. This stitches
+ * together the symbol parser, footprint parser, KiCad emitters, and OBJ-to-WRL
+ * conversion while keeping the public facade stable in kicad_converter.js.
+ */
+
 import { parseEasyedaFootprint } from "./easyeda_footprint_parser.js";
 import { parseEasyedaSymbol } from "./easyeda_symbol_parser.js";
 import { convertFootprintToKiCad, drillToKi, exportKiCadFootprint } from "./kicad_footprint_emitter.js";

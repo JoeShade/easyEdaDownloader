@@ -1,3 +1,9 @@
+/*
+ * Shared download helpers for the service worker. These wrap chrome.downloads
+ * so adapters can write text, binary, and URL-backed artifacts without
+ * duplicating Blob/data-URL fallback logic or object-URL cleanup.
+ */
+
 import { arrayBufferToBase64, textToBase64 } from "./preview_data.js";
 
 function createDownloadApi(chromeApi, urlApi = globalThis.URL, blobCtor = globalThis.Blob) {

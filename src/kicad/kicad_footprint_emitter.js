@@ -1,3 +1,9 @@
+/*
+ * Converts the normalized footprint model into KiCad footprint text. This
+ * module owns KiCad-specific coordinate transforms, pad/geometry formatting,
+ * and 3D model placement output.
+ */
+
 import {
   KI_FOOTPRINT_TEMPLATES,
   KI_LAYERS,

@@ -1,3 +1,9 @@
+/*
+ * Converts the normalized symbol model into KiCad symbol-library text. EasyEDA
+ * parsing is handled elsewhere; this module focuses on KiCad-specific geometry,
+ * property formatting, and pin serialization.
+ */
+
 import {
   EASYEDA_PIN_TYPE_MAP,
   KI_SYMBOL_CONFIG,

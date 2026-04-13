@@ -1,3 +1,9 @@
+/*
+ * Storage-backed KiCad symbol-library helpers. Library mode keeps the current
+ * merged symbol text in chrome.storage.local so repeated exports can append or
+ * replace symbol blocks without touching the local filesystem directly.
+ */
+
 function extractSymbolBlock(kicadLibraryText) {
   const start = kicadLibraryText.indexOf("(symbol \"");
   if (start === -1) {

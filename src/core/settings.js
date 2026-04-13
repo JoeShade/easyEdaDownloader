@@ -1,3 +1,9 @@
+/*
+ * Shared popup and worker settings helpers. This module keeps the Downloads-
+ * relative library-root rules in one place so UI validation and backend path
+ * resolution stay aligned.
+ */
+
 const DEFAULT_LIBRARY_DOWNLOAD_ROOT = "easyEDADownloader";
 
 const DEFAULT_SETTINGS = {

@@ -1,7 +1,8 @@
 /*
  * This content script inspects supported product pages and returns a provider-
  * aware part context for the popup. EasyEDA/LCSC pages expose an LCSC part id,
- * while Mouser pages expose SamacSys lookup metadata through the ECAD button.
+ * while SamacSys distributor pages expose lookup metadata through page-specific
+ * ECAD entry points.
  */
 
 const EASYEDA_PROVIDER = "easyedaLcsc";

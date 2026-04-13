@@ -1,7 +1,8 @@
 /*
  * This script powers the extension popup UI. It fetches the provider-aware
  * part context from the active tab, lets the user choose what to download, and
- * sends a request to the background service worker to start the export.
+ * sends a request to the background service worker to start the export while
+ * reusing the shared provider and settings helpers from src/core.
  */
 
 import {

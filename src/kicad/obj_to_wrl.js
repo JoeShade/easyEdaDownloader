@@ -1,3 +1,9 @@
+/*
+ * Converts EasyEDA OBJ/MTL-style model data into WRL text for KiCad. This is
+ * kept separate from the footprint exporter so 3D conversion can be tested and
+ * evolved independently of symbol and footprint generation.
+ */
+
 function convertObjToWrl(objData) {
   const materials = {};
   const materialMatches = objData.match(/newmtl[\s\S]*?endmtl/g) || [];
