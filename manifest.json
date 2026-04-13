@@ -2,12 +2,12 @@
   "manifest_version": 3,
   "name": "EasyEDA Downloader",
   "version": "0.1.1",
-  "description": "Export KiCad symbol, footprint, and 3D model files from EasyEDA and Mouser-supported product pages.",
+  "description": "Export KiCad symbol, footprint, and 3D model files from EasyEDA and supported SamacSys distributor product pages.",
   "permissions": ["activeTab", "downloads", "storage"],
   "host_permissions": [
     "https://easyeda.com/*",
     "https://modules.easyeda.com/*",
-    "https://ms.componentsearchengine.com/*"
+    "https://*.componentsearchengine.com/*"
   ],
   "background": {
     "service_worker": "src/service_worker.js",
@@ -37,7 +37,9 @@
         "*://*.jlcpcb.com/*",
         "*://*.lcsc.com/*",
         "*://*.mouser.com/*",
-        "*://*.mouser.co.uk/*"
+        "*://*.mouser.co.uk/*",
+        "*://uk.farnell.com/*",
+        "*://*.farnell.com/*"
       ],
       "js": ["src/content_script.js"]
     }

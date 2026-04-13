@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import vm from "node:vm";
 
 const FALLBACK_ATOB = (value) => Buffer.from(value, "base64").toString("binary");
@@ -9,6 +10,14 @@ export const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..");
 
 export function readRepoFile(relativePath) {
   return fs.readFileSync(path.join(REPO_ROOT, relativePath), "utf8");
+}
+
+let moduleImportNonce = 0;
+
+export async function importRepoModule(relativePath) {
+  const moduleUrl = pathToFileURL(path.join(REPO_ROOT, relativePath));
+  moduleUrl.searchParams.set("t", String(moduleImportNonce++));
+  return import(moduleUrl.href);
 }
 
 export function runSourceFile(

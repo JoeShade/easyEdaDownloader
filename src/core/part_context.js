@@ -1,11 +1,49 @@
-/*
- * This service worker entrypoint stays intentionally thin.
- * Source routing and business logic live in service_worker_runtime.js.
- */
+const EASYEDA_PROVIDER = "easyedaLcsc";
+const MOUSER_PROVIDER = "mouserSamacsys";
+const FARNELL_PROVIDER = "farnellSamacsys";
 
-import { registerServiceWorkerRuntime } from "./service_worker_runtime.js";
+function normalizePartContext(partContext) {
+  if (!partContext?.provider) {
+    return null;
+  }
+  return {
+    provider: partContext.provider,
+    sourcePartLabel: partContext.sourcePartLabel || null,
+    sourcePartNumber: partContext.sourcePartNumber || null,
+    manufacturerPartNumber: partContext.manufacturerPartNumber || null,
+    lookup: partContext.lookup || {}
+  };
+}
 
-registerServiceWorkerRuntime(globalThis.chrome);
+function isFirefoxRuntime(userAgent = globalThis.navigator?.userAgent) {
+  return /firefox/i.test(String(userAgent || ""));
+}
+
+function isSamacsysProvider(provider) {
+  return /Samacsys$/i.test(String(provider || ""));
+}
+
+function isBlockedPartContext(partContext, userAgent) {
+  return isSamacsysProvider(partContext?.provider) && isFirefoxRuntime(userAgent);
+}
+
+function getBlockedPartContextError(partContext, userAgent) {
+  if (isBlockedPartContext(partContext, userAgent)) {
+    return "SamacSys distributor downloads require a proxy in Firefox. Chrome-only for now.";
+  }
+  return "";
+}
+
+export {
+  EASYEDA_PROVIDER,
+  FARNELL_PROVIDER,
+  MOUSER_PROVIDER,
+  isSamacsysProvider,
+  normalizePartContext,
+  isFirefoxRuntime,
+  isBlockedPartContext,
+  getBlockedPartContextError
+};
 
 /*
 ######################################################################################################################
