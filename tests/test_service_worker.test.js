@@ -1438,8 +1438,7 @@ describe("service worker", () => {
       proxyBaseUrl: "https://proxy.example.test/relay",
       symbolImage: "AAAA",
       footprintImage: "BBBB",
-      expectedAuthorizationHeader:
-        "Basic dXNlckBleGFtcGxlLmNvbTpzZWNyZXQxMjM="
+      expectedAuthorizationHeader: "Basic dXNlckBleGFtcGxlLmNvbTpzZWNyZXQxMjM="
     });
     loadServiceWorker({
       chrome,
