@@ -63,16 +63,32 @@ The development manifest expects Firefox `121+` so Firefox can use the backgroun
 ## Browser support
 
 - EasyEDA-backed JLCPCB and LCSC export works in Chrome and Firefox.
-- SamacSys distributor export currently works in Chrome only.
-- Firefox intentionally returns an unsupported error for SamacSys distributor export because the required cross-origin fetches need a proxy or alternate backend.
-- SamacSys ZIP export may require the user to be signed in to the upstream service even when previews still load.
+- SamacSys distributor export works directly in Chrome.
+- Firefox can use SamacSys distributor export only when an advanced user-managed relay URL is configured in the popup settings.
+- SamacSys ZIP export may require the user to be signed in to the upstream service even when previews still load. On Firefox relay mode, the extension forwards matching SamacSys cookies through the relay, can generate the upstream SamacSys HTTP Basic auth header locally from optional stored credentials, can fall back to the latest captured upstream `Authorization` header, and can send separate relay auth to the Worker itself.
+
+For a ready-to-deploy Cloudflare Worker relay example, see [docs/firefox-samacsys-proxy.md](docs/firefox-samacsys-proxy.md).
 
 ## Settings
 
-The popup exposes two persistent settings:
+The popup exposes persistent settings for download layout plus advanced Firefox SamacSys relay controls:
 
 - `Download individually`: when enabled, downloads loose files directly into `Downloads`
 - `Library folder in Downloads`: the Downloads-relative root used for KiCad library mode, such as `easyEDADownloader` or `KiCad/easyEDA`
+- `Firefox SamacSys proxy URL`: an optional advanced relay URL used only for Mouser/Farnell SamacSys requests on Firefox
+- `Firefox SamacSys proxy Authorization header`: an optional relay-auth header, such as `Bearer ...` or `Basic ...`, sent only to the configured Cloudflare Worker relay
+- `SamacSys username` and `SamacSys password`: optional upstream credentials used to generate the SamacSys HTTP Basic auth header locally
+- `Manual SamacSys Authorization override`: an optional upstream SamacSys `Authorization` header that overrides the auto-captured value when ZIP export still needs explicit HTTP Basic auth
+- `Auto-captured SamacSys Authorization`: a read-only status showing whether Firefox has recently observed and stored an upstream `componentsearchengine.com` `Authorization` header for reuse in relay mode
+
+For authenticated SamacSys ZIP downloads in Firefox, the extension uses this upstream auth precedence:
+
+- `Manual SamacSys Authorization override`
+- generated Basic auth from `SamacSys username` and `SamacSys password`
+- latest captured upstream SamacSys `Authorization` header
+- no upstream auth header
+
+If you do not want to store credentials, stay signed in on the upstream Mouser/Farnell SamacSys flow so the extension can forward matching `componentsearchengine.com` cookies through the relay and capture the latest upstream `Authorization` header when the browser sends one. If export still returns the sign-in-required error, the extension will do one automatic refresh-and-retry cycle after a `401` ZIP response. If your Worker itself is protected, put its credential in `Firefox SamacSys proxy Authorization header`.
 
 When `Download individually` is disabled, the extension writes a KiCad-style library layout under:
 

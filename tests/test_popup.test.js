@@ -81,6 +81,62 @@ function dispatchChange(dom, element) {
   element.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 }
 
+const EASYEDA_PART_CONTEXT = {
+  provider: "easyedaLcsc",
+  sourcePartLabel: "LCSC part",
+  sourcePartNumber: "C12345",
+  manufacturerPartNumber: "SN74LVC1G14DBVR",
+  lookup: {
+    lcscId: "C12345"
+  }
+};
+
+const MOUSER_PART_CONTEXT = {
+  provider: "mouserSamacsys",
+  sourcePartLabel: "Mouser part",
+  sourcePartNumber: "511-STM32U3C5RIT6Q",
+  manufacturerPartNumber: "STM32U3C5RIT6Q",
+  lookup: {
+    manufacturerName: "STMicroelectronics",
+    entryUrl:
+      "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB"
+  }
+};
+
+const FARNELL_PART_CONTEXT = {
+  provider: "farnellSamacsys",
+  sourcePartLabel: "Farnell part",
+  sourcePartNumber: "1848693",
+  manufacturerPartNumber: "FQP27P06",
+  lookup: {
+    manufacturerName: "ONSEMI",
+    entryUrl:
+      "https://farnell.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=FQP27P06&pna=farnell&vrq=multi&fmt=zip&lang=en-GB",
+    partnerName: "farnell",
+    samacsysBaseUrl: "https://farnell.componentsearchengine.com"
+  }
+};
+
+async function applyStoredSettings(
+  state,
+  settings = {
+    downloadIndividually: false,
+    libraryDownloadRoot: "easyEDADownloader",
+    samacsysFirefoxProxyBaseUrl: "",
+    samacsysFirefoxProxyAuthorizationHeader: "",
+    samacsysFirefoxAuthorizationHeader: "",
+    samacsysFirefoxCapturedAuthorizationHeader: "",
+    samacsysFirefoxCapturedAuthorizationCapturedAt: ""
+  }
+) {
+  state.storageGetCalls[0].callback(settings);
+  await flushAsyncWork();
+}
+
+function activatePopupTab(state, tabId) {
+  state.queryCalls[0].callback([{ id: tabId }]);
+}
+
 describe("popup", () => {
   it("starts in a loading state and requests the active tab plus saved settings", async () => {
     const { state, hooks } = await loadPopup();
@@ -95,6 +151,15 @@ describe("popup", () => {
     expect(hooks.elements.sourcePartLabelEl.textContent).toBe("Part");
     expect(hooks.elements.partNumberEl.textContent).toBe("Searching...");
     expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
+    expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.value).toBe("");
+    expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.value).toBe("");
+    expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.value).toBe("");
+    expect(
+      hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent.trim()
+    ).toBe("No captured SamacSys auth header yet.");
+    expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.type).toBe(
+      "password"
+    );
     expect(hooks.elements.downloadButton.disabled).toBe(true);
     expect(hooks.elements.symbolPreviewFallbackEl.textContent).toBe("Loading...");
     expect(hooks.elements.footprintPreviewFallbackEl.textContent).toBe("Loading...");
@@ -103,29 +168,20 @@ describe("popup", () => {
   it("loads an EasyEDA part context and enables download only when a selection exists", async () => {
     const { dom, state, hooks } = await loadPopup();
 
-    state.storageGetCalls[0].callback({
+    await applyStoredSettings(state, {
       downloadIndividually: true,
       libraryDownloadRoot: "KiCad\\easyEDA"
     });
-    await flushAsyncWork();
     expect(hooks.elements.downloadIndividuallyEl.checked).toBe(true);
     expect(hooks.elements.libraryDownloadRootEl.value).toBe("KiCad/easyEDA");
 
-    state.queryCalls[0].callback([{ id: 7 }]);
+    activatePopupTab(state, 7);
     expect(state.tabMessages[0]).toMatchObject({
       tabId: 7,
       message: { type: "GET_PART_CONTEXT" }
     });
 
-    const partContext = {
-      provider: "easyedaLcsc",
-      sourcePartLabel: "LCSC part",
-      sourcePartNumber: "C12345",
-      manufacturerPartNumber: "SN74LVC1G14DBVR",
-      lookup: {
-        lcscId: "C12345"
-      }
-    };
+    const partContext = EASYEDA_PART_CONTEXT;
     state.tabMessages[0].callback(partContext);
     expect(state.runtimeMessages[0].message).toEqual({
       type: "GET_PART_PREVIEWS",
@@ -170,24 +226,10 @@ describe("popup", () => {
   it("renders a Mouser provider context, uses PNG previews, and disables datasheet export", async () => {
     const { state, hooks } = await loadPopup();
 
-    state.storageGetCalls[0].callback({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
-    });
-    await flushAsyncWork();
-    state.queryCalls[0].callback([{ id: 8 }]);
+    await applyStoredSettings(state);
+    activatePopupTab(state, 8);
 
-    const partContext = {
-      provider: "mouserSamacsys",
-      sourcePartLabel: "Mouser part",
-      sourcePartNumber: "511-STM32U3C5RIT6Q",
-      manufacturerPartNumber: "STM32U3C5RIT6Q",
-      lookup: {
-        manufacturerName: "STMicroelectronics",
-        entryUrl:
-          "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB"
-      }
-    };
+    const partContext = MOUSER_PART_CONTEXT;
 
     state.tabMessages[0].callback(partContext);
     expect(state.runtimeMessages[0].message).toEqual({
@@ -221,6 +263,7 @@ describe("popup", () => {
     expect(state.runtimeMessages[1].message).toEqual({
       type: "EXPORT_PART",
       partContext,
+      sourceTabId: 8,
       options: {
         symbol: true,
         footprint: true,
@@ -233,24 +276,10 @@ describe("popup", () => {
   it("keeps Mouser datasheet export disabled when previews fail", async () => {
     const { state, hooks } = await loadPopup();
 
-    state.storageGetCalls[0].callback({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
-    });
-    await flushAsyncWork();
-    state.queryCalls[0].callback([{ id: 8 }]);
+    await applyStoredSettings(state);
+    activatePopupTab(state, 8);
 
-    const partContext = {
-      provider: "mouserSamacsys",
-      sourcePartLabel: "Mouser part",
-      sourcePartNumber: "511-STM32U3C5RIT6Q",
-      manufacturerPartNumber: "STM32U3C5RIT6Q",
-      lookup: {
-        manufacturerName: "STMicroelectronics",
-        entryUrl:
-          "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB"
-      }
-    };
+    const partContext = MOUSER_PART_CONTEXT;
 
     state.tabMessages[0].callback(partContext);
     expect(hooks.elements.downloadDatasheetEl.disabled).toBe(true);
@@ -276,22 +305,9 @@ describe("popup", () => {
       userAgent: "Mozilla/5.0 Firefox/149.0"
     });
 
-    state.storageGetCalls[0].callback({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
-    });
-    await flushAsyncWork();
-    state.queryCalls[0].callback([{ id: 10 }]);
-    state.tabMessages[0].callback({
-      provider: "mouserSamacsys",
-      sourcePartLabel: "Mouser part",
-      sourcePartNumber: "511-STM32U3C5RIT6Q",
-      manufacturerPartNumber: "STM32U3C5RIT6Q",
-      lookup: {
-        manufacturerName: "STMicroelectronics",
-        entryUrl: "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB"
-      }
-    });
+    await applyStoredSettings(state);
+    activatePopupTab(state, 10);
+    state.tabMessages[0].callback(MOUSER_PART_CONTEXT);
 
     expect(hooks.elements.statusEl.textContent).toContain("Chrome-only for now");
     expect(hooks.elements.downloadButton.disabled).toBe(true);
@@ -302,29 +318,48 @@ describe("popup", () => {
     expect(state.runtimeMessages).toHaveLength(0);
   });
 
+  it("allows Firefox SamacSys previews when an advanced proxy URL is configured", async () => {
+    const { state, hooks } = await loadPopup({
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    await applyStoredSettings(state, {
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader",
+      samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+    });
+    activatePopupTab(state, 12);
+    state.tabMessages[0].callback(MOUSER_PART_CONTEXT);
+
+    expect(state.runtimeMessages[0].message).toEqual({
+      type: "GET_PART_PREVIEWS",
+      partContext: MOUSER_PART_CONTEXT
+    });
+
+    state.runtimeMessages[0].callback({
+      ok: true,
+      previews: {
+        symbolUrl: "data:image/png;base64,AAAA",
+        footprintUrl: "data:image/png;base64,BBBB"
+      },
+      metadata: {
+        datasheetAvailable: false
+      }
+    });
+    await flushAsyncWork();
+
+    expect(hooks.elements.statusEl.textContent).toBe("");
+    expect(hooks.elements.downloadButton.disabled).toBe(false);
+  });
+
   it("treats Farnell SamacSys pages like Mouser for preview defaults and Firefox blocking", async () => {
     const { state, hooks } = await loadPopup({
       userAgent: "Mozilla/5.0 Firefox/149.0"
     });
 
-    state.storageGetCalls[0].callback({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
-    });
-    await flushAsyncWork();
-    state.queryCalls[0].callback([{ id: 11 }]);
-    state.tabMessages[0].callback({
-      provider: "farnellSamacsys",
-      sourcePartLabel: "Farnell part",
-      sourcePartNumber: "1848693",
-      manufacturerPartNumber: "FQP27P06",
-      lookup: {
-        manufacturerName: "ONSEMI",
-        entryUrl: "https://farnell.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=FQP27P06&pna=farnell&vrq=multi&fmt=zip&lang=en-GB",
-        partnerName: "farnell",
-        samacsysBaseUrl: "https://farnell.componentsearchengine.com"
-      }
-    });
+    await applyStoredSettings(state);
+    activatePopupTab(state, 11);
+    state.tabMessages[0].callback(FARNELL_PART_CONTEXT);
 
     expect(hooks.elements.downloadDatasheetEl.disabled).toBe(true);
     expect(hooks.elements.statusEl.textContent).toContain("Chrome-only for now");
@@ -335,18 +370,21 @@ describe("popup", () => {
   it("saves settings when the download organization toggle changes", async () => {
     const { dom, state, hooks } = await loadPopup();
 
-    state.storageGetCalls[0].callback({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
-    });
-    await flushAsyncWork();
+    await applyStoredSettings(state);
     hooks.elements.downloadIndividuallyEl.checked = true;
     dispatchChange(dom, hooks.elements.downloadIndividuallyEl);
 
     expect(state.storageSetCalls).toEqual([
       {
         downloadIndividually: true,
-        libraryDownloadRoot: "easyEDADownloader"
+        libraryDownloadRoot: "easyEDADownloader",
+        samacsysFirefoxProxyBaseUrl: "",
+        samacsysFirefoxProxyAuthorizationHeader: "",
+        samacsysFirefoxUsername: "",
+        samacsysFirefoxPassword: "",
+        samacsysFirefoxAuthorizationHeader: "",
+        samacsysFirefoxCapturedAuthorizationHeader: "",
+        samacsysFirefoxCapturedAuthorizationCapturedAt: ""
       }
     ]);
   });
@@ -354,11 +392,7 @@ describe("popup", () => {
   it("normalizes and saves the library download root from the popup", async () => {
     const { dom, state, hooks } = await loadPopup();
 
-    state.storageGetCalls[0].callback({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
-    });
-    await flushAsyncWork();
+    await applyStoredSettings(state);
     hooks.elements.libraryDownloadRootEl.value = "  KiCad\\\\easyEDA//Parts  ";
     dispatchChange(dom, hooks.elements.libraryDownloadRootEl);
 
@@ -366,19 +400,182 @@ describe("popup", () => {
     expect(state.storageSetCalls).toEqual([
       {
         downloadIndividually: false,
-        libraryDownloadRoot: "KiCad/easyEDA/Parts"
+        libraryDownloadRoot: "KiCad/easyEDA/Parts",
+        samacsysFirefoxProxyBaseUrl: "",
+        samacsysFirefoxProxyAuthorizationHeader: "",
+        samacsysFirefoxUsername: "",
+        samacsysFirefoxPassword: "",
+        samacsysFirefoxAuthorizationHeader: "",
+        samacsysFirefoxCapturedAuthorizationHeader: "",
+        samacsysFirefoxCapturedAuthorizationCapturedAt: ""
       }
     ]);
+  });
+
+  it("normalizes and saves the Firefox SamacSys proxy URL from advanced settings", async () => {
+    const { dom, state, hooks } = await loadPopup();
+
+    await applyStoredSettings(state);
+    hooks.elements.samacsysFirefoxProxyBaseUrlEl.value = " https://proxy.example.test/relay#frag ";
+    dispatchChange(dom, hooks.elements.samacsysFirefoxProxyBaseUrlEl);
+
+    expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.value).toBe(
+      "https://proxy.example.test/relay"
+    );
+    expect(state.storageSetCalls).toEqual([
+      {
+        downloadIndividually: false,
+        libraryDownloadRoot: "easyEDADownloader",
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
+        samacsysFirefoxProxyAuthorizationHeader: "",
+        samacsysFirefoxUsername: "",
+        samacsysFirefoxPassword: "",
+        samacsysFirefoxAuthorizationHeader: "",
+        samacsysFirefoxCapturedAuthorizationHeader: "",
+        samacsysFirefoxCapturedAuthorizationCapturedAt: ""
+      }
+    ]);
+  });
+
+  it("normalizes and saves the Firefox SamacSys proxy Authorization header", async () => {
+    const { dom, state, hooks } = await loadPopup();
+
+    await applyStoredSettings(state);
+    hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.value =
+      " Authorization: Bearer relay123 ";
+    dispatchChange(dom, hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl);
+
+    expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.value).toBe(
+      "Bearer relay123"
+    );
+    expect(state.storageSetCalls).toEqual([
+      {
+        downloadIndividually: false,
+        libraryDownloadRoot: "easyEDADownloader",
+        samacsysFirefoxProxyBaseUrl: "",
+        samacsysFirefoxProxyAuthorizationHeader: "Bearer relay123",
+        samacsysFirefoxUsername: "",
+        samacsysFirefoxPassword: "",
+        samacsysFirefoxAuthorizationHeader: "",
+        samacsysFirefoxCapturedAuthorizationHeader: "",
+        samacsysFirefoxCapturedAuthorizationCapturedAt: ""
+      }
+    ]);
+  });
+
+  it("normalizes and saves the manual SamacSys Authorization override", async () => {
+    const { dom, state, hooks } = await loadPopup();
+
+    await applyStoredSettings(state);
+    hooks.elements.samacsysFirefoxAuthorizationHeaderEl.value =
+      " Authorization: Basic abc123 ";
+    dispatchChange(dom, hooks.elements.samacsysFirefoxAuthorizationHeaderEl);
+
+    expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.value).toBe(
+      "Basic abc123"
+    );
+    expect(state.storageSetCalls).toEqual([
+      {
+        downloadIndividually: false,
+        libraryDownloadRoot: "easyEDADownloader",
+        samacsysFirefoxProxyBaseUrl: "",
+        samacsysFirefoxProxyAuthorizationHeader: "",
+        samacsysFirefoxUsername: "",
+        samacsysFirefoxPassword: "",
+        samacsysFirefoxAuthorizationHeader: "Basic abc123",
+        samacsysFirefoxCapturedAuthorizationHeader: "",
+        samacsysFirefoxCapturedAuthorizationCapturedAt: ""
+      }
+    ]);
+  });
+
+  it("trims and saves the optional SamacSys username and password", async () => {
+    const { dom, state, hooks } = await loadPopup();
+
+    await applyStoredSettings(state);
+    hooks.elements.samacsysFirefoxUsernameEl.value = "  user@example.com  ";
+    dispatchChange(dom, hooks.elements.samacsysFirefoxUsernameEl);
+    hooks.elements.samacsysFirefoxPasswordEl.value = "  secret123  ";
+    dispatchChange(dom, hooks.elements.samacsysFirefoxPasswordEl);
+
+    expect(hooks.elements.samacsysFirefoxUsernameEl.value).toBe("user@example.com");
+    expect(hooks.elements.samacsysFirefoxPasswordEl.value).toBe("secret123");
+    expect(state.storageSetCalls[0]).toEqual({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader",
+      samacsysFirefoxProxyBaseUrl: "",
+      samacsysFirefoxProxyAuthorizationHeader: "",
+      samacsysFirefoxUsername: "user@example.com",
+      samacsysFirefoxPassword: "",
+      samacsysFirefoxAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
+    });
+    expect(state.storageSetCalls[1]).toEqual({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader",
+      samacsysFirefoxProxyBaseUrl: "",
+      samacsysFirefoxProxyAuthorizationHeader: "",
+      samacsysFirefoxUsername: "user@example.com",
+      samacsysFirefoxPassword: "secret123",
+      samacsysFirefoxAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
+    });
+  });
+
+  it("shows captured SamacSys auth status without exposing the secret", async () => {
+    const { state, hooks } = await loadPopup();
+
+    await applyStoredSettings(state, {
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader",
+      samacsysFirefoxProxyBaseUrl: "",
+      samacsysFirefoxProxyAuthorizationHeader: "",
+      samacsysFirefoxAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationHeader: "Basic captured-secret",
+      samacsysFirefoxCapturedAuthorizationCapturedAt: "2026-04-14T11:40:00.000Z"
+    });
+
+    expect(hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent).toContain(
+      "Captured SamacSys auth header available from"
+    );
+    expect(hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent).not.toContain(
+      "captured-secret"
+    );
+  });
+
+  it("warns and disables the proxy setting when the advanced URL is invalid", async () => {
+    const { dom, state, hooks } = await loadPopup();
+
+    await applyStoredSettings(state);
+    hooks.elements.samacsysFirefoxProxyBaseUrlEl.value = "not-a-url";
+    dispatchChange(dom, hooks.elements.samacsysFirefoxProxyBaseUrlEl);
+
+    expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.value).toBe("");
+    expect(hooks.elements.statusEl.textContent).toContain(
+      "Firefox SamacSys proxy URL must be an absolute http:// or https:// URL."
+    );
+    expect(state.storageSetCalls[0]).toEqual({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader",
+      samacsysFirefoxProxyBaseUrl: "",
+      samacsysFirefoxProxyAuthorizationHeader: "",
+      samacsysFirefoxUsername: "",
+      samacsysFirefoxPassword: "",
+      samacsysFirefoxAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
+    });
   });
 
   it("resets invalid or cleared library folder values to the default root", async () => {
     const { dom, state, hooks } = await loadPopup();
 
-    state.storageGetCalls[0].callback({
+    await applyStoredSettings(state, {
       downloadIndividually: false,
       libraryDownloadRoot: "Projects/KiCad"
     });
-    await flushAsyncWork();
 
     hooks.elements.libraryDownloadRootEl.value = "../outside";
     dispatchChange(dom, hooks.elements.libraryDownloadRootEl);
@@ -388,7 +585,14 @@ describe("popup", () => {
     expect(hooks.elements.statusEl.classList.contains("warning")).toBe(true);
     expect(state.storageSetCalls[0]).toEqual({
       downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
+      libraryDownloadRoot: "easyEDADownloader",
+      samacsysFirefoxProxyBaseUrl: "",
+      samacsysFirefoxProxyAuthorizationHeader: "",
+      samacsysFirefoxUsername: "",
+      samacsysFirefoxPassword: "",
+      samacsysFirefoxAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
     });
 
     hooks.elements.libraryDownloadRootEl.value = "Nested/Parts";
@@ -397,19 +601,22 @@ describe("popup", () => {
     expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
     expect(state.storageSetCalls[1]).toEqual({
       downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
+      libraryDownloadRoot: "easyEDADownloader",
+      samacsysFirefoxProxyBaseUrl: "",
+      samacsysFirefoxProxyAuthorizationHeader: "",
+      samacsysFirefoxUsername: "",
+      samacsysFirefoxPassword: "",
+      samacsysFirefoxAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
     });
   });
 
   it("shows identifiers as unavailable when the content script cannot respond", async () => {
     const { chrome, state, hooks } = await loadPopup();
 
-    state.storageGetCalls[0].callback({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
-    });
-    await flushAsyncWork();
-    state.queryCalls[0].callback([{ id: 11 }]);
+    await applyStoredSettings(state);
+    activatePopupTab(state, 11);
     chrome.runtime.lastError = { message: "No receiver." };
     state.tabMessages[0].callback(undefined);
 
@@ -424,15 +631,10 @@ describe("popup", () => {
   it("surfaces export errors in the popup status area", async () => {
     const { state, hooks } = await loadPopup();
 
-    state.storageGetCalls[0].callback({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader"
-    });
-    await flushAsyncWork();
-    state.queryCalls[0].callback([{ id: 9 }]);
+    await applyStoredSettings(state);
+    activatePopupTab(state, 9);
     const partContext = {
-      provider: "easyedaLcsc",
-      sourcePartLabel: "LCSC part",
+      ...EASYEDA_PART_CONTEXT,
       sourcePartNumber: "C90000",
       manufacturerPartNumber: "LM358PWR",
       lookup: {

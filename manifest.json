@@ -3,8 +3,10 @@
   "name": "EasyEDA Downloader",
   "version": "0.1.1",
   "description": "Export KiCad symbol, footprint, and 3D model files from EasyEDA and supported SamacSys distributor product pages.",
-  "permissions": ["activeTab", "downloads", "storage"],
+  "permissions": ["activeTab", "cookies", "downloads", "storage", "webRequest"],
   "host_permissions": [
+    "http://*/*",
+    "https://*/*",
     "https://easyeda.com/*",
     "https://modules.easyeda.com/*",
     "https://*.componentsearchengine.com/*"

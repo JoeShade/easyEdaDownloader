@@ -29,12 +29,24 @@ function isSamacsysProvider(provider) {
   return /Samacsys$/i.test(String(provider || ""));
 }
 
-function isBlockedPartContext(partContext, userAgent) {
-  return isSamacsysProvider(partContext?.provider) && isFirefoxRuntime(userAgent);
+function hasSamacsysFirefoxProxy(proxyBaseUrl) {
+  return Boolean(String(proxyBaseUrl || "").trim());
 }
 
-function getBlockedPartContextError(partContext, userAgent) {
-  if (isBlockedPartContext(partContext, userAgent)) {
+function isBlockedPartContext(partContext, userAgent, samacsysFirefoxProxyBaseUrl = "") {
+  return (
+    isSamacsysProvider(partContext?.provider) &&
+    isFirefoxRuntime(userAgent) &&
+    !hasSamacsysFirefoxProxy(samacsysFirefoxProxyBaseUrl)
+  );
+}
+
+function getBlockedPartContextError(
+  partContext,
+  userAgent,
+  samacsysFirefoxProxyBaseUrl = ""
+) {
+  if (isBlockedPartContext(partContext, userAgent, samacsysFirefoxProxyBaseUrl)) {
     return "SamacSys distributor downloads require a proxy in Firefox. Chrome-only for now.";
   }
   return "";
@@ -44,6 +56,7 @@ export {
   EASYEDA_PROVIDER,
   FARNELL_PROVIDER,
   MOUSER_PROVIDER,
+  hasSamacsysFirefoxProxy,
   isSamacsysProvider,
   normalizePartContext,
   isFirefoxRuntime,

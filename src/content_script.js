@@ -8,11 +8,30 @@
 const EASYEDA_PROVIDER = "easyedaLcsc";
 const MOUSER_PROVIDER = "mouserSamacsys";
 const FARNELL_PROVIDER = "farnellSamacsys";
-const MOUSER_SOURCE_LABEL = "Mouser part";
-const FARNELL_SOURCE_LABEL = "Farnell part";
 const EASYEDA_SOURCE_LABEL = "LCSC part";
-const MOUSER_ENTRY_ORIGIN = "https://ms.componentsearchengine.com";
-const FARNELL_ENTRY_ORIGIN = "https://farnell.componentsearchengine.com";
+const DISTRIBUTORS = {
+  mouser: {
+    provider: MOUSER_PROVIDER,
+    sourcePartLabel: "Mouser part",
+    baseUrl: "https://ms.componentsearchengine.com"
+  },
+  farnell: {
+    provider: FARNELL_PROVIDER,
+    sourcePartLabel: "Farnell part",
+    baseUrl: "https://farnell.componentsearchengine.com"
+  }
+};
+const EMPTY_PART_CONTEXT = {
+  provider: null,
+  sourcePartLabel: null,
+  sourcePartNumber: null,
+  manufacturerPartNumber: null,
+  lookup: null
+};
+const SAMACSYS_DOWNLOAD_TRIGGER_TEXT = "download cad models";
+const SAMACSYS_DOWNLOAD_TRIGGER_TIMEOUT_MS = 5000;
+let scheduledSamacsysDownloadObserver = null;
+let scheduledSamacsysDownloadTimeoutId = null;
 
 function isEasyedaHost() {
   return /(^|\.)((lcsc|jlcpcb)\.com)$/i.test(window.location.hostname);
@@ -55,67 +74,66 @@ function extractManufacturerPartNumber(text) {
   return normalizeDetectedValue(text);
 }
 
-function findTextInDefinitionLists(expectedLabels) {
-  const lists = document.querySelectorAll("dl");
-  for (const list of lists) {
-    const dt = list.querySelector("dt");
-    const dd = list.querySelector("dd");
-    if (!dt || !dd) {
+function hasExpectedLabel(label, expectedLabels, exact = false) {
+  if (exact) {
+    return expectedLabels.includes(label);
+  }
+  return matchesKnownLabel(label, expectedLabels);
+}
+
+function findLabeledTextInPairs(pairs, expectedLabels, exact = false) {
+  const normalizedExpectedLabels = expectedLabels.map((label) => normalizeLabel(label));
+  for (const [labelNode, valueNode] of pairs) {
+    if (!labelNode || !valueNode) {
       continue;
     }
-    const label = normalizeLabel(dt.textContent || "");
-    if (matchesKnownLabel(label, expectedLabels)) {
-      return normalizeDetectedValue(dd.textContent);
+    const label = normalizeLabel(labelNode.textContent || "");
+    if (hasExpectedLabel(label, normalizedExpectedLabels, exact)) {
+      return normalizeDetectedValue(valueNode.textContent);
     }
   }
   return null;
 }
 
-function findTextInTables(expectedLabels) {
-  const rows = document.querySelectorAll("table.tableInfoWrap tr");
-  for (const row of rows) {
-    const cells = row.querySelectorAll("td");
-    if (cells.length < 2) {
-      continue;
-    }
-    const label = normalizeLabel(cells[0].textContent || "");
-    if (matchesKnownLabel(label, expectedLabels)) {
-      return normalizeDetectedValue(cells[1].textContent);
-    }
-  }
-  return null;
+function findDefinitionListText(expectedLabels, exact = false) {
+  return findLabeledTextInPairs(
+    Array.from(document.querySelectorAll("dl"), (list) => [
+      list.querySelector("dt"),
+      list.querySelector("dd")
+    ]),
+    expectedLabels,
+    exact
+  );
 }
 
-// Search definition list entries (<dl><dt><dd>) for the part number.
-function findInDefinitionLists() {
-  const value = findTextInDefinitionLists(["jlcpcb part #", "lcsc part #"]);
-  return extractLcscId(value);
+function findTableText(expectedLabels, exact = false) {
+  return findLabeledTextInPairs(
+    Array.from(document.querySelectorAll("table.tableInfoWrap tr"), (row) => {
+      const cells = row.querySelectorAll("td");
+      return [cells[0], cells[1]];
+    }),
+    expectedLabels,
+    exact
+  );
 }
 
-// Search the common product table layout for the part number.
-function findInTables() {
-  const value = findTextInTables(["lcsc part #"]);
-  return extractLcscId(value);
-}
-
-function findManufacturerPartNumberInDefinitionLists() {
-  return extractManufacturerPartNumber(findTextInDefinitionLists(["mfr. part #"]));
-}
-
-function findManufacturerPartNumberInTables() {
-  return extractManufacturerPartNumber(findTextInTables(["mfr. part #"]));
+function findLabeledText(expectedLabels, exact = false) {
+  return (
+    findDefinitionListText(expectedLabels, exact) ||
+    findTableText(expectedLabels, exact)
+  );
 }
 
 function findManufacturerPartNumber() {
-  return (
-    findManufacturerPartNumberInDefinitionLists() ||
-    findManufacturerPartNumberInTables()
-  );
+  return extractManufacturerPartNumber(findLabeledText(["mfr. part #"]));
 }
 
 // Try the targeted searches first, then scan the entire page as a fallback.
 function findLcscId() {
-  return findInDefinitionLists() || findInTables() || extractLcscId(document.body.textContent);
+  return (
+    extractLcscId(findLabeledText(["jlcpcb part #", "lcsc part #"])) ||
+    extractLcscId(document.body.textContent)
+  );
 }
 
 function getInputValue(id) {
@@ -136,39 +154,6 @@ function getMetaContent(attribute, value) {
 function getLinkHref(rel) {
   const element = document.querySelector(`link[rel="${rel}"]`);
   return normalizeDetectedValue(element?.getAttribute("href"));
-}
-
-function findExactTextInDefinitionLists(expectedLabels) {
-  const normalizedExpectedLabels = expectedLabels.map((label) => normalizeLabel(label));
-  const lists = document.querySelectorAll("dl");
-  for (const list of lists) {
-    const dt = list.querySelector("dt");
-    const dd = list.querySelector("dd");
-    if (!dt || !dd) {
-      continue;
-    }
-    const label = normalizeLabel(dt.textContent || "");
-    if (normalizedExpectedLabels.includes(label)) {
-      return normalizeDetectedValue(dd.textContent);
-    }
-  }
-  return null;
-}
-
-function findExactTextInTables(expectedLabels) {
-  const normalizedExpectedLabels = expectedLabels.map((label) => normalizeLabel(label));
-  const rows = document.querySelectorAll("table.tableInfoWrap tr");
-  for (const row of rows) {
-    const cells = row.querySelectorAll("td");
-    if (cells.length < 2) {
-      continue;
-    }
-    const label = normalizeLabel(cells[0].textContent || "");
-    if (normalizedExpectedLabels.includes(label)) {
-      return normalizeDetectedValue(cells[1].textContent);
-    }
-  }
-  return null;
 }
 
 function getQueryParamValue(...keys) {
@@ -247,20 +232,17 @@ function findFarnellProductData() {
     manufacturerName:
       descriptionData?.manufacturerName ||
       imageAltData?.manufacturerName ||
-      findExactTextInDefinitionLists(["Manufacturer"]) ||
-      findExactTextInTables(["Manufacturer"]) ||
+      findLabeledText(["Manufacturer"], true) ||
       pathData?.manufacturerName ||
       null,
     manufacturerPartNumber:
       descriptionData?.manufacturerPartNumber ||
       imageAltData?.manufacturerPartNumber ||
-      findExactTextInDefinitionLists(["Manufacturer Part No", "Mfr. Part #"]) ||
-      findExactTextInTables(["Manufacturer Part No", "Mfr. Part #"]) ||
+      findLabeledText(["Manufacturer Part No", "Mfr. Part #"], true) ||
       pathData?.manufacturerPartNumber ||
       null,
     sourcePartNumber:
-      findExactTextInDefinitionLists(["Order Code", "Farnell Part No", "Farnell No"]) ||
-      findExactTextInTables(["Order Code", "Farnell Part No", "Farnell No"]) ||
+      findLabeledText(["Order Code", "Farnell Part No", "Farnell No"], true) ||
       pathData?.sourcePartNumber ||
       getQueryParamValue("partNumber", "productId")
   };
@@ -291,7 +273,7 @@ function parseLoadPartDivCall(onclickText) {
 }
 
 function buildSamacsysEntryUrl({
-  baseUrl = MOUSER_ENTRY_ORIGIN,
+  baseUrl = DISTRIBUTORS.mouser.baseUrl,
   manufacturerName,
   manufacturerPartNumber,
   partnerName,
@@ -312,6 +294,44 @@ function buildSamacsysEntryUrl({
     lang
   });
   return `${baseUrl}/entry_u_newDesign.php?${queryString}`;
+}
+
+function buildSamacsysPartContext({
+  distributor,
+  sourcePartNumber,
+  manufacturerPartNumber,
+  manufacturerName,
+  baseUrl,
+  authRefreshUrl,
+  logo,
+  lang
+}) {
+  const config = DISTRIBUTORS[distributor];
+  const entryUrl = buildSamacsysEntryUrl({
+    baseUrl: baseUrl || config.baseUrl,
+    manufacturerName,
+    manufacturerPartNumber,
+    partnerName: distributor,
+    logo,
+    lang
+  });
+  if (!sourcePartNumber || !manufacturerPartNumber || !entryUrl) {
+    return null;
+  }
+
+  return {
+    provider: config.provider,
+    sourcePartLabel: config.sourcePartLabel,
+    sourcePartNumber,
+    manufacturerPartNumber,
+    lookup: {
+      manufacturerName,
+      entryUrl,
+      ...(authRefreshUrl ? { authRefreshUrl } : {}),
+      partnerName: distributor,
+      samacsysBaseUrl: baseUrl || config.baseUrl
+    }
+  };
 }
 
 function parseSamacsysLinkUrl(url, fallbackPartnerName = null) {
@@ -391,31 +411,15 @@ function findMouserPartContext() {
     loadPartDivData?.manufacturerName ||
     extractEventValueFromOnclick(onclickText, "event_manufacturer") ||
     null;
-  const entryUrl = buildSamacsysEntryUrl({
-    baseUrl: MOUSER_ENTRY_ORIGIN,
-    manufacturerName,
+  return buildSamacsysPartContext({
+    distributor: "mouser",
+    sourcePartNumber,
     manufacturerPartNumber,
-    partnerName: "mouser",
+    manufacturerName,
+    baseUrl: DISTRIBUTORS.mouser.baseUrl,
     logo: loadPartDivData?.logo,
     lang: loadPartDivData?.lang
   });
-
-  if (!sourcePartNumber || !entryUrl) {
-    return null;
-  }
-
-  return {
-    provider: MOUSER_PROVIDER,
-    sourcePartLabel: MOUSER_SOURCE_LABEL,
-    sourcePartNumber,
-    manufacturerPartNumber,
-    lookup: {
-      manufacturerName,
-      entryUrl,
-      partnerName: "mouser",
-      samacsysBaseUrl: MOUSER_ENTRY_ORIGIN
-    }
-  };
 }
 
 function findFarnellPartContext() {
@@ -425,32 +429,16 @@ function findFarnellPartContext() {
   const manufacturerName = linkMetadata?.manufacturerName || farnellProductData.manufacturerName;
   const manufacturerPartNumber =
     linkMetadata?.manufacturerPartNumber || farnellProductData.manufacturerPartNumber;
-  const sourcePartNumber = farnellProductData.sourcePartNumber;
-  const entryUrl = buildSamacsysEntryUrl({
-    baseUrl: linkMetadata?.baseUrl || FARNELL_ENTRY_ORIGIN,
-    manufacturerName,
+  return buildSamacsysPartContext({
+    distributor: "farnell",
+    sourcePartNumber: farnellProductData.sourcePartNumber,
     manufacturerPartNumber,
-    partnerName: linkMetadata?.partnerName || "farnell",
+    manufacturerName,
+    baseUrl: linkMetadata?.baseUrl || DISTRIBUTORS.farnell.baseUrl,
+    authRefreshUrl: linkMetadata ? samacsysLink.href : null,
     logo: linkMetadata?.logo,
     lang: linkMetadata?.lang
   });
-
-  if (!sourcePartNumber || !manufacturerPartNumber || !entryUrl) {
-    return null;
-  }
-
-  return {
-    provider: FARNELL_PROVIDER,
-    sourcePartLabel: FARNELL_SOURCE_LABEL,
-    sourcePartNumber,
-    manufacturerPartNumber,
-    lookup: {
-      manufacturerName,
-      entryUrl,
-      partnerName: linkMetadata?.partnerName || "farnell",
-      samacsysBaseUrl: linkMetadata?.baseUrl || FARNELL_ENTRY_ORIGIN
-    }
-  };
 }
 
 function findEasyedaPartContext() {
@@ -478,24 +466,150 @@ function findPartContext() {
   return (
     findMouserPartContext() ||
     findFarnellPartContext() ||
-    findEasyedaPartContext() || {
-      provider: null,
-      sourcePartLabel: null,
-      sourcePartNumber: null,
-      manufacturerPartNumber: null,
-      lookup: null
-    }
+    findEasyedaPartContext() ||
+    EMPTY_PART_CONTEXT
   );
+}
+
+function findSamacsysAuthTriggerElement(provider = findPartContext()?.provider) {
+  if (provider === MOUSER_PROVIDER) {
+    return document.querySelector('#lnk_CadModel[data-testid="ProductInfoECAD"]');
+  }
+  if (provider === FARNELL_PROVIDER) {
+    return findSamacsysLinkElement();
+  }
+  return null;
+}
+
+function clearScheduledSamacsysDownloadClick() {
+  scheduledSamacsysDownloadObserver?.disconnect();
+  scheduledSamacsysDownloadObserver = null;
+  if (scheduledSamacsysDownloadTimeoutId !== null) {
+    window.clearTimeout(scheduledSamacsysDownloadTimeoutId);
+    scheduledSamacsysDownloadTimeoutId = null;
+  }
+}
+
+function readSamacsysTriggerLabel(element) {
+  if (!element) {
+    return "";
+  }
+  if (element instanceof window.HTMLInputElement) {
+    return normalizeDetectedValue(element.value) || "";
+  }
+  return (
+    normalizeDetectedValue(element.textContent) ||
+    normalizeDetectedValue(element.getAttribute("aria-label")) ||
+    normalizeDetectedValue(element.getAttribute("title")) ||
+    ""
+  );
+}
+
+function findDownloadCadModelsElement(root = document) {
+  const candidates = root.querySelectorAll(
+    'button, a, [role="button"], input[type="button"], input[type="submit"]'
+  );
+  return Array.from(candidates).find((element) =>
+    normalizeLabel(readSamacsysTriggerLabel(element)).includes(
+      SAMACSYS_DOWNLOAD_TRIGGER_TEXT
+    )
+  ) || null;
+}
+
+function scheduleSamacsysDownloadCadModelsClick(
+  timeoutMs = SAMACSYS_DOWNLOAD_TRIGGER_TIMEOUT_MS
+) {
+  clearScheduledSamacsysDownloadClick();
+
+  const tryClick = () => {
+    const downloadTrigger = findDownloadCadModelsElement();
+    if (!downloadTrigger) {
+      return false;
+    }
+    downloadTrigger.click();
+    clearScheduledSamacsysDownloadClick();
+    return true;
+  };
+
+  if (tryClick() || !document.body) {
+    return;
+  }
+
+  const MutationObserverConstructor = window.MutationObserver;
+  if (!MutationObserverConstructor) {
+    return;
+  }
+
+  scheduledSamacsysDownloadObserver = new MutationObserverConstructor(() => {
+    tryClick();
+  });
+  scheduledSamacsysDownloadObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true
+  });
+  scheduledSamacsysDownloadTimeoutId = window.setTimeout(() => {
+    clearScheduledSamacsysDownloadClick();
+  }, timeoutMs);
+}
+
+function triggerSamacsysAuthFrame(url) {
+  if (!url) {
+    return false;
+  }
+
+  const existingFrame = document.getElementById("easyeda-samacsys-auth-frame");
+  existingFrame?.remove();
+
+  const authFrame = document.createElement("iframe");
+  authFrame.id = "easyeda-samacsys-auth-frame";
+  authFrame.src = url;
+  authFrame.setAttribute("aria-hidden", "true");
+  authFrame.style.position = "fixed";
+  authFrame.style.width = "1px";
+  authFrame.style.height = "1px";
+  authFrame.style.opacity = "0";
+  authFrame.style.pointerEvents = "none";
+  authFrame.style.border = "0";
+  authFrame.style.left = "-9999px";
+  authFrame.style.bottom = "0";
+  document.body.appendChild(authFrame);
+  return true;
+}
+
+function triggerSamacsysAuth(partContext = findPartContext()) {
+  const triggerElement = findSamacsysAuthTriggerElement(partContext?.provider);
+  if (!triggerElement) {
+    const fallbackUrl =
+      partContext?.lookup?.authRefreshUrl || partContext?.lookup?.entryUrl || "";
+    if (triggerSamacsysAuthFrame(fallbackUrl)) {
+      scheduleSamacsysDownloadCadModelsClick();
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      error: "SamacSys auth trigger was not found on the current page."
+    };
+  }
+
+  triggerElement.click();
+  scheduleSamacsysDownloadCadModelsClick();
+  return { ok: true };
 }
 
 // Listen for extension messages and reply with the detected part context.
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "GET_PART_CONTEXT") {
-    return false;
+  if (message?.type === "GET_PART_CONTEXT") {
+    sendResponse(findPartContext());
+    return true;
   }
 
-  sendResponse(findPartContext());
-  return true;
+  if (message?.type === "TRIGGER_SAMACSYS_AUTH") {
+    sendResponse(triggerSamacsysAuth(message.partContext));
+    return true;
+  }
+
+  return false;
 });
 /*
 ######################################################################################################################

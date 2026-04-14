@@ -5,9 +5,11 @@
  */
 
 import { makeBase64DataUrl } from "../core/preview_data.js";
+import { isFirefoxRuntime } from "../core/part_context.js";
 import { readZipEntries } from "../vendor/zip_reader.js";
 
 const DEFAULT_SAMACSYS_BASE_URL = "https://ms.componentsearchengine.com";
+const DEFAULT_SAMACSYS_PROXY_REQUEST_URL_HEADER = "x-upstream-url";
 
 function getSamacsysBaseUrl(partContext, fallbackUrl = DEFAULT_SAMACSYS_BASE_URL) {
   const configuredBaseUrl = partContext?.lookup?.samacsysBaseUrl;
@@ -26,6 +28,168 @@ function ensureAbsoluteUrl(url, origin = DEFAULT_SAMACSYS_BASE_URL) {
     return "";
   }
   return new URL(url, origin).toString();
+}
+
+function encodeProxyRequestBody(body) {
+  if (body === null || body === undefined) {
+    return {
+      bodyText: null,
+      bodyBase64: null
+    };
+  }
+  if (typeof body === "string") {
+    return {
+      bodyText: body,
+      bodyBase64: null
+    };
+  }
+
+  const bytes = body instanceof Uint8Array ? body : new Uint8Array(body);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return {
+    bodyText: null,
+    bodyBase64: btoa(binary)
+  };
+}
+
+function normalizeForwardHeaders(headers) {
+  if (!headers) {
+    return {};
+  }
+  if (typeof headers.entries === "function") {
+    return Object.fromEntries(headers.entries());
+  }
+  return Object.fromEntries(
+    Object.entries(headers).filter(([, value]) => value !== undefined)
+  );
+}
+
+function hasHeader(headers, headerName) {
+  return Object.keys(headers || {}).some(
+    (key) => String(key).toLowerCase() === String(headerName).toLowerCase()
+  );
+}
+
+function buildCookieHeader(cookies = []) {
+  return cookies
+    .filter((cookie) => cookie?.name)
+    .map((cookie) => `${cookie.name}=${cookie.value || ""}`)
+    .join("; ");
+}
+
+async function getCookieHeader(chromeApi, requestUrl) {
+  if (!chromeApi?.cookies?.getAll) {
+    return "";
+  }
+
+  return new Promise((resolve) => {
+    chromeApi.cookies.getAll({ url: requestUrl }, (cookies) => {
+      if (chromeApi.runtime?.lastError) {
+        console.warn(
+          "Failed to read SamacSys cookies for Firefox proxy relay:",
+          chromeApi.runtime.lastError
+        );
+        resolve("");
+        return;
+      }
+      resolve(buildCookieHeader(cookies));
+    });
+  });
+}
+
+function wrapProxyResponse(response, requestUrl) {
+  return {
+    ok: response.ok,
+    status: response.status,
+    headers: response.headers,
+    url:
+      response.headers?.get?.(DEFAULT_SAMACSYS_PROXY_REQUEST_URL_HEADER) ||
+      requestUrl,
+    text() {
+      return response.text();
+    },
+    json() {
+      return response.json();
+    },
+    arrayBuffer() {
+      return response.arrayBuffer();
+    }
+  };
+}
+
+function resolveUpstreamAuthorizationHeader(
+  authorizationHeader = "",
+  capturedAuthorizationHeader = ""
+) {
+  return String(authorizationHeader || capturedAuthorizationHeader || "").trim();
+}
+
+function createSamacsysFetchImpl(
+  fetchImpl,
+  {
+    chromeApi,
+    userAgent,
+    proxyBaseUrl = "",
+    proxyAuthorizationHeader = "",
+    authorizationHeader = "",
+    capturedAuthorizationHeader = ""
+  } = {}
+) {
+  if (!isFirefoxRuntime(userAgent) || !proxyBaseUrl) {
+    return fetchImpl;
+  }
+
+  return async (url, options = {}) => {
+    const requestUrl = String(url);
+    const forwardHeaders = normalizeForwardHeaders(options.headers);
+    const upstreamAuthorizationHeader = resolveUpstreamAuthorizationHeader(
+      authorizationHeader,
+      capturedAuthorizationHeader
+    );
+    if (options.credentials === "include" && !hasHeader(forwardHeaders, "cookie")) {
+      const cookieHeader = await getCookieHeader(chromeApi, requestUrl);
+      if (cookieHeader) {
+        forwardHeaders.Cookie = cookieHeader;
+      }
+    }
+    if (upstreamAuthorizationHeader && !hasHeader(forwardHeaders, "authorization")) {
+      forwardHeaders.Authorization = upstreamAuthorizationHeader;
+    }
+    const requestOptions = {
+      method: options.method || "GET",
+      headers: forwardHeaders,
+      credentials: options.credentials || "omit",
+      ...encodeProxyRequestBody(options.body)
+    };
+
+    let response;
+    try {
+      const relayHeaders = {
+        "Content-Type": "application/json",
+        Accept: "*/*"
+      };
+      if (proxyAuthorizationHeader) {
+        relayHeaders.Authorization = proxyAuthorizationHeader;
+      }
+      response = await fetchImpl(proxyBaseUrl, {
+        method: "POST",
+        headers: relayHeaders,
+        body: JSON.stringify({
+          url: requestUrl,
+          ...requestOptions
+        })
+      });
+    } catch (error) {
+      throw new Error(
+        `SamacSys proxy request failed: ${error?.message || "Network error."}`
+      );
+    }
+
+    return wrapProxyResponse(response, requestUrl);
+  };
 }
 
 function escapeRegExp(value) {
@@ -367,22 +531,12 @@ async function fetchSamacsysZipArchive(fetchImpl, metadata) {
   return ensureZipPayload(await response.arrayBuffer());
 }
 
-async function fetchSamacsysWrlModel(fetchImpl, partId, baseUrl = DEFAULT_SAMACSYS_BASE_URL) {
-  const response = await fetchImpl(`${baseUrl}/3D/0/${partId}.wrl`, {
-    credentials: "include"
-  });
-  if (!response.ok) {
-    return null;
-  }
-  return response.text();
-}
-
 export {
   basenameFromZipPath,
   buildSamacsysPreviewResponse,
+  createSamacsysFetchImpl,
   extractSamacsysKiCadAssets,
   fetchSamacsysPageMetadata,
-  fetchSamacsysWrlModel,
   fetchSamacsysZipArchive,
   filenameWithoutExtension,
   getSamacsysAuthenticationErrorMessage,

@@ -4,7 +4,12 @@ import { createCadData, createSymbolLibrary } from "./helpers/fixtures.js";
 import { flushAsyncWork } from "./helpers/test_harness.js";
 import {
   buildLibraryPaths,
-  normalizeLibraryDownloadRoot
+  loadSettings,
+  normalizeLibraryDownloadRoot,
+  parseSamacsysCapturedAuthorizationCapturedAt,
+  parseSamacsysAuthorizationHeader,
+  parseSamacsysProxyAuthorizationHeader,
+  parseSamacsysFirefoxProxyBaseUrl
 } from "../src/core/settings.js";
 import {
   extractSymbolBlock,
@@ -18,12 +23,14 @@ import {
   stripKicadFootprintModels
 } from "../src/sources/samacsys_common.js";
 
-function createServiceWorkerChrome({ storageState = {} } = {}) {
+function createServiceWorkerChrome({ storageState = {}, cookieState = {} } = {}) {
   const listeners = {
     runtimeMessage: [],
-    downloadsChanged: []
+    downloadsChanged: [],
+    beforeSendHeaders: []
   };
   const storage = { ...storageState };
+  const cookieJar = { ...cookieState };
   let nextDownloadId = 1;
 
   const chrome = {
@@ -34,6 +41,18 @@ function createServiceWorkerChrome({ storageState = {} } = {}) {
           listeners.runtimeMessage.push(listener);
         }
       }
+    },
+    webRequest: {
+      onBeforeSendHeaders: {
+        addListener(listener) {
+          listeners.beforeSendHeaders.push(listener);
+        }
+      }
+    },
+    tabs: {
+      sendMessage: vi.fn((tabId, message, callback) => {
+        callback?.({ ok: true });
+      })
     },
     downloads: {
       download: vi.fn((options, callback) => {
@@ -67,6 +86,11 @@ function createServiceWorkerChrome({ storageState = {} } = {}) {
           callback?.();
         })
       }
+    },
+    cookies: {
+      getAll: vi.fn(({ url }, callback) => {
+        callback(cookieJar[url] || cookieJar["*"] || []);
+      })
     }
   };
 
@@ -84,6 +108,7 @@ function loadServiceWorker({
   chrome,
   fetchImpl,
   userAgent = "Mozilla/5.0 Chrome/135.0.0.0",
+  samacsysAuthRefreshTimeoutMs,
   convertEasyedaCadToKicad = vi.fn(() => ({})),
   convertObjToWrlString = vi.fn(() => "#VRML"),
   readZipEntries = vi.fn(async () => []),
@@ -92,6 +117,7 @@ function loadServiceWorker({
   registerServiceWorkerRuntime(chrome, {
     fetchImpl,
     userAgent,
+    samacsysAuthRefreshTimeoutMs,
     convertEasyedaCadToKicad,
     convertObjToWrlString,
     readZipEntries,
@@ -111,43 +137,61 @@ function sendRuntimeMessage(listener, message) {
   });
 }
 
-function createMouserPartContext() {
+function emitBeforeSendHeaders(listener, details) {
+  return listener(details);
+}
+
+function createSamacsysPartContext(distributor, overrides = {}) {
+  const fixtures = {
+    mouser: {
+      provider: "mouserSamacsys",
+      sourcePartLabel: "Mouser part",
+      sourcePartNumber: "511-STM32U3C5RIT6Q",
+      manufacturerPartNumber: "STM32U3C5RIT6Q",
+      lookup: {
+        manufacturerName: "STMicroelectronics",
+        entryUrl:
+          "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB",
+        partnerName: "mouser",
+        samacsysBaseUrl: "https://ms.componentsearchengine.com"
+      }
+    },
+    farnell: {
+      provider: "farnellSamacsys",
+      sourcePartLabel: "Farnell part",
+      sourcePartNumber: "1848693",
+      manufacturerPartNumber: "FQP27P06",
+      lookup: {
+        manufacturerName: "ONSEMI",
+        entryUrl:
+          "https://farnell.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=FQP27P06&pna=farnell&vrq=multi&fmt=zip&lang=en-GB",
+        authRefreshUrl:
+          "https://farnell.componentsearchengine.com/icon.php?lang=en-GB&mna=ONSEMI&mpn=FQP27P06&pna=farnell&logo=farnell&q3=SHOW3D",
+        partnerName: "farnell",
+        samacsysBaseUrl: "https://farnell.componentsearchengine.com"
+      }
+    }
+  };
+  const fixture = fixtures[distributor];
   return {
-    provider: "mouserSamacsys",
-    sourcePartLabel: "Mouser part",
-    sourcePartNumber: "511-STM32U3C5RIT6Q",
-    manufacturerPartNumber: "STM32U3C5RIT6Q",
+    ...fixture,
+    ...overrides,
     lookup: {
-      manufacturerName: "STMicroelectronics",
-      entryUrl:
-        "https://ms.componentsearchengine.com/entry_u_newDesign.php?mna=STMicroelectronics&mpn=STM32U3C5RIT6Q&pna=mouser&vrq=multi&fmt=zip&lang=en-GB",
-      partnerName: "mouser",
-      samacsysBaseUrl: "https://ms.componentsearchengine.com"
+      ...fixture.lookup,
+      ...overrides.lookup
     }
   };
 }
 
-function createFarnellPartContext() {
-  return {
-    provider: "farnellSamacsys",
-    sourcePartLabel: "Farnell part",
-    sourcePartNumber: "1848693",
-    manufacturerPartNumber: "FQP27P06",
-    lookup: {
-      manufacturerName: "ONSEMI",
-      entryUrl:
-        "https://farnell.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=FQP27P06&pna=farnell&vrq=multi&fmt=zip&lang=en-GB",
-      partnerName: "farnell",
-      samacsysBaseUrl: "https://farnell.componentsearchengine.com"
-    }
-  };
-}
-
-function createMouserPartHtml({ token = "tok123", partId = "21790508" } = {}) {
+function createSamacsysPartHtml({
+  token = "tok123",
+  partId = "21790508",
+  zipActionUrl = "https://ms.componentsearchengine.com/ga/model.php"
+} = {}) {
   return `
     <html>
       <body>
-        <form id="zipForm" action="https://ms.componentsearchengine.com/ga/model.php" method="GET">
+        <form id="zipForm" action="${zipActionUrl}" method="GET">
           <input type="hidden" name="partner" value="Mouser" />
           <input type="hidden" name="tok" value="${token}" />
           <input type="hidden" name="partID" value="${partId}" />
@@ -160,6 +204,169 @@ function createMouserPartHtml({ token = "tok123", partId = "21790508" } = {}) {
       </body>
     </html>
   `;
+}
+
+function createSamacsysFetchImpl({
+  baseUrl = "https://ms.componentsearchengine.com",
+  proxyBaseUrl = "",
+  partId = "21790508",
+  symbolImage,
+  footprintImage,
+  zipStatus,
+  zipPayload = "PKzip",
+  wrlStatus,
+  wrlText = "#VRML V2.0",
+  proxyFailureMessage = "",
+  expectedProxyAuthorizationHeader,
+  expectedCookieHeader = "",
+  expectedAuthorizationHeader = "",
+  expectedNoForwardAuthorizationHeader = false
+} = {}) {
+  function createHeaders(entries = {}) {
+    return {
+      get(name) {
+        const match = Object.entries(entries).find(
+          ([key]) => key.toLowerCase() === String(name || "").toLowerCase()
+        );
+        return match ? match[1] : null;
+      }
+    };
+  }
+
+  function createProxyResponse(url, response) {
+    return {
+      ok: response.ok,
+      status: response.status,
+      headers: createHeaders({
+        "x-upstream-url": response.url || url
+      }),
+      text: response.text,
+      json: response.json,
+      arrayBuffer: response.arrayBuffer
+    };
+  }
+
+  return vi.fn(async (url, options = {}) => {
+    const requestUrl = String(url);
+    if (proxyBaseUrl && requestUrl === proxyBaseUrl) {
+      if (proxyFailureMessage) {
+        throw new Error(proxyFailureMessage);
+      }
+      const proxyRequest = JSON.parse(options.body);
+      expect(options.method).toBe("POST");
+      expect(proxyRequest.url).toBeTruthy();
+      if (expectedProxyAuthorizationHeader !== undefined) {
+        expect(options.headers.Authorization || "").toBe(
+          expectedProxyAuthorizationHeader
+        );
+      }
+      const upstreamOptions = {
+        credentials: proxyRequest.credentials,
+        headers: proxyRequest.headers,
+        method: proxyRequest.method
+      };
+      if (expectedCookieHeader) {
+        expect(proxyRequest.headers.Cookie).toBe(expectedCookieHeader);
+      }
+      if (expectedAuthorizationHeader) {
+        expect(proxyRequest.headers.Authorization).toBe(
+          expectedAuthorizationHeader
+        );
+      } else if (expectedNoForwardAuthorizationHeader) {
+        expect(proxyRequest.headers.Authorization).toBeUndefined();
+      }
+      if (proxyRequest.bodyText !== null) {
+        upstreamOptions.body = proxyRequest.bodyText;
+      }
+      if (proxyRequest.bodyBase64) {
+        upstreamOptions.body = Uint8Array.from(
+          Buffer.from(proxyRequest.bodyBase64, "base64")
+        );
+      }
+      return createProxyResponse(
+        proxyRequest.url,
+        await createSamacsysFetchImpl({
+          baseUrl,
+          partId,
+          symbolImage,
+          footprintImage,
+          zipStatus,
+          zipPayload,
+          wrlStatus,
+          wrlText
+        })(proxyRequest.url, upstreamOptions)
+      );
+    }
+    if (requestUrl.includes("entry_u_newDesign.php")) {
+      return {
+        ok: true,
+        status: 200,
+        url: `${baseUrl}/part.php?partID=${partId}`,
+        headers: createHeaders(),
+        text: async () => "<html><body>entry ok</body></html>"
+      };
+    }
+    if (requestUrl.includes("preview_newDesign.php")) {
+      expect(options.credentials).toBe("include");
+      return {
+        ok: true,
+        status: 200,
+        url: requestUrl,
+        headers: createHeaders(),
+        text: async () =>
+          createSamacsysPartHtml({
+            partId,
+            zipActionUrl: `${baseUrl}/ga/model.php`
+          })
+      };
+    }
+    if (requestUrl.includes("/symbol.php") && symbolImage !== undefined) {
+      return {
+        ok: true,
+        status: 200,
+        headers: createHeaders(),
+        json: async () => ({ Image: symbolImage })
+      };
+    }
+    if (requestUrl.includes("/footprint.php") && footprintImage !== undefined) {
+      return {
+        ok: true,
+        status: 200,
+        headers: createHeaders(),
+        json: async () => ({ Image: footprintImage })
+      };
+    }
+    if (requestUrl.includes("/ga/model.php") && zipStatus !== undefined) {
+      expect(options.credentials).toBe("include");
+      if (zipStatus === 200) {
+        return {
+          ok: true,
+          status: 200,
+          headers: createHeaders(),
+          arrayBuffer: async () => new TextEncoder().encode(zipPayload).buffer
+        };
+      }
+      return {
+        ok: false,
+        status: zipStatus
+      };
+    }
+    if (requestUrl.includes(`/3D/0/${partId}.wrl`) && wrlStatus !== undefined) {
+      if (wrlStatus === 200) {
+        return {
+          ok: true,
+          status: 200,
+          headers: createHeaders(),
+          text: async () => wrlText
+        };
+      }
+      return {
+        ok: false,
+        status: wrlStatus
+      };
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  });
 }
 
 const MOUZER_SYMBOL = `(kicad_symbol_lib (version 20211014) (generator SamacSys_ECAD_Model)
@@ -185,10 +392,205 @@ describe("service worker", () => {
   it("normalizes library roots and builds KiCad library paths", () => {
     expect(normalizeLibraryDownloadRoot("KiCad\\Workspace")).toBe("KiCad/Workspace");
     expect(normalizeLibraryDownloadRoot("../outside")).toBe("easyEDADownloader");
+    expect(parseSamacsysFirefoxProxyBaseUrl(" https://proxy.example.test/relay#frag ")).toEqual({
+      value: "https://proxy.example.test/relay",
+      isValid: true
+    });
+    expect(parseSamacsysFirefoxProxyBaseUrl("not-a-url")).toEqual({
+      value: "",
+      isValid: false
+    });
+    expect(
+      parseSamacsysProxyAuthorizationHeader(" Authorization: Bearer relay123 ")
+    ).toBe("Bearer relay123");
+    expect(parseSamacsysAuthorizationHeader(" Authorization: Basic abc123 ")).toBe(
+      "Basic abc123"
+    );
+    expect(
+      parseSamacsysCapturedAuthorizationCapturedAt(
+        "2026-04-14T11:40:00.000Z"
+      )
+    ).toBe("2026-04-14T11:40:00.000Z");
     expect(buildLibraryPaths("KiCad/Workspace")).toEqual({
       symbolFile: "KiCad/Workspace/Workspace.kicad_sym",
       footprintDir: "KiCad/Workspace/Workspace.pretty",
       modelDir: "KiCad/Workspace/Workspace.3dshapes"
+    });
+  });
+
+  it("loads the optional Firefox SamacSys proxy setting from storage", async () => {
+    const { chrome } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
+        samacsysFirefoxProxyAuthorizationHeader: "Authorization: Bearer proxy123",
+        samacsysFirefoxAuthorizationHeader: "Authorization: Basic abc123",
+        samacsysFirefoxCapturedAuthorizationHeader: "Authorization: Basic captured123",
+        samacsysFirefoxCapturedAuthorizationCapturedAt: "2026-04-14T11:40:00.000Z"
+      }
+    });
+
+    await expect(loadSettings(chrome)).resolves.toEqual({
+      downloadIndividually: false,
+      libraryDownloadRoot: "easyEDADownloader",
+      samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
+      samacsysFirefoxProxyAuthorizationHeader: "Bearer proxy123",
+      samacsysFirefoxUsername: "",
+      samacsysFirefoxPassword: "",
+      samacsysFirefoxAuthorizationHeader: "Basic abc123",
+      samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
+      samacsysFirefoxCapturedAuthorizationCapturedAt: "2026-04-14T11:40:00.000Z"
+    });
+  });
+
+  it("captures and persists the latest Firefox SamacSys Authorization header", async () => {
+    const { chrome, listeners, storage } = createServiceWorkerChrome();
+    loadServiceWorker({
+      chrome,
+      fetchImpl: vi.fn(),
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    expect(listeners.beforeSendHeaders).toHaveLength(1);
+
+    emitBeforeSendHeaders(listeners.beforeSendHeaders[0], {
+      requestHeaders: [
+        {
+          name: "Authorization",
+          value: "Basic captured-from-browser"
+        }
+      ]
+    });
+
+    expect(storage.samacsysFirefoxCapturedAuthorizationHeader).toBe(
+      "Basic captured-from-browser"
+    );
+    expect(storage.samacsysFirefoxCapturedAuthorizationCapturedAt).toMatch(
+      /^20\d\d-\d\d-\d\dT/
+    );
+  });
+
+  it("refreshes SamacSys auth by triggering the page-native auth flow on the source tab", async () => {
+    const { chrome, listeners, storage } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+      }
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl: vi.fn(),
+      userAgent: "Mozilla/5.0 Firefox/149.0",
+      samacsysAuthRefreshTimeoutMs: 100
+    });
+
+    const refreshPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "REFRESH_SAMACSYS_AUTH",
+      partContext: createSamacsysPartContext("mouser"),
+      sourceTabId: 7
+    });
+    await flushAsyncWork();
+
+    expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      7,
+      {
+        type: "TRIGGER_SAMACSYS_AUTH",
+        partContext: createSamacsysPartContext("mouser")
+      },
+      expect.any(Function)
+    );
+
+    emitBeforeSendHeaders(listeners.beforeSendHeaders[0], {
+      requestHeaders: [
+        {
+          name: "Authorization",
+          value: "Basic refreshed123"
+        }
+      ]
+    });
+
+    const result = await refreshPromise;
+    expect(result.response).toEqual({
+      ok: true,
+      authorizationHeader: "Basic refreshed123",
+      capturedAt: storage.samacsysFirefoxCapturedAuthorizationCapturedAt
+    });
+  });
+
+  it("fails SamacSys auth refresh when the page-native auth trigger is unavailable", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+      }
+    });
+    chrome.tabs.sendMessage.mockImplementation((_tabId, _message, callback) => {
+      callback?.({
+        ok: false,
+        error: "SamacSys auth trigger was not found on the current page."
+      });
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl: vi.fn(),
+      userAgent: "Mozilla/5.0 Firefox/149.0",
+      samacsysAuthRefreshTimeoutMs: 100
+    });
+
+    const refreshPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "REFRESH_SAMACSYS_AUTH",
+      partContext: createSamacsysPartContext("mouser"),
+      sourceTabId: 7
+    });
+    await flushAsyncWork();
+
+    const result = await refreshPromise;
+    expect(result.response).toEqual({
+      ok: false,
+      error: "SamacSys auth trigger was not found on the current page."
+    });
+  });
+
+  it("triggers the current Farnell page instead of opening a separate auth tab", async () => {
+    const { chrome, listeners, storage } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+      }
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl: vi.fn(),
+      userAgent: "Mozilla/5.0 Firefox/149.0",
+      samacsysAuthRefreshTimeoutMs: 100
+    });
+
+    const refreshPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "REFRESH_SAMACSYS_AUTH",
+      partContext: createSamacsysPartContext("farnell"),
+      sourceTabId: 9
+    });
+    await flushAsyncWork();
+
+    expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      9,
+      {
+        type: "TRIGGER_SAMACSYS_AUTH",
+        partContext: createSamacsysPartContext("farnell")
+      },
+      expect.any(Function)
+    );
+
+    emitBeforeSendHeaders(listeners.beforeSendHeaders[0], {
+      requestHeaders: [
+        {
+          name: "Authorization",
+          value: "Basic refreshed123"
+        }
+      ]
+    });
+
+    const result = await refreshPromise;
+    expect(result.response).toEqual({
+      ok: true,
+      authorizationHeader: "Basic refreshed123",
+      capturedAt: storage.samacsysFirefoxCapturedAuthorizationCapturedAt
     });
   });
 
@@ -223,7 +625,7 @@ describe("service worker", () => {
   it("parses the SamacSys ZIP form metadata from the part page", () => {
     expect(
       parseSamacsysPageMetadata(
-        createMouserPartHtml(),
+        createSamacsysPartHtml(),
         "https://ms.componentsearchengine.com/part.php?partID=21790508",
         "https://ms.componentsearchengine.com"
       )
@@ -412,34 +814,9 @@ describe("service worker", () => {
 
   it("returns Mouser PNG preview URLs by resolving the SamacSys part page", async () => {
     const { chrome, listeners } = createServiceWorkerChrome();
-    const fetchImpl = vi.fn(async (url) => {
-      if (String(url).includes("entry_u_newDesign.php")) {
-        return {
-          ok: true,
-          url: "https://ms.componentsearchengine.com/part.php?partID=21790508",
-          text: async () => "<html><body>entry ok</body></html>"
-        };
-      }
-      if (String(url).includes("preview_newDesign.php")) {
-        return {
-          ok: true,
-          url: String(url),
-          text: async () => createMouserPartHtml()
-        };
-      }
-      if (String(url).includes("symbol.php")) {
-        return {
-          ok: true,
-          json: async () => ({ Image: "AAAA" })
-        };
-      }
-      if (String(url).includes("footprint.php")) {
-        return {
-          ok: true,
-          json: async () => ({ Image: "BBBB" })
-        };
-      }
-      throw new Error(`Unexpected URL: ${url}`);
+    const fetchImpl = createSamacsysFetchImpl({
+      symbolImage: "AAAA",
+      footprintImage: "BBBB"
     });
     loadServiceWorker({
       chrome,
@@ -448,7 +825,7 @@ describe("service worker", () => {
 
     const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
       type: "GET_PART_PREVIEWS",
-      partContext: createMouserPartContext()
+      partContext: createSamacsysPartContext("mouser")
     });
 
     expect(result.response).toEqual({
@@ -465,34 +842,11 @@ describe("service worker", () => {
 
   it("routes Farnell previews through the shared SamacSys host from part context", async () => {
     const { chrome, listeners } = createServiceWorkerChrome();
-    const fetchImpl = vi.fn(async (url) => {
-      if (String(url).includes("farnell.componentsearchengine.com/entry_u_newDesign.php")) {
-        return {
-          ok: true,
-          url: "https://farnell.componentsearchengine.com/part.php?partID=9988",
-          text: async () => "<html><body>entry ok</body></html>"
-        };
-      }
-      if (String(url).includes("farnell.componentsearchengine.com/preview_newDesign.php")) {
-        return {
-          ok: true,
-          url: String(url),
-          text: async () => createMouserPartHtml({ partId: "9988" })
-        };
-      }
-      if (String(url).includes("farnell.componentsearchengine.com/symbol.php")) {
-        return {
-          ok: true,
-          json: async () => ({ Image: "CCCC" })
-        };
-      }
-      if (String(url).includes("farnell.componentsearchengine.com/footprint.php")) {
-        return {
-          ok: true,
-          json: async () => ({ Image: "DDDD" })
-        };
-      }
-      throw new Error(`Unexpected URL: ${url}`);
+    const fetchImpl = createSamacsysFetchImpl({
+      baseUrl: "https://farnell.componentsearchengine.com",
+      partId: "9988",
+      symbolImage: "CCCC",
+      footprintImage: "DDDD"
     });
     loadServiceWorker({
       chrome,
@@ -501,7 +855,7 @@ describe("service worker", () => {
 
     const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
       type: "GET_PART_PREVIEWS",
-      partContext: createFarnellPartContext()
+      partContext: createSamacsysPartContext("farnell")
     });
 
     expect(result.response).toEqual({
@@ -516,7 +870,7 @@ describe("service worker", () => {
     });
   });
 
-  it("exports Mouser loose-file downloads and warns when the WRL endpoint is missing", async () => {
+  it("exports Mouser loose-file downloads without probing a missing WRL endpoint", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
         downloadIndividually: true,
@@ -537,40 +891,8 @@ describe("service worker", () => {
         data: new TextEncoder().encode("step")
       }
     ]);
-    const fetchImpl = vi.fn(async (url, options = {}) => {
-      if (String(url).includes("entry_u_newDesign.php")) {
-        return {
-          ok: true,
-          url: "https://ms.componentsearchengine.com/part.php?partID=21790508",
-          text: async () => "<html><body>entry ok</body></html>"
-        };
-      }
-      if (String(url).includes("preview_newDesign.php")) {
-        expect(options.credentials).toBe("include");
-        return {
-          ok: true,
-          url: String(url),
-          text: async () => createMouserPartHtml()
-        };
-      }
-      if (String(url).includes("/ga/model.php")) {
-        expect(options.method).toBe("GET");
-        expect(options.credentials).toBe("include");
-        expect(String(url)).toContain("tok=tok123");
-        expect(String(url)).toContain("partID=21790508");
-        expect(String(url)).toContain("fmt=zip");
-        return {
-          ok: true,
-          arrayBuffer: async () => new TextEncoder().encode("PKzip").buffer
-        };
-      }
-      if (String(url).includes("/3D/0/21790508.wrl")) {
-        return {
-          ok: false,
-          status: 404
-        };
-      }
-      throw new Error(`Unexpected URL: ${url}`);
+    const fetchImpl = createSamacsysFetchImpl({
+      zipStatus: 200
     });
 
     loadServiceWorker({
@@ -581,7 +903,7 @@ describe("service worker", () => {
 
     const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
       type: "EXPORT_PART",
-      partContext: createMouserPartContext(),
+      partContext: createSamacsysPartContext("mouser"),
       options: {
         symbol: true,
         footprint: true,
@@ -592,7 +914,7 @@ describe("service worker", () => {
 
     expect(result.response).toEqual({
       ok: true,
-      warnings: ["SamacSys WRL model not available for this part."],
+      warnings: [],
       downloadCount: 3
     });
 
@@ -625,40 +947,14 @@ describe("service worker", () => {
       {
         name: "STM32C552KEU6/3D/STM32C552KEU6.stp",
         data: new TextEncoder().encode("step")
+      },
+      {
+        name: "STM32C552KEU6/3D/STM32C552KEU6.wrl",
+        data: new TextEncoder().encode("#VRML V2.0")
       }
     ]);
-    const fetchImpl = vi.fn(async (url, options = {}) => {
-      if (String(url).includes("entry_u_newDesign.php")) {
-        return {
-          ok: true,
-          url: "https://ms.componentsearchengine.com/part.php?partID=21790508",
-          text: async () => "<html><body>entry ok</body></html>"
-        };
-      }
-      if (String(url).includes("preview_newDesign.php")) {
-        expect(options.credentials).toBe("include");
-        return {
-          ok: true,
-          url: String(url),
-          text: async () => createMouserPartHtml()
-        };
-      }
-      if (String(url).includes("/ga/model.php")) {
-        expect(options.method).toBe("GET");
-        expect(options.credentials).toBe("include");
-        expect(String(url)).toContain("tok=tok123");
-        return {
-          ok: true,
-          arrayBuffer: async () => new TextEncoder().encode("PKzip").buffer
-        };
-      }
-      if (String(url).includes("/3D/0/21790508.wrl")) {
-        return {
-          ok: true,
-          text: async () => "#VRML V2.0"
-        };
-      }
-      throw new Error(`Unexpected URL: ${url}`);
+    const fetchImpl = createSamacsysFetchImpl({
+      zipStatus: 200
     });
 
     loadServiceWorker({
@@ -669,7 +965,7 @@ describe("service worker", () => {
 
     const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
       type: "EXPORT_PART",
-      partContext: createMouserPartContext(),
+      partContext: createSamacsysPartContext("mouser"),
       options: {
         symbol: true,
         footprint: true,
@@ -724,29 +1020,8 @@ describe("service worker", () => {
         data: new TextEncoder().encode("step")
       }
     ]);
-    const fetchImpl = vi.fn(async (url, options = {}) => {
-      if (String(url).includes("entry_u_newDesign.php")) {
-        return {
-          ok: true,
-          url: "https://ms.componentsearchengine.com/part.php?partID=21790508",
-          text: async () => "<html><body>entry ok</body></html>"
-        };
-      }
-      if (String(url).includes("preview_newDesign.php")) {
-        expect(options.credentials).toBe("include");
-        return {
-          ok: true,
-          url: String(url),
-          text: async () => createMouserPartHtml()
-        };
-      }
-      if (String(url).includes("/ga/model.php")) {
-        return {
-          ok: true,
-          arrayBuffer: async () => new TextEncoder().encode("PKzip").buffer
-        };
-      }
-      throw new Error(`Unexpected URL: ${url}`);
+    const fetchImpl = createSamacsysFetchImpl({
+      zipStatus: 200
     });
 
     loadServiceWorker({
@@ -762,7 +1037,7 @@ describe("service worker", () => {
 
     const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
       type: "EXPORT_PART",
-      partContext: createMouserPartContext(),
+      partContext: createSamacsysPartContext("mouser"),
       options: {
         symbol: false,
         footprint: true,
@@ -792,29 +1067,8 @@ describe("service worker", () => {
         libraryDownloadRoot: "KiCad/Workspace"
       }
     });
-    const fetchImpl = vi.fn(async (url, options = {}) => {
-      if (String(url).includes("entry_u_newDesign.php")) {
-        return {
-          ok: true,
-          url: "https://ms.componentsearchengine.com/part.php?partID=21790508",
-          text: async () => "<html><body>entry ok</body></html>"
-        };
-      }
-      if (String(url).includes("preview_newDesign.php")) {
-        expect(options.credentials).toBe("include");
-        return {
-          ok: true,
-          url: String(url),
-          text: async () => createMouserPartHtml()
-        };
-      }
-      if (String(url).includes("/ga/model.php")) {
-        return {
-          ok: false,
-          status: 401
-        };
-      }
-      throw new Error(`Unexpected URL: ${url}`);
+    const fetchImpl = createSamacsysFetchImpl({
+      zipStatus: 401
     });
 
     loadServiceWorker({
@@ -824,7 +1078,7 @@ describe("service worker", () => {
 
     const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
       type: "EXPORT_PART",
-      partContext: createMouserPartContext(),
+      partContext: createSamacsysPartContext("mouser"),
       options: {
         symbol: true,
         footprint: true,
@@ -841,6 +1095,191 @@ describe("service worker", () => {
     expect(chrome.downloads.download).not.toHaveBeenCalled();
   });
 
+  it("retries Firefox SamacSys export once after automatically refreshing auth", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true,
+        libraryDownloadRoot: "KiCad/Workspace",
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+      }
+    });
+    const readZipEntries = vi.fn(async () => [
+      {
+        name: "STM32C552KEU6/KiCad/STM32C552KEU6.kicad_sym",
+        data: new TextEncoder().encode(MOUZER_SYMBOL)
+      }
+    ]);
+    const fetchImpl = vi.fn(async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl === "https://proxy.example.test/relay") {
+        const proxyRequest = JSON.parse(options.body);
+        if (proxyRequest.url.includes("entry_u_newDesign.php")) {
+          return {
+            ok: true,
+            status: 200,
+            headers: {
+              get(name) {
+                return String(name).toLowerCase() === "x-upstream-url"
+                  ? "https://ms.componentsearchengine.com/part.php?partID=21790508"
+                  : null;
+              }
+            },
+            text: async () => "<html><body>entry ok</body></html>"
+          };
+        }
+        if (proxyRequest.url.includes("preview_newDesign.php")) {
+          return {
+            ok: true,
+            status: 200,
+            headers: {
+              get() {
+                return null;
+              }
+            },
+            text: async () => createSamacsysPartHtml()
+          };
+        }
+        if (proxyRequest.url.includes("/ga/model.php")) {
+          if (proxyRequest.headers.Authorization === "Basic refreshed123") {
+            return {
+              ok: true,
+              status: 200,
+              headers: {
+                get() {
+                  return null;
+                }
+              },
+              arrayBuffer: async () => new TextEncoder().encode("PKzip").buffer
+            };
+          }
+          return {
+            ok: false,
+            status: 401,
+            headers: {
+              get() {
+                return null;
+              }
+            }
+          };
+        }
+        if (proxyRequest.url.includes("/3D/0/21790508.wrl")) {
+          return {
+            ok: false,
+            status: 404,
+            headers: {
+              get() {
+                return null;
+              }
+            }
+          };
+        }
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      readZipEntries,
+      userAgent: "Mozilla/5.0 Firefox/149.0",
+      samacsysAuthRefreshTimeoutMs: 100
+    });
+
+    const exportPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      sourceTabId: 7,
+      options: {
+        symbol: true,
+        footprint: false,
+        model3d: false,
+        datasheet: false
+      }
+    });
+    await vi.waitFor(() => {
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    emitBeforeSendHeaders(listeners.beforeSendHeaders[0], {
+      requestHeaders: [
+        {
+          name: "Authorization",
+          value: "Basic refreshed123"
+        }
+      ]
+    });
+
+    const result = await exportPromise;
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [],
+      downloadCount: 1,
+      authRefreshed: true,
+      authAuthorizationHeader: "Basic refreshed123",
+      authCapturedAt: expect.any(String)
+    });
+    expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      7,
+      {
+        type: "TRIGGER_SAMACSYS_AUTH",
+        partContext: createSamacsysPartContext("mouser")
+      },
+      expect.any(Function)
+    );
+  });
+
+  it("stops after one refreshed retry when Firefox SamacSys export still returns unauthorized", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true,
+        libraryDownloadRoot: "KiCad/Workspace",
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+      }
+    });
+    const fetchImpl = createSamacsysFetchImpl({
+      proxyBaseUrl: "https://proxy.example.test/relay",
+      zipStatus: 401
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      userAgent: "Mozilla/5.0 Firefox/149.0",
+      samacsysAuthRefreshTimeoutMs: 100
+    });
+
+    const exportPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      sourceTabId: 7,
+      options: {
+        symbol: true,
+        footprint: false,
+        model3d: false,
+        datasheet: false
+      }
+    });
+    await vi.waitFor(() => {
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    emitBeforeSendHeaders(listeners.beforeSendHeaders[0], {
+      requestHeaders: [
+        {
+          name: "Authorization",
+          value: "Basic refreshed123"
+        }
+      ]
+    });
+
+    const result = await exportPromise;
+    expect(result.response).toEqual({
+      ok: false,
+      error:
+        "Mouser/SamacSys download requires you to be signed in before CAD files can be downloaded."
+    });
+  });
+
   it("returns structured unsupported responses for Mouser requests on Firefox", async () => {
     const { chrome, listeners } = createServiceWorkerChrome();
     const fetchImpl = vi.fn();
@@ -852,11 +1291,11 @@ describe("service worker", () => {
 
     const previewResult = await sendRuntimeMessage(listeners.runtimeMessage[0], {
       type: "GET_PART_PREVIEWS",
-      partContext: createMouserPartContext()
+      partContext: createSamacsysPartContext("mouser")
     });
     const exportResult = await sendRuntimeMessage(listeners.runtimeMessage[0], {
       type: "EXPORT_PART",
-      partContext: createMouserPartContext(),
+      partContext: createSamacsysPartContext("mouser"),
       options: {
         symbol: true,
         footprint: true,
@@ -874,6 +1313,284 @@ describe("service worker", () => {
       error: "SamacSys distributor downloads require a proxy in Firefox. Chrome-only for now."
     });
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("allows Firefox SamacSys previews through the configured proxy relay", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+      }
+    });
+    const fetchImpl = createSamacsysFetchImpl({
+      proxyBaseUrl: "https://proxy.example.test/relay",
+      symbolImage: "AAAA",
+      footprintImage: "BBBB",
+      expectedProxyAuthorizationHeader: "",
+      expectedNoForwardAuthorizationHeader: true
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "GET_PART_PREVIEWS",
+      partContext: createSamacsysPartContext("mouser")
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      previews: {
+        symbolUrl: "data:image/png;base64,AAAA",
+        footprintUrl: "data:image/png;base64,BBBB"
+      },
+      metadata: {
+        datasheetAvailable: false
+      }
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://proxy.example.test/relay",
+      expect.objectContaining({
+        method: "POST"
+      })
+    );
+  });
+
+  it("forwards SamacSys cookies through the Firefox proxy relay", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
+        samacsysFirefoxProxyAuthorizationHeader: "Bearer relay-secret",
+        samacsysFirefoxAuthorizationHeader: "Basic abc123"
+      },
+      cookieState: {
+        "*": [
+          { name: "PHPSESSID", value: "relay-session" },
+          { name: "partner", value: "mouser" }
+        ]
+      }
+    });
+    const fetchImpl = createSamacsysFetchImpl({
+      proxyBaseUrl: "https://proxy.example.test/relay",
+      symbolImage: "AAAA",
+      footprintImage: "BBBB",
+      expectedProxyAuthorizationHeader: "Bearer relay-secret",
+      expectedCookieHeader: "PHPSESSID=relay-session; partner=mouser",
+      expectedAuthorizationHeader: "Basic abc123"
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "GET_PART_PREVIEWS",
+      partContext: createSamacsysPartContext("mouser")
+    });
+
+    expect(result.response.ok).toBe(true);
+    expect(chrome.cookies.getAll).toHaveBeenCalled();
+  });
+
+  it("uses the captured SamacSys Authorization header when no manual override exists", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
+        samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
+        samacsysFirefoxCapturedAuthorizationCapturedAt:
+          "2026-04-14T11:40:00.000Z"
+      }
+    });
+    const fetchImpl = createSamacsysFetchImpl({
+      proxyBaseUrl: "https://proxy.example.test/relay",
+      symbolImage: "AAAA",
+      footprintImage: "BBBB",
+      expectedAuthorizationHeader: "Basic captured123"
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "GET_PART_PREVIEWS",
+      partContext: createSamacsysPartContext("mouser")
+    });
+
+    expect(result.response.ok).toBe(true);
+  });
+
+  it("builds the SamacSys Authorization header from stored credentials when no manual override exists", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
+        samacsysFirefoxUsername: "user@example.com",
+        samacsysFirefoxPassword: "secret123",
+        samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
+        samacsysFirefoxCapturedAuthorizationCapturedAt:
+          "2026-04-14T11:40:00.000Z"
+      }
+    });
+    const fetchImpl = createSamacsysFetchImpl({
+      proxyBaseUrl: "https://proxy.example.test/relay",
+      symbolImage: "AAAA",
+      footprintImage: "BBBB",
+      expectedAuthorizationHeader: "Basic dXNlckBleGFtcGxlLmNvbTpzZWNyZXQxMjM="
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "GET_PART_PREVIEWS",
+      partContext: createSamacsysPartContext("mouser")
+    });
+
+    expect(result.response.ok).toBe(true);
+  });
+
+  it("prefers the manual SamacSys Authorization override over the captured header", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
+        samacsysFirefoxAuthorizationHeader: "Basic manual123",
+        samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
+        samacsysFirefoxCapturedAuthorizationCapturedAt:
+          "2026-04-14T11:40:00.000Z"
+      }
+    });
+    const fetchImpl = createSamacsysFetchImpl({
+      proxyBaseUrl: "https://proxy.example.test/relay",
+      symbolImage: "AAAA",
+      footprintImage: "BBBB",
+      expectedAuthorizationHeader: "Basic manual123"
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "GET_PART_PREVIEWS",
+      partContext: createSamacsysPartContext("mouser")
+    });
+
+    expect(result.response.ok).toBe(true);
+  });
+
+  it("allows Firefox SamacSys export through the configured proxy relay", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true,
+        libraryDownloadRoot: "KiCad/Workspace",
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+      }
+    });
+    const readZipEntries = vi.fn(async () => [
+      {
+        name: "STM32C552KEU6/KiCad/STM32C552KEU6.kicad_sym",
+        data: new TextEncoder().encode(MOUZER_SYMBOL)
+      },
+      {
+        name: "STM32C552KEU6/KiCad/QFN50P500X500X60-33N-D.kicad_mod",
+        data: new TextEncoder().encode(MOUSER_FOOTPRINT)
+      },
+      {
+        name: "STM32C552KEU6/3D/STM32C552KEU6.stp",
+        data: new TextEncoder().encode("step")
+      }
+    ]);
+    const fetchImpl = createSamacsysFetchImpl({
+      proxyBaseUrl: "https://proxy.example.test/relay",
+      zipStatus: 200
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      readZipEntries,
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      options: {
+        symbol: true,
+        footprint: true,
+        model3d: true,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [],
+      downloadCount: 3
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://proxy.example.test/relay",
+      expect.objectContaining({
+        method: "POST"
+      })
+    );
+  });
+
+  it("does not read SamacSys cookies on Chrome direct requests", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      cookieState: {
+        "*": [{ name: "PHPSESSID", value: "direct-session" }]
+      }
+    });
+    const fetchImpl = createSamacsysFetchImpl({
+      symbolImage: "AAAA",
+      footprintImage: "BBBB"
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      userAgent: "Mozilla/5.0 Chrome/135.0.0.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "GET_PART_PREVIEWS",
+      partContext: createSamacsysPartContext("mouser")
+    });
+
+    expect(result.response.ok).toBe(true);
+    expect(chrome.cookies.getAll).not.toHaveBeenCalled();
+  });
+
+  it("surfaces proxy transport failures distinctly from upstream SamacSys errors", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+      }
+    });
+    const fetchImpl = createSamacsysFetchImpl({
+      proxyBaseUrl: "https://proxy.example.test/relay",
+      proxyFailureMessage: "socket hang up"
+    });
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "GET_PART_PREVIEWS",
+      partContext: createSamacsysPartContext("mouser")
+    });
+
+    expect(result.response).toEqual({
+      ok: false,
+      error: "SamacSys proxy request failed: socket hang up"
+    });
   });
 
   it("reports invalid EasyEDA payloads as structured preview failures", async () => {
