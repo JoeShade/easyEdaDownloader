@@ -32,42 +32,37 @@ function loadContentScript(
     },
     append: `
 globalThis.__testExports = {
-  normalizeLabel,
-  extractLcscId,
-  extractManufacturerPartNumber,
-  findInDefinitionLists,
-  findInTables,
-  findLcscId,
-  findManufacturerPartNumberInDefinitionLists,
-  findManufacturerPartNumberInTables,
-  findManufacturerPartNumber,
   parseLoadPartDivCall,
   buildSamacsysEntryUrl,
   parseSamacsysLinkUrl,
+  findLcscId,
+  findManufacturerPartNumber,
   findMouserPartContext,
   findFarnellPartContext,
   findEasyedaPartContext,
-  findPartContext
+  findPartContext,
+  findSamacsysAuthTriggerElement,
+  findDownloadCadModelsElement,
+  scheduleSamacsysDownloadCadModelsClick,
+  triggerSamacsysAuthFrame,
+  triggerSamacsysAuth
 };
 `
   });
 
   return {
+    dom,
     hooks: context.__testExports,
     listener: listeners[0]
   };
 }
 
 describe("content script", () => {
-  it("normalizes labels and extracts LCSC ids from text", () => {
+  it("extracts EasyEDA identifiers from supported page text", () => {
     const { hooks } = loadContentScript("<div>ignored</div>");
 
-    expect(hooks.normalizeLabel("  LCSC   Part #  ")).toBe("lcsc part #");
-    expect(hooks.extractLcscId("Match c123456 here")).toBe("C123456");
-    expect(hooks.extractManufacturerPartNumber("  TPS62177DQCR  ")).toBe(
-      "TPS62177DQCR"
-    );
-    expect(hooks.extractLcscId("No part id")).toBeNull();
+    expect(hooks.findLcscId()).toBeNull();
+    expect(hooks.findManufacturerPartNumber()).toBeNull();
   });
 
   it("detects EasyEDA/LCSC part context and answers extension messages", () => {
@@ -116,7 +111,6 @@ describe("content script", () => {
       </table>
     `);
 
-    expect(hooks.findInTables()).toBe("C424242");
     expect(hooks.findManufacturerPartNumber()).toBeNull();
 
     const sendResponse = vi.fn();
@@ -197,6 +191,69 @@ describe("content script", () => {
         samacsysBaseUrl: "https://ms.componentsearchengine.com"
       }
     });
+  });
+
+  it("triggers the page-native Farnell SamacSys auth control on demand", () => {
+    const { dom, hooks, listener } = loadContentScript(
+      `
+      <section>
+        <div>Manufacturer Part No: FQP27P06</div>
+        <div>Order Code: 1848693</div>
+        <a id="samacsys-link" href="https://farnell.componentsearchengine.com/icon.php?lang=en-GB&mna=ONSEMI&mpn=FQP27P06&pna=farnell&logo=farnell&q3=SHOW3D">
+          <img alt="Supply Frame Models Link" />
+        </a>
+      </section>
+    `,
+      { url: "https://uk.farnell.com/webapp/wcs/stores/servlet/ProductDisplay?partNumber=1848693" }
+    );
+    const triggerLink = dom.window.document.getElementById("samacsys-link");
+    const downloadClickSpy = vi.fn();
+    const clickSpy = vi.spyOn(triggerLink, "click").mockImplementation(() => {
+      const downloadButton = dom.window.document.createElement("button");
+      downloadButton.textContent = "Download CAD Models";
+      downloadButton.addEventListener("click", downloadClickSpy);
+      dom.window.document.body.appendChild(downloadButton);
+    });
+    const sendResponse = vi.fn();
+
+    expect(hooks.findSamacsysAuthTriggerElement("farnellSamacsys")).toBe(triggerLink);
+    expect(listener({ type: "TRIGGER_SAMACSYS_AUTH" }, null, sendResponse)).toBe(true);
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(downloadClickSpy).toHaveBeenCalledTimes(1);
+    expect(sendResponse).toHaveBeenCalledWith({ ok: true });
+  });
+
+  it("falls back to a hidden same-page SamacSys frame when no auth trigger element is present", () => {
+    const { dom, listener } = loadContentScript(
+      `
+      <section>
+        <div>Manufacturer: STMICROELECTRONICS</div>
+        <div>Manufacturer Part No: STM32F030C8T6</div>
+        <div>Order Code: 2393634</div>
+      </section>
+    `,
+      { url: "https://uk.farnell.com/stmicroelectronics/stm32f030c8t6/mcu-32bit-48mhz-2-4v-3-6v-lqfp/dp/2393634" }
+    );
+    const sendResponse = vi.fn();
+
+    expect(listener({
+      type: "TRIGGER_SAMACSYS_AUTH",
+      partContext: {
+        provider: "farnellSamacsys",
+        lookup: {
+          authRefreshUrl:
+            "https://farnell.componentsearchengine.com/icon.php?lang=en-GB&mna=STMICROELECTRONICS&mpn=STM32F030C8T6&pna=farnell"
+        }
+      }
+    }, null, sendResponse)).toBe(true);
+
+    const authFrame = dom.window.document.getElementById("easyeda-samacsys-auth-frame");
+    expect(authFrame).not.toBeNull();
+    expect(authFrame.getAttribute("src")).toBe(
+      "https://farnell.componentsearchengine.com/icon.php?lang=en-GB&mna=STMICROELECTRONICS&mpn=STM32F030C8T6&pna=farnell"
+    );
+    expect(sendResponse).toHaveBeenCalledWith({ ok: true });
   });
 
   it("falls back to ECAD-button data for Mouser pages and returns no provider when ECAD is unavailable", () => {
@@ -301,6 +358,8 @@ describe("content script", () => {
         manufacturerName: "ONSEMI",
         entryUrl:
           "https://farnell.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=FQP27P06&pna=farnell&vrq=multi&fmt=zip&logo=farnell&lang=en-GB",
+        authRefreshUrl:
+          "https://farnell.componentsearchengine.com/icon.php?lang=en-GB&mna=ONSEMI&mpn=FQP27P06&pna=farnell&logo=farnell&q3=SHOW3D",
         partnerName: "farnell",
         samacsysBaseUrl: "https://farnell.componentsearchengine.com"
       }

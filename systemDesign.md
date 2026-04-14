@@ -29,7 +29,7 @@ The current repository does not implement:
 
 - browser automation outside the popup/content-script/service-worker model
 - end-to-end browser-run integration tests in real Chrome or Firefox
-- a proxy or cloud backend for Mouser / SamacSys Firefox support
+- a project-hosted proxy or cloud backend for Mouser / SamacSys Firefox support
 - a broader application-layer architecture beyond the existing file split
 
 ## 3. Supported contexts and assumptions
@@ -43,8 +43,12 @@ The current repository does not implement:
 - SamacSys distributor previews come from SamacSys JSON preview endpoints and are displayed as PNG data URLs.
 - EasyEDA datasheet availability comes from URLs exposed by the upstream payload.
 - SamacSys distributor datasheet export is currently unsupported.
-- SamacSys distributor preview and export are Chrome-first. Firefox currently returns a structured unsupported error because proxy-backed CORS work is out of scope.
+- SamacSys distributor preview and export work directly in Chrome.
+- Firefox SamacSys support is opt-in and depends on a user-managed relay URL stored in popup settings.
 - SamacSys ZIP export may still require upstream authentication; when the ZIP endpoint returns `401`, the worker surfaces a sign-in-required error instead of a generic download failure.
+- In Firefox relay mode, the service worker forwards matching `componentsearchengine.com` cookies through the relay so authenticated ZIP downloads can reuse the user's upstream browser session.
+- Firefox relay mode can send a separate relay `Authorization` header on the Worker POST when the user configures proxy auth.
+- Firefox relay mode can forward an upstream SamacSys `Authorization` header for ZIP endpoints that rely on HTTP Basic auth instead of cookies alone, preferring the manual override and otherwise reusing the latest Firefox-captured upstream header.
 - The Manifest V3 background is declared for both Chrome and Firefox: Chrome uses `background.service_worker`, while Firefox uses the background-document fallback from `background.scripts`. This combined manifest relies on Firefox 121 or newer.
 - The configurable library download root must remain relative to the browser's Downloads directory.
 
@@ -110,7 +114,7 @@ Owns popup UI state and user interaction:
 - render the fixed `Mfr. Part #` row plus a dynamic provider-specific source row
 - request previews and datasheet availability
 - gate downloads based on provider support and checkbox selection
-- block SamacSys distributor export in Firefox with a user-facing proxy-required message
+- expose advanced Firefox SamacSys relay settings, including separate relay auth, optional stored SamacSys credentials, read-only captured-auth status, and a manual upstream auth override
 - send `EXPORT_PART` requests to the service worker
 
 It remains the UI-facing boundary. It does not own fetch, archive extraction, or conversion logic.
@@ -129,7 +133,9 @@ The operational core now lives behind this entrypoint rather than inside one fil
 Own the service-worker backend orchestration:
 
 - normalize part context and route preview/export requests by provider
-- enforce runtime-specific blocking such as Firefox SamacSys gating
+- enforce runtime-specific blocking such as Firefox SamacSys gating when no relay is configured
+- capture the latest Firefox SamacSys upstream `Authorization` header through `webRequest` and persist it for relay reuse
+- orchestrate Firefox SamacSys auth refresh and retry behavior after ZIP-auth failures and wait for a fresh captured upstream `Authorization`
 - compose source adapters with shared download, storage, and settings helpers
 - shape success and error responses back to the popup
 
@@ -218,8 +224,14 @@ The test suite remains the primary regression net for:
   - fetch `symbol.php` and `footprint.php` JSON previews
   - return PNG data URLs
   - report datasheet unavailable
-- In Firefox, SamacSys preview requests fail early with a structured unsupported error.
-
+- In Firefox, those same SamacSys requests are sent through the optional user-managed relay when configured; otherwise they fail early with the existing proxy-required error.
+- In Firefox relay mode, the worker attaches the current SamacSys cookie header to proxied requests when browser cookies are available.
+- In Firefox relay mode, the worker sends any configured relay `Authorization` header only on the Worker POST itself.
+- In Firefox relay mode, the worker forwards upstream SamacSys `Authorization` using this precedence:
+  - manual override from popup settings
+  - locally generated HTTP Basic auth header from stored SamacSys username and password
+  - latest Firefox-captured upstream header
+  - no upstream authorization header
 ### 5.3 Export EasyEDA-backed parts
 
 - The service worker fetches the EasyEDA payload using the detected LCSC id.
@@ -232,6 +244,11 @@ The test suite remains the primary regression net for:
 ### 5.4 Export SamacSys distributor parts
 
 - The service worker fetches the SamacSys entry URL and resolves the part page.
+- In Firefox with a configured relay, the service worker sends those SamacSys HTTP requests through the relay instead of fetching upstream directly.
+- In Firefox with a configured relay, the service worker also reads the matching upstream cookies through `chrome.cookies` and forwards them with those proxied requests.
+- For authenticated ZIP flows that use HTTP Basic auth, the service worker forwards upstream SamacSys `Authorization` from the manual override when present, otherwise from locally generated Basic auth when stored credentials exist, and otherwise from the latest Firefox-captured header.
+- When proxy auth is configured, the relay POST itself also carries a separate relay `Authorization` header that is never forwarded upstream.
+- When Firefox SamacSys ZIP export returns the sign-in-required `401` error, the runtime tells the current product tab to trigger its native SamacSys ECAD flow once, waits for the first new captured upstream `Authorization` header, and retries that export one time.
 - The part page supplies:
   - a stable `partID`
   - a preview token
@@ -249,13 +266,20 @@ The test suite remains the primary regression net for:
 - Library mode rewrites:
   - the symbol `Footprint` property to `<libraryName>:<footprintName>`
   - the footprint `(model ...)` path to `../<libraryName>.3dshapes/<modelFilename>`
-- When 3D export is selected, the worker also attempts the direct SamacSys WRL endpoint; a missing WRL becomes a warning rather than a hard failure.
+- When 3D export is selected, the worker exports STEP models and any WRL files already present in the SamacSys ZIP without probing extra remote WRL endpoints.
 
 ## 6. Storage and settings behavior
 
 - `chrome.storage.local` stores popup settings:
   - `downloadIndividually`
   - `libraryDownloadRoot`
+  - `samacsysFirefoxProxyBaseUrl`
+  - `samacsysFirefoxProxyAuthorizationHeader`
+  - `samacsysFirefoxUsername`
+  - `samacsysFirefoxPassword`
+  - `samacsysFirefoxAuthorizationHeader`
+  - `samacsysFirefoxCapturedAuthorizationHeader`
+  - `samacsysFirefoxCapturedAuthorizationCapturedAt`
 - `chrome.storage.local` also stores accumulated symbol library text used for append-style symbol exports in library mode.
 - Stored symbol-library content is keyed by the resolved library root so separate library folders keep separate merged symbol libraries.
 
@@ -264,9 +288,11 @@ The test suite remains the primary regression net for:
 - Detection failures in the popup produce user-facing status messages and disable export.
 - Service-worker preview failures return structured error responses to the popup.
 - Export failures return structured error responses to the popup.
-- Partial export issues that do not invalidate the whole request, such as missing datasheets or unavailable SamacSys WRL files, are accumulated as warnings.
-- SamacSys distributor requests in Firefox fail early with a structured unsupported error message rather than attempting cross-origin fetches that require a proxy.
+- Partial export issues that do not invalidate the whole request, such as missing datasheets, are accumulated as warnings.
+- SamacSys distributor requests in Firefox fail early with a structured unsupported error message when no relay is configured.
+- Relay transport failures are surfaced distinctly from upstream SamacSys HTTP failures.
 - SamacSys ZIP `401 Unauthorized` responses are rewritten into a sign-in-required error so the popup can tell the user what upstream precondition is missing.
+- Firefox SamacSys automatic auth refresh failures, such as timeout or missing auth capture before retry, are returned as structured popup/runtime errors without mutating the previously stored captured auth state.
 
 ## 8. External dependencies and browser APIs
 
@@ -274,14 +300,16 @@ The test suite remains the primary regression net for:
 
 - EasyEDA component API for CAD payloads
 - EasyEDA module endpoints for STEP and OBJ assets
-- SamacSys / Component Search Engine entry page, preview JSON endpoints, ZIP download endpoint, and optional WRL endpoint
+- SamacSys / Component Search Engine entry page, preview JSON endpoints, and ZIP download endpoint
 
 ### 8.2 Browser APIs
 
-- `chrome.tabs`
 - `chrome.runtime`
 - `chrome.storage.local`
 - `chrome.downloads`
+- `chrome.cookies` for Firefox relay cookie forwarding on SamacSys requests
+- `chrome.webRequest` for Firefox SamacSys upstream `Authorization` capture
+- `chrome.tabs.sendMessage` for Firefox SamacSys automatic same-tab auth refresh orchestration
 - `Blob` and `URL.createObjectURL`
 - runtime decompression primitives used by the vendored ZIP reader
 

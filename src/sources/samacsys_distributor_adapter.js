@@ -6,6 +6,10 @@
 
 import { parseKicadSymbolName } from "../core/library_store.js";
 import {
+  buildSamacsysBasicAuthorizationHeader,
+  loadSettings
+} from "../core/settings.js";
+import {
   createExportContext,
   getLibraryName,
   resolveExportOptions,
@@ -15,37 +19,67 @@ import {
 } from "../core/export_artifacts.js";
 import {
   buildSamacsysPreviewResponse,
+  createSamacsysFetchImpl,
   extractSamacsysKiCadAssets,
   fetchSamacsysPageMetadata,
-  fetchSamacsysWrlModel,
   fetchSamacsysZipArchive,
-  filenameWithoutExtension,
   rewriteSamacsysFootprintModelPath,
   rewriteSamacsysSymbolFootprintReference,
   stripKicadFootprintModels
 } from "./samacsys_common.js";
 
+function resolveSamacsysAuthorizationHeader(settings = {}) {
+  return (
+    settings.samacsysFirefoxAuthorizationHeader ||
+    buildSamacsysBasicAuthorizationHeader(
+      settings.samacsysFirefoxUsername,
+      settings.samacsysFirefoxPassword
+    ) ||
+    settings.samacsysFirefoxCapturedAuthorizationHeader ||
+    ""
+  );
+}
+
 function createSamacsysDistributorAdapter(deps) {
-  const { chromeApi, fetchImpl, downloads, readZipEntries } = deps;
+  const { chromeApi, fetchImpl, downloads, readZipEntries, userAgent } = deps;
 
   return {
     async getPreviews(partContext) {
-      return buildSamacsysPreviewResponse(fetchImpl, partContext);
+      const settings = await loadSettings(chromeApi);
+      const samacsysFetchImpl = createSamacsysFetchImpl(fetchImpl, {
+        chromeApi,
+        userAgent,
+        proxyBaseUrl: settings.samacsysFirefoxProxyBaseUrl,
+        proxyAuthorizationHeader:
+          settings.samacsysFirefoxProxyAuthorizationHeader,
+        authorizationHeader: resolveSamacsysAuthorizationHeader(settings)
+      });
+      return buildSamacsysPreviewResponse(samacsysFetchImpl, partContext);
     },
 
     async exportPart(partContext, options = {}) {
       const exportContext = await createExportContext(chromeApi);
       const resolvedOptions = resolveExportOptions(options);
+      const samacsysFetchImpl = createSamacsysFetchImpl(fetchImpl, {
+        chromeApi,
+        userAgent,
+        proxyBaseUrl: exportContext.settings.samacsysFirefoxProxyBaseUrl,
+        proxyAuthorizationHeader:
+          exportContext.settings.samacsysFirefoxProxyAuthorizationHeader,
+        authorizationHeader: resolveSamacsysAuthorizationHeader(
+          exportContext.settings
+        )
+      });
 
       let downloadCount = 0;
       const warnings = [];
 
       if (resolvedOptions.datasheet) {
-        warnings.push("Datasheet export is not available for Mouser SamacSys parts.");
+        warnings.push("Datasheet export is not available for SamacSys distributor parts.");
       }
 
-      const metadata = await fetchSamacsysPageMetadata(fetchImpl, partContext);
-      const zipBuffer = await fetchSamacsysZipArchive(fetchImpl, metadata);
+      const metadata = await fetchSamacsysPageMetadata(samacsysFetchImpl, partContext);
+      const zipBuffer = await fetchSamacsysZipArchive(samacsysFetchImpl, metadata);
       const assets = await extractSamacsysKiCadAssets(zipBuffer, readZipEntries);
       const libraryName = getLibraryName(exportContext.libraryPaths);
       const primaryFootprintName = assets.footprints[0]?.name || null;
@@ -116,28 +150,6 @@ function createSamacsysDistributorAdapter(deps) {
             individualFilename: wrlModel.filename,
             libraryPath: `${exportContext.libraryPaths.modelDir}/${wrlModel.filename}`
           });
-        }
-
-        if (!assets.wrlModels.length) {
-          const remoteWrl = await fetchSamacsysWrlModel(
-            fetchImpl,
-            metadata.partId,
-            metadata.baseUrl
-          );
-          if (remoteWrl) {
-            const wrlFilename = `${filenameWithoutExtension(
-              primaryStepFilename || metadata.partId
-            )}.wrl`;
-            downloadCount += await writeTextArtifact({
-              downloads,
-              exportContext,
-              content: remoteWrl,
-              individualFilename: wrlFilename,
-              libraryPath: `${exportContext.libraryPaths.modelDir}/${wrlFilename}`
-            });
-          } else {
-            warnings.push("SamacSys WRL model not available for this part.");
-          }
         }
       }
 
