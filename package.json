@@ -2,7 +2,11 @@
   "name": "easyeda-downloader",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24.0.0"
+  },
   "scripts": {
+    "pretest": "node tests/helpers/check_node_version.js",
     "test": "vitest run"
   },
   "devDependencies": {

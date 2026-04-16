@@ -1,12 +1,44 @@
-// SamacSys/relay work in this file: JoeShade and Josh Webster
 /*
- * This service worker entrypoint stays intentionally thin.
- * Source routing and business logic live in service_worker_runtime.js.
+ * This helper keeps test startup failures actionable by checking the local
+ * Node.js version before Vitest boots. The current Vitest/Vite/jsdom stack
+ * requires Node 20.19+, 22.13+, or 24+.
  */
 
-import { registerServiceWorkerRuntime } from "./service_worker_runtime.js";
+function parseNodeVersion(version) {
+  const [major = 0, minor = 0, patch = 0] = String(version || "")
+    .split(".")
+    .map((part) => Number.parseInt(part, 10));
+  return { major, minor, patch };
+}
 
-registerServiceWorkerRuntime(globalThis.chrome);
+function isSupportedNodeVersion(version) {
+  const { major, minor } = parseNodeVersion(version);
+  if (major >= 24) {
+    return true;
+  }
+  if (major === 22) {
+    return minor >= 13;
+  }
+  if (major === 20) {
+    return minor >= 19;
+  }
+  return false;
+}
+
+const currentVersion = process.versions.node;
+
+if (!isSupportedNodeVersion(currentVersion)) {
+  console.error(
+    [
+      "Unsupported Node.js version for this repository's test tooling.",
+      `Detected: ${currentVersion}`,
+      "Use Node 22.13.0+ (recommended), Node 20.19.0+, or Node 24+.",
+      "The current Vitest/Vite/jsdom stack will fail before running tests on unsupported Node versions.",
+      "If you use nvm, this repo includes .nvmrc."
+    ].join("\n")
+  );
+  process.exit(1);
+}
 
 /*
 ######################################################################################################################

@@ -92,6 +92,23 @@ describe("repository hygiene", () => {
     }
   });
 
+  it("keeps the manifest aligned for Chrome service workers and Firefox background documents", () => {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(REPO_ROOT, "manifest.json"), "utf8")
+    );
+
+    expect(manifest.manifest_version).toBe(3);
+    expect(manifest.background).toEqual({
+      service_worker: "src/service_worker.js",
+      scripts: ["src/service_worker.js"],
+      preferred_environment: ["document", "service_worker"],
+      type: "module"
+    });
+    expect(manifest.browser_specific_settings?.gecko?.strict_min_version).toBe(
+      "121.0"
+    );
+  });
+
   it("keeps the canonical footer on applicable maintained JS files exactly once", () => {
     const missingOrDuplicated = [];
 
