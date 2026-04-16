@@ -1,3 +1,4 @@
+// SamacSys/relay work in this file: JoeShade and Josh Webster
 /*
  * Shared provider and gating helpers. These keep provider ids, runtime
  * normalization, and Firefox SamacSys blocking rules consistent between the

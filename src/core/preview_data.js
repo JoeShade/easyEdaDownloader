@@ -1,3 +1,4 @@
+// Core export/conversion work in this file: JoeShade and Josh Webster
 /*
  * Shared filename, URL, and preview-data helpers. These keep provider modules
  * from re-implementing small but easy-to-drift rules for datasheet filenames

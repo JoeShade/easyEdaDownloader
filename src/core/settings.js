@@ -1,3 +1,4 @@
+// SamacSys/relay work in this file: JoeShade and Josh Webster
 /*
  * Shared popup and worker settings helpers. This module keeps the Downloads-
  * relative library-root rules in one place so UI validation and backend path
@@ -151,6 +152,20 @@ function parseSamacsysCapturedAuthorizationCapturedAt(value) {
   return parsedDate.toISOString();
 }
 
+function resolveSamacsysAuthorizationHeader(settings = {}) {
+  return (
+    parseSamacsysAuthorizationHeader(settings.samacsysFirefoxAuthorizationHeader) ||
+    buildSamacsysBasicAuthorizationHeader(
+      settings.samacsysFirefoxUsername,
+      settings.samacsysFirefoxPassword
+    ) ||
+    parseSamacsysCapturedAuthorizationHeader(
+      settings.samacsysFirefoxCapturedAuthorizationHeader
+    ) ||
+    ""
+  );
+}
+
 function encodeBase64(value) {
   if (typeof globalThis.btoa === "function") {
     return globalThis.btoa(value);
@@ -255,6 +270,7 @@ export {
   parseSamacsysAuthorizationHeader,
   parseSamacsysCapturedAuthorizationHeader,
   parseSamacsysCapturedAuthorizationCapturedAt,
+  resolveSamacsysAuthorizationHeader,
   normalizeLibraryDownloadRoot,
   normalizeSamacsysFirefoxProxyBaseUrl,
   loadSettings,

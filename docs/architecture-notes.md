@@ -5,13 +5,13 @@ This file records short implementation notes that supplement, but do not replace
 ## Layer boundaries
 
 - `src/content_script.js`: DOM inspection and provider-aware part-context detection only
-- `src/popup.js`: popup UI state, settings, preview requests, Firefox SamacSys relay gating, relay-auth input, captured-auth status, and export requests
+- `src/popup.js`: popup UI state, settings, preview requests, Firefox SamacSys relay gating, relay-auth input, cross-browser upstream-auth input, captured-auth status, and export requests
 - `src/service_worker.js`: thin runtime entrypoint only
 - `src/service_worker_runtime.js`: provider routing, runtime gating, Firefox SamacSys auth capture, automatic auth-refresh orchestration, response shaping, and composition of worker dependencies
 - `src/core/*.js`: shared worker business logic for settings, downloads, storage-backed symbol-library handling, shared export artifact writing, and common normalization
 - `src/sources/*.js`: source adapters plus source-specific fetch/parse/export helpers
   - `src/sources/samacsys_distributor_adapter.js` is the shared backend adapter for Mouser and Farnell
-- `src/sources/samacsys_common.js` holds the shared SamacSys preview, ZIP, relay-cookie, relay-auth, upstream-auth, and asset-rewrite helpers
+- `src/sources/samacsys_common.js` holds the shared SamacSys preview, ZIP, relay-cookie, relay-auth, upstream-auth, direct-request ZIP-auth fallback, and asset-rewrite helpers
 - `src/kicad_converter.js`: stable public converter facade
 - `src/kicad/*.js`: EasyEDA parsing, KiCad text generation, shared conversion math, and OBJ-to-WRL conversion
 - `src/vendor/zip_reader.js`: minimal runtime ZIP extraction for SamacSys archives
@@ -32,6 +32,7 @@ This file records short implementation notes that supplement, but do not replace
 - Symbol library append behavior depends on `chrome.storage.local`, not on local filesystem reads.
 - Library-mode download paths remain relative to Downloads and are resolved from popup settings, not absolute filesystem paths.
 - SamacSys distributor support is still Chrome-first, but Firefox can opt into a user-managed relay through popup settings.
+- Chrome direct SamacSys ZIP export now retries once with configured upstream auth after a `401`, but preview requests still use the normal direct browser session without preemptive auth headers.
 - Firefox relay mode forwards matching `componentsearchengine.com` cookies so authenticated SamacSys ZIP downloads can reuse the browser session instead of teaching the relay to log in.
 - Firefox relay mode can also generate the upstream SamacSys HTTP Basic auth header locally from optional stored username/password credentials, avoiding any dependency on a browser-captured header when the user prefers that setup.
 - Firefox now stores the latest observed upstream SamacSys `Authorization` header through `webRequest` and reuses it for proxied Firefox requests until a newer one is captured.

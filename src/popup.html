@@ -110,6 +110,9 @@
             Firefox only. Optional relay authentication sent only to the configured
             Cloudflare Worker proxy request.
           </p>
+          <p id="samacsysRelayRuntimeHint" class="settings-hint" hidden>
+            Chrome uses direct SamacSys requests. Relay settings are disabled here.
+          </p>
           <label class="settings-field" for="samacsysFirefoxUsername">
             <span class="settings-label">SamacSys username</span>
             <input
@@ -135,17 +138,17 @@
             />
           </label>
           <p class="settings-hint">
-            Firefox only. Optional stored SamacSys credentials used to generate the
-            upstream HTTP Basic auth header locally. If left blank, the extension
-            falls back to the captured header flow.
+            Optional stored SamacSys credentials used to generate the upstream HTTP
+            Basic auth header for ZIP download fallback. If left blank, the
+            extension falls back to any captured Firefox header.
           </p>
           <div class="settings-field" aria-live="polite">
-            <span class="settings-label">Auto-captured SamacSys Authorization</span>
+            <span class="settings-label">Firefox-captured SamacSys Authorization</span>
             <output
               id="samacsysFirefoxCapturedAuthorizationStatus"
               class="settings-readonly"
             >
-              No captured SamacSys auth header yet.
+              No Firefox-captured SamacSys auth header yet.
             </output>
           </div>
           <p class="settings-hint">
@@ -166,9 +169,9 @@
             />
           </label>
           <p class="settings-hint">
-            Firefox only. Optional manual override for the upstream SamacSys
-            Authorization header. This takes precedence over the auto-captured value
-            when both are present.
+            Optional manual override for the upstream SamacSys Authorization
+            header. This takes precedence over generated Basic auth and any
+            Firefox-captured value when present.
           </p>
         </details>
       </section>

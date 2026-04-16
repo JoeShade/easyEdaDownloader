@@ -1,3 +1,4 @@
+// Core export/conversion work in this file: JoeShade and Josh Webster
 /*
  * Shared download helpers for the service worker. These wrap chrome.downloads
  * so adapters can write text, binary, and URL-backed artifacts without
