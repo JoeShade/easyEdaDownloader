@@ -45,10 +45,17 @@ The current repository does not implement:
 - SamacSys distributor datasheet export is currently unsupported.
 - SamacSys distributor preview and export work directly in Chrome.
 - Firefox SamacSys support is opt-in and depends on a user-managed relay URL stored in popup settings.
-- SamacSys ZIP export may still require upstream authentication; when the ZIP endpoint returns `401`, the worker surfaces a sign-in-required error instead of a generic download failure.
+- SamacSys ZIP export may still require upstream authentication.
+- On Chrome direct requests, the worker first tries the normal browser session and retries the ZIP request once with configured upstream auth if the first ZIP request returns `401`.
+- On Firefox relay mode, the worker uses the relay path and keeps the existing auth-refresh retry behavior after ZIP-auth failures.
 - In Firefox relay mode, the service worker forwards matching `componentsearchengine.com` cookies through the relay so authenticated ZIP downloads can reuse the user's upstream browser session.
 - Firefox relay mode can send a separate relay `Authorization` header on the Worker POST when the user configures proxy auth.
-- Firefox relay mode can forward an upstream SamacSys `Authorization` header for ZIP endpoints that rely on HTTP Basic auth instead of cookies alone, preferring the manual override and otherwise reusing the latest Firefox-captured upstream header.
+- Firefox relay mode can forward an upstream SamacSys `Authorization` header for ZIP endpoints that rely on HTTP Basic auth instead of cookies alone.
+- Across authenticated SamacSys ZIP flows, upstream auth precedence is:
+  - manual override from popup settings
+  - locally generated HTTP Basic auth header from stored SamacSys username and password
+  - latest Firefox-captured upstream header
+  - no upstream authorization header
 - The Manifest V3 background is declared for both Chrome and Firefox: Chrome uses `background.service_worker`, while Firefox uses the background-document fallback from `background.scripts`. This combined manifest relies on Firefox 121 or newer.
 - The configurable library download root must remain relative to the browser's Downloads directory.
 
@@ -114,7 +121,7 @@ Owns popup UI state and user interaction:
 - render the fixed `Mfr. Part #` row plus a dynamic provider-specific source row
 - request previews and datasheet availability
 - gate downloads based on provider support and checkbox selection
-- expose advanced Firefox SamacSys relay settings, including separate relay auth, optional stored SamacSys credentials, read-only captured-auth status, and a manual upstream auth override
+- expose advanced Firefox SamacSys relay settings plus cross-browser upstream SamacSys auth inputs, including separate relay auth, optional stored SamacSys credentials, read-only Firefox-captured auth status, and a manual upstream auth override
 - send `EXPORT_PART` requests to the service worker
 
 It remains the UI-facing boundary. It does not own fetch, archive extraction, or conversion logic.
@@ -227,11 +234,7 @@ The test suite remains the primary regression net for:
 - In Firefox, those same SamacSys requests are sent through the optional user-managed relay when configured; otherwise they fail early with the existing proxy-required error.
 - In Firefox relay mode, the worker attaches the current SamacSys cookie header to proxied requests when browser cookies are available.
 - In Firefox relay mode, the worker sends any configured relay `Authorization` header only on the Worker POST itself.
-- In Firefox relay mode, the worker forwards upstream SamacSys `Authorization` using this precedence:
-  - manual override from popup settings
-  - locally generated HTTP Basic auth header from stored SamacSys username and password
-  - latest Firefox-captured upstream header
-  - no upstream authorization header
+- In Firefox relay mode, the worker forwards upstream SamacSys `Authorization` using the shared ZIP-auth precedence.
 ### 5.3 Export EasyEDA-backed parts
 
 - The service worker fetches the EasyEDA payload using the detected LCSC id.
@@ -246,7 +249,9 @@ The test suite remains the primary regression net for:
 - The service worker fetches the SamacSys entry URL and resolves the part page.
 - In Firefox with a configured relay, the service worker sends those SamacSys HTTP requests through the relay instead of fetching upstream directly.
 - In Firefox with a configured relay, the service worker also reads the matching upstream cookies through `chrome.cookies` and forwards them with those proxied requests.
-- For authenticated ZIP flows that use HTTP Basic auth, the service worker forwards upstream SamacSys `Authorization` from the manual override when present, otherwise from locally generated Basic auth when stored credentials exist, and otherwise from the latest Firefox-captured header.
+- For authenticated ZIP flows that use HTTP Basic auth, the service worker resolves upstream SamacSys `Authorization` from the shared precedence and:
+  - on Chrome direct requests, retries one ZIP request with that auth after an initial `401`
+  - on Firefox relay requests, forwards that auth through the relay as part of the proxied upstream request
 - When proxy auth is configured, the relay POST itself also carries a separate relay `Authorization` header that is never forwarded upstream.
 - When Firefox SamacSys ZIP export returns the sign-in-required `401` error, the runtime tells the current product tab to trigger its native SamacSys ECAD flow once, waits for the first new captured upstream `Authorization` header, and retries that export one time.
 - The part page supplies:

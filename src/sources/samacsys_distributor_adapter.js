@@ -1,3 +1,4 @@
+// SamacSys/relay work in this file: JoeShade and Josh Webster
 /*
  * Shared provider adapter for SamacSys-backed distributor pages. Distributor-
  * specific detection happens in the content script, while this adapter owns the
@@ -6,8 +7,8 @@
 
 import { parseKicadSymbolName } from "../core/library_store.js";
 import {
-  buildSamacsysBasicAuthorizationHeader,
-  loadSettings
+  loadSettings,
+  resolveSamacsysAuthorizationHeader
 } from "../core/settings.js";
 import {
   createExportContext,
@@ -27,18 +28,7 @@ import {
   rewriteSamacsysSymbolFootprintReference,
   stripKicadFootprintModels
 } from "./samacsys_common.js";
-
-function resolveSamacsysAuthorizationHeader(settings = {}) {
-  return (
-    settings.samacsysFirefoxAuthorizationHeader ||
-    buildSamacsysBasicAuthorizationHeader(
-      settings.samacsysFirefoxUsername,
-      settings.samacsysFirefoxPassword
-    ) ||
-    settings.samacsysFirefoxCapturedAuthorizationHeader ||
-    ""
-  );
-}
+import { isFirefoxRuntime } from "../core/part_context.js";
 
 function createSamacsysDistributorAdapter(deps) {
   const { chromeApi, fetchImpl, downloads, readZipEntries, userAgent } = deps;
@@ -60,15 +50,16 @@ function createSamacsysDistributorAdapter(deps) {
     async exportPart(partContext, options = {}) {
       const exportContext = await createExportContext(chromeApi);
       const resolvedOptions = resolveExportOptions(options);
+      const upstreamAuthorizationHeader = resolveSamacsysAuthorizationHeader(
+        exportContext.settings
+      );
       const samacsysFetchImpl = createSamacsysFetchImpl(fetchImpl, {
         chromeApi,
         userAgent,
         proxyBaseUrl: exportContext.settings.samacsysFirefoxProxyBaseUrl,
         proxyAuthorizationHeader:
           exportContext.settings.samacsysFirefoxProxyAuthorizationHeader,
-        authorizationHeader: resolveSamacsysAuthorizationHeader(
-          exportContext.settings
-        )
+        authorizationHeader: upstreamAuthorizationHeader
       });
 
       let downloadCount = 0;
@@ -79,7 +70,11 @@ function createSamacsysDistributorAdapter(deps) {
       }
 
       const metadata = await fetchSamacsysPageMetadata(samacsysFetchImpl, partContext);
-      const zipBuffer = await fetchSamacsysZipArchive(samacsysFetchImpl, metadata);
+      const zipBuffer = await fetchSamacsysZipArchive(samacsysFetchImpl, metadata, {
+        retryAuthorizationHeader: isFirefoxRuntime(userAgent)
+          ? ""
+          : upstreamAuthorizationHeader
+      });
       const assets = await extractSamacsysKiCadAssets(zipBuffer, readZipEntries);
       const libraryName = getLibraryName(exportContext.libraryPaths);
       const primaryFootprintName = assets.footprints[0]?.name || null;

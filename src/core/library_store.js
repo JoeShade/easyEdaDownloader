@@ -1,3 +1,4 @@
+// Core export/conversion work in this file: JoeShade and Josh Webster
 /*
  * Storage-backed KiCad symbol-library helpers. Library mode keeps the current
  * merged symbol text in chrome.storage.local so repeated exports can append or

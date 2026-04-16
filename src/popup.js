@@ -1,3 +1,4 @@
+// SamacSys/relay work in this file: JoeShade and Josh Webster
 /*
  * This script powers the extension popup UI. It fetches the provider-aware
  * part context from the active tab, lets the user choose what to download, and
@@ -18,6 +19,7 @@ import {
 import {
   getBlockedPartContextError,
   isBlockedPartContext,
+  isFirefoxRuntime,
   isSamacsysProvider as isSamacsysProviderShared
 } from "./core/part_context.js";
 
@@ -59,10 +61,14 @@ const samacsysFirefoxCapturedAuthorizationStatusEl = popupDocument.getElementByI
 const samacsysFirefoxAuthorizationHeaderEl = popupDocument.getElementById(
   "samacsysFirefoxAuthorizationHeader"
 );
+const samacsysRelayRuntimeHintEl = popupDocument.getElementById(
+  "samacsysRelayRuntimeHint"
+);
 const symbolPreviewEl = popupDocument.getElementById("symbolPreview");
 const footprintPreviewEl = popupDocument.getElementById("footprintPreview");
 const symbolPreviewFallbackEl = popupDocument.getElementById("symbolPreviewFallback");
 const footprintPreviewFallbackEl = popupDocument.getElementById("footprintPreviewFallback");
+const isFirefoxPopupRuntime = isFirefoxRuntime(popupWindow.navigator?.userAgent);
 
 // Store the most recently detected part context.
 let currentPartContext = null;
@@ -156,19 +162,25 @@ function formatCapturedAuthorizationStatus(
   capturedAuthorizationCapturedAt
 ) {
   if (!capturedAuthorizationHeader) {
-    return "No captured SamacSys auth header yet.";
+    return "No Firefox-captured SamacSys auth header yet.";
   }
 
   if (!capturedAuthorizationCapturedAt) {
-    return "Captured SamacSys auth header available.";
+    return "Firefox-captured SamacSys auth header available.";
   }
 
   const capturedDate = new Date(capturedAuthorizationCapturedAt);
   if (Number.isNaN(capturedDate.getTime())) {
-    return "Captured SamacSys auth header available.";
+    return "Firefox-captured SamacSys auth header available.";
   }
 
-  return `Captured SamacSys auth header available from ${capturedDate.toLocaleString()}.`;
+  return `Firefox-captured SamacSys auth header available from ${capturedDate.toLocaleString()}.`;
+}
+
+function updateRelaySettingsAvailability() {
+  samacsysFirefoxProxyBaseUrlEl.disabled = !isFirefoxPopupRuntime;
+  samacsysFirefoxProxyAuthorizationHeaderEl.disabled = !isFirefoxPopupRuntime;
+  samacsysRelayRuntimeHintEl.hidden = isFirefoxPopupRuntime;
 }
 
 function refreshSamacsysAuthStatus() {
@@ -278,6 +290,7 @@ function applySettingsToUi(settings) {
       settings.samacsysFirefoxCapturedAuthorizationCapturedAt || ""
   };
   refreshSamacsysAuthStatus();
+  updateRelaySettingsAvailability();
   if (currentPartContext && isSamacsysProviderShared(currentPartContext.provider)) {
     setPartContext(currentPartContext);
   } else {
@@ -436,6 +449,7 @@ chromeApi.tabs.query({ active: true, currentWindow: true }, (tabs) => {
 
 // Load settings when the popup opens.
 loadSettings();
+updateRelaySettingsAvailability();
 
 // Keep button state in sync with checkbox changes.
 downloadSymbolEl.addEventListener("change", updateDownloadEnabled);
@@ -553,6 +567,7 @@ if (globalThis.__popupTestApi) {
       samacsysFirefoxPasswordEl,
       samacsysFirefoxCapturedAuthorizationStatusEl,
       samacsysFirefoxAuthorizationHeaderEl,
+      samacsysRelayRuntimeHintEl,
       symbolPreviewEl,
       footprintPreviewEl,
       symbolPreviewFallbackEl,

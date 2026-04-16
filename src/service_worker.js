@@ -1,3 +1,4 @@
+// SamacSys/relay work in this file: JoeShade and Josh Webster
 /*
  * This service worker entrypoint stays intentionally thin.
  * Source routing and business logic live in service_worker_runtime.js.

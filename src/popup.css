@@ -193,6 +193,12 @@ h1 {
   border-color: #1663d6;
 }
 
+.settings-input:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 .settings-readonly {
   display: block;
   box-sizing: border-box;

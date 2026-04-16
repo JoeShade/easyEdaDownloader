@@ -206,6 +206,87 @@ function createSamacsysPartHtml({
   `;
 }
 
+function createMockHeaders(entries = {}) {
+  return {
+    get(name) {
+      const match = Object.entries(entries).find(
+        ([key]) => key.toLowerCase() === String(name || "").toLowerCase()
+      );
+      return match ? match[1] : null;
+    }
+  };
+}
+
+function createDirectSamacsysZipFetchImpl({
+  baseUrl = "https://ms.componentsearchengine.com",
+  partId = "21790508",
+  zipStatuses = [200],
+  expectedZipAuthorizationHeaders = []
+} = {}) {
+  const zipCalls = [];
+
+  const fetchImpl = vi.fn(async (url, options = {}) => {
+    const requestUrl = String(url);
+
+    if (requestUrl.includes("entry_u_newDesign.php")) {
+      expect(options.headers?.Authorization).toBeUndefined();
+      return {
+        ok: true,
+        status: 200,
+        url: `${baseUrl}/part.php?partID=${partId}`,
+        headers: createMockHeaders(),
+        text: async () => "<html><body>entry ok</body></html>"
+      };
+    }
+
+    if (requestUrl.includes("preview_newDesign.php")) {
+      expect(options.credentials).toBe("include");
+      expect(options.headers?.Authorization).toBeUndefined();
+      return {
+        ok: true,
+        status: 200,
+        url: requestUrl,
+        headers: createMockHeaders(),
+        text: async () =>
+          createSamacsysPartHtml({
+            partId,
+            zipActionUrl: `${baseUrl}/ga/model.php`
+          })
+      };
+    }
+
+    if (requestUrl.includes("/ga/model.php")) {
+      expect(options.credentials).toBe("include");
+      const authorizationHeader =
+        options.headers?.Authorization || options.headers?.authorization || "";
+      zipCalls.push({ url: requestUrl, authorizationHeader });
+      const attemptIndex = zipCalls.length - 1;
+      if (expectedZipAuthorizationHeaders[attemptIndex] !== undefined) {
+        expect(authorizationHeader).toBe(expectedZipAuthorizationHeaders[attemptIndex]);
+      }
+      const status = zipStatuses[Math.min(attemptIndex, zipStatuses.length - 1)];
+      if (status === 200) {
+        return {
+          ok: true,
+          status: 200,
+          headers: createMockHeaders(),
+          arrayBuffer: async () => new TextEncoder().encode("PKzip").buffer
+        };
+      }
+      return {
+        ok: false,
+        status,
+        headers: createMockHeaders()
+      };
+    }
+
+    throw new Error(`Unexpected URL: ${url}`);
+  });
+
+  fetchImpl.getZipCalls = () => zipCalls.slice();
+  return fetchImpl;
+}
+
 function createSamacsysFetchImpl({
   baseUrl = "https://ms.componentsearchengine.com",
   proxyBaseUrl = "",
@@ -222,22 +303,11 @@ function createSamacsysFetchImpl({
   expectedAuthorizationHeader = "",
   expectedNoForwardAuthorizationHeader = false
 } = {}) {
-  function createHeaders(entries = {}) {
-    return {
-      get(name) {
-        const match = Object.entries(entries).find(
-          ([key]) => key.toLowerCase() === String(name || "").toLowerCase()
-        );
-        return match ? match[1] : null;
-      }
-    };
-  }
-
   function createProxyResponse(url, response) {
     return {
       ok: response.ok,
       status: response.status,
-      headers: createHeaders({
+      headers: createMockHeaders({
         "x-upstream-url": response.url || url
       }),
       text: response.text,
@@ -302,7 +372,7 @@ function createSamacsysFetchImpl({
         ok: true,
         status: 200,
         url: `${baseUrl}/part.php?partID=${partId}`,
-        headers: createHeaders(),
+        headers: createMockHeaders(),
         text: async () => "<html><body>entry ok</body></html>"
       };
     }
@@ -312,7 +382,7 @@ function createSamacsysFetchImpl({
         ok: true,
         status: 200,
         url: requestUrl,
-        headers: createHeaders(),
+        headers: createMockHeaders(),
         text: async () =>
           createSamacsysPartHtml({
             partId,
@@ -324,17 +394,17 @@ function createSamacsysFetchImpl({
       return {
         ok: true,
         status: 200,
-        headers: createHeaders(),
-        json: async () => ({ Image: symbolImage })
-      };
+          headers: createMockHeaders(),
+          json: async () => ({ Image: symbolImage })
+        };
     }
     if (requestUrl.includes("/footprint.php") && footprintImage !== undefined) {
       return {
         ok: true,
         status: 200,
-        headers: createHeaders(),
-        json: async () => ({ Image: footprintImage })
-      };
+          headers: createMockHeaders(),
+          json: async () => ({ Image: footprintImage })
+        };
     }
     if (requestUrl.includes("/ga/model.php") && zipStatus !== undefined) {
       expect(options.credentials).toBe("include");
@@ -342,7 +412,7 @@ function createSamacsysFetchImpl({
         return {
           ok: true,
           status: 200,
-          headers: createHeaders(),
+          headers: createMockHeaders(),
           arrayBuffer: async () => new TextEncoder().encode(zipPayload).buffer
         };
       }
@@ -356,7 +426,7 @@ function createSamacsysFetchImpl({
         return {
           ok: true,
           status: 200,
-          headers: createHeaders(),
+          headers: createMockHeaders(),
           text: async () => wrlText
         };
       }
@@ -1566,6 +1636,331 @@ describe("service worker", () => {
     expect(chrome.cookies.getAll).not.toHaveBeenCalled();
   });
 
+  it("does not attach upstream auth to Chrome direct preview requests", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        samacsysFirefoxAuthorizationHeader: "Basic manual123",
+        samacsysFirefoxUsername: "user@example.com",
+        samacsysFirefoxPassword: "secret123"
+      }
+    });
+    const fetchImpl = vi.fn(async (url, options = {}) => {
+      const requestUrl = String(url);
+      expect(options.headers?.Authorization).toBeUndefined();
+      if (requestUrl.includes("entry_u_newDesign.php")) {
+        return {
+          ok: true,
+          status: 200,
+          url: "https://ms.componentsearchengine.com/part.php?partID=21790508",
+          headers: createMockHeaders(),
+          text: async () => "<html><body>entry ok</body></html>"
+        };
+      }
+      if (requestUrl.includes("preview_newDesign.php")) {
+        return {
+          ok: true,
+          status: 200,
+          url: requestUrl,
+          headers: createMockHeaders(),
+          text: async () =>
+            createSamacsysPartHtml({
+              partId: "21790508",
+              zipActionUrl: "https://ms.componentsearchengine.com/ga/model.php"
+            })
+        };
+      }
+      if (requestUrl.includes("/symbol.php")) {
+        return {
+          ok: true,
+          status: 200,
+          headers: createMockHeaders(),
+          json: async () => ({ Image: "AAAA" })
+        };
+      }
+      if (requestUrl.includes("/footprint.php")) {
+        return {
+          ok: true,
+          status: 200,
+          headers: createMockHeaders(),
+          json: async () => ({ Image: "BBBB" })
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      userAgent: "Mozilla/5.0 Chrome/135.0.0.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "GET_PART_PREVIEWS",
+      partContext: createSamacsysPartContext("mouser")
+    });
+
+    expect(result.response.ok).toBe(true);
+  });
+
+  it("does not preemptively attach configured SamacSys auth on Chrome ZIP exports", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true,
+        samacsysFirefoxAuthorizationHeader: "Basic manual123"
+      }
+    });
+    const readZipEntries = vi.fn(async () => [
+      {
+        name: "STM32C552KEU6/KiCad/STM32C552KEU6.kicad_sym",
+        data: new TextEncoder().encode(MOUZER_SYMBOL)
+      }
+    ]);
+    const fetchImpl = createDirectSamacsysZipFetchImpl({
+      zipStatuses: [200],
+      expectedZipAuthorizationHeaders: [""]
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      readZipEntries,
+      userAgent: "Mozilla/5.0 Chrome/135.0.0.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      options: {
+        symbol: true,
+        footprint: false,
+        model3d: false,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [],
+      downloadCount: 1
+    });
+    expect(fetchImpl.getZipCalls()).toHaveLength(1);
+  });
+
+  it("retries one Chrome SamacSys ZIP request with the manual override after a 401", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true,
+        samacsysFirefoxAuthorizationHeader: "Basic manual123"
+      }
+    });
+    const readZipEntries = vi.fn(async () => [
+      {
+        name: "STM32C552KEU6/KiCad/STM32C552KEU6.kicad_sym",
+        data: new TextEncoder().encode(MOUZER_SYMBOL)
+      }
+    ]);
+    const fetchImpl = createDirectSamacsysZipFetchImpl({
+      zipStatuses: [401, 200],
+      expectedZipAuthorizationHeaders: ["", "Basic manual123"]
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      readZipEntries,
+      userAgent: "Mozilla/5.0 Chrome/135.0.0.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      options: {
+        symbol: true,
+        footprint: false,
+        model3d: false,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [],
+      downloadCount: 1
+    });
+    expect(fetchImpl.getZipCalls()).toHaveLength(2);
+  });
+
+  it("retries one Chrome SamacSys ZIP request with generated Basic auth after a 401", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true,
+        samacsysFirefoxUsername: "user@example.com",
+        samacsysFirefoxPassword: "secret123"
+      }
+    });
+    const readZipEntries = vi.fn(async () => [
+      {
+        name: "STM32C552KEU6/KiCad/STM32C552KEU6.kicad_sym",
+        data: new TextEncoder().encode(MOUZER_SYMBOL)
+      }
+    ]);
+    const fetchImpl = createDirectSamacsysZipFetchImpl({
+      zipStatuses: [401, 200],
+      expectedZipAuthorizationHeaders: [
+        "",
+        "Basic dXNlckBleGFtcGxlLmNvbTpzZWNyZXQxMjM="
+      ]
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      readZipEntries,
+      userAgent: "Mozilla/5.0 Chrome/135.0.0.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      options: {
+        symbol: true,
+        footprint: false,
+        model3d: false,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [],
+      downloadCount: 1
+    });
+    expect(fetchImpl.getZipCalls()).toHaveLength(2);
+  });
+
+  it("uses a stored captured SamacSys header for the Chrome ZIP retry when one exists", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true,
+        samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
+        samacsysFirefoxCapturedAuthorizationCapturedAt:
+          "2026-04-14T11:40:00.000Z"
+      }
+    });
+    const readZipEntries = vi.fn(async () => [
+      {
+        name: "STM32C552KEU6/KiCad/STM32C552KEU6.kicad_sym",
+        data: new TextEncoder().encode(MOUZER_SYMBOL)
+      }
+    ]);
+    const fetchImpl = createDirectSamacsysZipFetchImpl({
+      zipStatuses: [401, 200],
+      expectedZipAuthorizationHeaders: ["", "Basic captured123"]
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      readZipEntries,
+      userAgent: "Mozilla/5.0 Chrome/135.0.0.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      options: {
+        symbol: true,
+        footprint: false,
+        model3d: false,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [],
+      downloadCount: 1
+    });
+    expect(fetchImpl.getZipCalls()).toHaveLength(2);
+  });
+
+  it("returns the sign-in-required error after one Chrome 401 when no retry auth is configured", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true
+      }
+    });
+    const readZipEntries = vi.fn(async () => []);
+    const fetchImpl = createDirectSamacsysZipFetchImpl({
+      zipStatuses: [401],
+      expectedZipAuthorizationHeaders: [""]
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      readZipEntries,
+      userAgent: "Mozilla/5.0 Chrome/135.0.0.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      options: {
+        symbol: true,
+        footprint: false,
+        model3d: false,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: false,
+      error:
+        "Mouser/SamacSys download requires you to be signed in before CAD files can be downloaded."
+    });
+    expect(fetchImpl.getZipCalls()).toHaveLength(1);
+  });
+
+  it("stops after one authenticated Chrome retry when the SamacSys ZIP still returns 401", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true,
+        samacsysFirefoxAuthorizationHeader: "Basic manual123"
+      }
+    });
+    const readZipEntries = vi.fn(async () => []);
+    const fetchImpl = createDirectSamacsysZipFetchImpl({
+      zipStatuses: [401, 401],
+      expectedZipAuthorizationHeaders: ["", "Basic manual123"]
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      readZipEntries,
+      userAgent: "Mozilla/5.0 Chrome/135.0.0.0"
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      options: {
+        symbol: true,
+        footprint: false,
+        model3d: false,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: false,
+      error:
+        "Mouser/SamacSys download requires you to be signed in before CAD files can be downloaded."
+    });
+    expect(fetchImpl.getZipCalls()).toHaveLength(2);
+  });
+
   it("surfaces proxy transport failures distinctly from upstream SamacSys errors", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
@@ -1618,6 +2013,7 @@ describe("service worker", () => {
   });
 });
 
+// SamacSys/relay work in this file: JoeShade and Josh Webster
 /*
 ######################################################################################################################
 

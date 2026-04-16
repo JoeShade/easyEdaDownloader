@@ -124,6 +124,8 @@ async function applyStoredSettings(
     libraryDownloadRoot: "easyEDADownloader",
     samacsysFirefoxProxyBaseUrl: "",
     samacsysFirefoxProxyAuthorizationHeader: "",
+    samacsysFirefoxUsername: "",
+    samacsysFirefoxPassword: "",
     samacsysFirefoxAuthorizationHeader: "",
     samacsysFirefoxCapturedAuthorizationHeader: "",
     samacsysFirefoxCapturedAuthorizationCapturedAt: ""
@@ -153,10 +155,18 @@ describe("popup", () => {
     expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
     expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.value).toBe("");
     expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.value).toBe("");
+    expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.disabled).toBe(true);
+    expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.disabled).toBe(
+      true
+    );
+    expect(hooks.elements.samacsysFirefoxUsernameEl.disabled).toBe(false);
+    expect(hooks.elements.samacsysFirefoxPasswordEl.disabled).toBe(false);
     expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.value).toBe("");
+    expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.disabled).toBe(false);
+    expect(hooks.elements.samacsysRelayRuntimeHintEl.hidden).toBe(false);
     expect(
       hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent.trim()
-    ).toBe("No captured SamacSys auth header yet.");
+    ).toBe("No Firefox-captured SamacSys auth header yet.");
     expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.type).toBe(
       "password"
     );
@@ -350,6 +360,14 @@ describe("popup", () => {
 
     expect(hooks.elements.statusEl.textContent).toBe("");
     expect(hooks.elements.downloadButton.disabled).toBe(false);
+    expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.disabled).toBe(false);
+    expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.disabled).toBe(
+      false
+    );
+    expect(hooks.elements.samacsysFirefoxUsernameEl.disabled).toBe(false);
+    expect(hooks.elements.samacsysFirefoxPasswordEl.disabled).toBe(false);
+    expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.disabled).toBe(false);
+    expect(hooks.elements.samacsysRelayRuntimeHintEl.hidden).toBe(true);
   });
 
   it("treats Farnell SamacSys pages like Mouser for preview defaults and Firefox blocking", async () => {
@@ -538,7 +556,7 @@ describe("popup", () => {
     });
 
     expect(hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent).toContain(
-      "Captured SamacSys auth header available from"
+      "Firefox-captured SamacSys auth header available from"
     );
     expect(hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent).not.toContain(
       "captured-secret"
@@ -666,6 +684,7 @@ describe("popup", () => {
   });
 });
 
+// SamacSys/relay work in this file: JoeShade and Josh Webster
 /*
 ######################################################################################################################
 

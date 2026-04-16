@@ -1,3 +1,4 @@
+// Core export/conversion work in this file: JoeShade and Josh Webster
 /*
  * Shared export-writing helpers used by the provider adapters. This module
  * centralizes settings resolution, library path handling, symbol-library merge

@@ -1,3 +1,4 @@
+// SamacSys/relay work in this file: JoeShade and Josh Webster
 /*
  * Shared SamacSys distributor helpers used by both Mouser and Farnell flows.
  * This module owns entry-page parsing, preview fetching, ZIP extraction, and
@@ -125,6 +126,17 @@ function resolveUpstreamAuthorizationHeader(
   capturedAuthorizationHeader = ""
 ) {
   return String(authorizationHeader || capturedAuthorizationHeader || "").trim();
+}
+
+function buildRetryHeaders(headers, authorizationHeader) {
+  const normalizedHeaders = normalizeForwardHeaders(headers);
+  if (!authorizationHeader || hasHeader(normalizedHeaders, "authorization")) {
+    return normalizedHeaders;
+  }
+  return {
+    ...normalizedHeaders,
+    Authorization: authorizationHeader
+  };
 }
 
 function createSamacsysFetchImpl(
@@ -503,7 +515,11 @@ function getSamacsysAuthenticationErrorMessage() {
   return "Mouser/SamacSys download requires you to be signed in before CAD files can be downloaded.";
 }
 
-async function fetchSamacsysZipArchive(fetchImpl, metadata) {
+async function fetchSamacsysZipArchive(
+  fetchImpl,
+  metadata,
+  { retryAuthorizationHeader = "" } = {}
+) {
   const body = buildQueryString(metadata.zipFormInputs || {});
   const method = String(metadata.zipMethod || "GET").toUpperCase();
   const requestUrl =
@@ -520,7 +536,17 @@ async function fetchSamacsysZipArchive(fetchImpl, metadata) {
     requestOptions.body = body;
   }
 
-  const response = await fetchImpl(requestUrl, requestOptions);
+  let response = await fetchImpl(requestUrl, requestOptions);
+  if (!response.ok && response.status === 401 && retryAuthorizationHeader) {
+    response = await fetchImpl(requestUrl, {
+      ...requestOptions,
+      headers: buildRetryHeaders(
+        requestOptions.headers,
+        retryAuthorizationHeader
+      )
+    });
+  }
+
   if (!response.ok) {
     if (response.status === 401) {
       throw new Error(getSamacsysAuthenticationErrorMessage());
