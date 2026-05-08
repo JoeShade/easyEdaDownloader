@@ -3,6 +3,7 @@ easyEdaDownloader.zip
 node_modules/
 coverage/
 docs/easyeda-downloader-architecture.drawio
+docs/professional-grade-review.md
 
 # Local secrets and environment files
 .env
