@@ -13,6 +13,7 @@ import { REPO_ROOT, normalizeNewlines } from "./helpers/test_harness.js";
 
 const GOVERNANCE_FILES = [
   "AGENTS.md",
+  "CHANGELOG.md",
   "SECURITY.md",
   "systemDesign.md",
   "docs/architecture-notes.md",
@@ -67,6 +68,29 @@ const HIGH_CONFIDENCE_SECRET_PATTERNS = [
   { label: "SendGrid API token", pattern: /SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/ },
   { label: "JWT bearer token", pattern: /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/ }
 ];
+
+const CONVENTIONAL_ROOT_FILES = new Set([
+  ".gitignore",
+  ".nvmrc",
+  "AGENTS.md",
+  "CHANGELOG.md",
+  "LICENSE",
+  "README.md",
+  "SECURITY.md",
+  "contributing.md",
+  "eslint.config.js",
+  "manifest.json",
+  "package-lock.json",
+  "package.json",
+  "systemDesign.md",
+  "vitest.config.js"
+]);
+
+const FILE_LENGTH_EXCEPTIONS = new Set(["LICENSE", "package-lock.json"]);
+
+const BINARY_EXTENSIONS = new Set([".png"]);
+
+const CAMEL_CASE_FUNCTION_NAME = /^[a-z][A-Za-z0-9]*$/;
 
 const CANONICAL_FOOTER = normalizeNewlines(
   [
@@ -177,6 +201,76 @@ function isTextFile(relativePath) {
   );
 }
 
+function isLowerSnakeFileName(filename) {
+  return /^[a-z0-9]+(?:_[a-z0-9]+)*(?:\.test)?\.js$/.test(filename);
+}
+
+function isLowerKebabFileName(filename, extensionPattern) {
+  return new RegExp(`^[a-z0-9]+(?:-[a-z0-9]+)*\\.${extensionPattern}$`).test(
+    filename
+  );
+}
+
+function expectedFileNameStyle(relativePath) {
+  const filename = path.basename(relativePath);
+  const directoryName = path.dirname(relativePath).replaceAll(path.sep, "/");
+  const extension = path.extname(filename).toLowerCase();
+
+  if (CONVENTIONAL_ROOT_FILES.has(relativePath)) {
+    return null;
+  }
+  if (relativePath === ".github/workflows/ci.yml") {
+    return null;
+  }
+  if (directoryName === "icons" && /^\d+x\d+\.png$/.test(filename)) {
+    return null;
+  }
+  if (directoryName === "docs" && extension === ".md") {
+    return { label: "docs Markdown should use lower kebab-case", isValid: isLowerKebabFileName(filename, "md") };
+  }
+  if ((directoryName.startsWith("src") || directoryName.startsWith("tests")) && extension === ".js") {
+    return { label: "JavaScript should use lower snake_case", isValid: isLowerSnakeFileName(filename) };
+  }
+  if (directoryName.startsWith("src") && [".css", ".html"].includes(extension)) {
+    return {
+      label: "source assets should use lower kebab-case or lower snake_case",
+      isValid: /^[a-z0-9]+(?:[_-][a-z0-9]+)*\.(?:css|html)$/.test(filename)
+    };
+  }
+  if (directoryName === "src/assets" && extension === ".png") {
+    return { label: "source image assets should use lower kebab-case", isValid: isLowerKebabFileName(filename, "png") };
+  }
+
+  return null;
+}
+
+function lineLimitFor(relativePath) {
+  const extension = path.extname(relativePath).toLowerCase();
+
+  if (FILE_LENGTH_EXCEPTIONS.has(relativePath) || BINARY_EXTENSIONS.has(extension)) {
+    return null;
+  }
+  if (relativePath.startsWith("src/") && extension === ".js") {
+    return 700;
+  }
+  if (relativePath.startsWith("tests/") && extension === ".js") {
+    return 750;
+  }
+  if (extension === ".md") {
+    return 450;
+  }
+  if ([".css", ".html", ".json", ".yml"].includes(extension)) {
+    return 450;
+  }
+
+  return null;
+}
+
+function functionDeclarationNames(text) {
+  return [...text.matchAll(/(?:^|\n)\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g)]
+    .map((match) => match[1]);
+}
+
 function hasTopLevelExplainer(text) {
   const normalized = normalizeNewlines(text)
     .trimStart()
@@ -283,6 +377,54 @@ describe("repository hygiene", () => {
     }
 
     expect(findings).toEqual([]);
+  });
+
+  it("keeps file names in the repository's conventional styles", () => {
+    const violations = [];
+
+    for (const fullPath of repositoryFiles()) {
+      const relativePath = repoRelativePath(fullPath);
+      const expectation = expectedFileNameStyle(relativePath);
+      if (expectation && !expectation.isValid) {
+        violations.push(`${relativePath} (${expectation.label})`);
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps function declaration names in lower camelCase", () => {
+    const violations = [];
+
+    for (const fullPath of applicableSourceFiles()) {
+      const relativePath = repoRelativePath(fullPath);
+      const text = fs.readFileSync(fullPath, "utf8");
+      for (const name of functionDeclarationNames(text)) {
+        if (!CAMEL_CASE_FUNCTION_NAME.test(name)) {
+          violations.push(`${relativePath}: ${name}`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps maintained text files below the repository line-count limits", () => {
+    const oversizedFiles = [];
+
+    for (const fullPath of repositoryFiles()) {
+      const relativePath = repoRelativePath(fullPath);
+      const limit = lineLimitFor(relativePath);
+      if (!limit) {
+        continue;
+      }
+      const lineCount = normalizeNewlines(fs.readFileSync(fullPath, "utf8")).split("\n").length;
+      if (lineCount > limit) {
+        oversizedFiles.push(`${relativePath} (${lineCount}/${limit} lines)`);
+      }
+    }
+
+    expect(oversizedFiles).toEqual([]);
   });
 
   it("keeps the canonical footer on applicable maintained JS files exactly once", () => {

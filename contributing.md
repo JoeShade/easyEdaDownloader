@@ -39,8 +39,11 @@ Use `README.md` for the operator-facing overview. Use `systemDesign.md` for the 
 - Make small, explicit changes.
 - Update tests with every substantive behavior change.
 - Update docs when behavior, support boundaries, or module ownership changes.
+- Update `CHANGELOG.md` for user-visible changes, repository validation changes, security changes, and release-relevant fixes.
 - Do not refactor production files unless behavior or repository rules require it.
 - Keep browser API orchestration in the worker, DOM extraction in the content script, and UI state in the popup.
+- Use the established naming styles: lower snake_case for JavaScript files, lower kebab-case for docs and image assets, and lower camelCase for function declarations.
+- Split maintained JavaScript before it grows past the repository line-count limits enforced by the hygiene suite.
 
 ## Pull requests
 

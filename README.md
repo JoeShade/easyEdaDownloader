@@ -122,6 +122,7 @@ Read [contributing.md](contributing.md) for contribution expectations and [AGENT
 ## Supporting docs
 
 - [systemDesign.md](systemDesign.md): design source of truth
+- [CHANGELOG.md](CHANGELOG.md): notable changes by release or branch delta
 - [SECURITY.md](SECURITY.md): vulnerability reporting and credential-handling notes
 - [docs/architecture-notes.md](docs/architecture-notes.md): short implementation notes
 - [docs/firefox-samacsys-proxy.md](docs/firefox-samacsys-proxy.md): Cloudflare Worker relay example for Firefox SamacSys support
