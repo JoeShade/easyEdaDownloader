@@ -338,6 +338,7 @@ The test suite remains the primary regression net for:
 - Local and CI validation share `npm run validate`, which runs ESLint, Vitest, `npm audit --audit-level=moderate`, and `git diff --check`.
 - GitHub Actions runs validation with `npm ci` on Node `20.19.0`, `22.13.0`, and `24.x`.
 - `SECURITY.md` owns vulnerability reporting expectations and credential-handling guidance.
+- Repository hygiene tests reject high-confidence secret patterns plus common local environment, archive, log, editor, and temporary files.
 
 ## 11. Repository rules that should remain true
 

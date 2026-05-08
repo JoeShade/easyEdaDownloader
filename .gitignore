@@ -3,3 +3,27 @@ easyEdaDownloader.zip
 node_modules/
 coverage/
 docs/easyeda-downloader-architecture.drawio
+
+# Local secrets and environment files
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Temporary, editor, and log artifacts
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini

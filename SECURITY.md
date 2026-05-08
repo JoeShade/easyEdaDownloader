@@ -18,6 +18,8 @@ Use the repository's private vulnerability reporting or GitHub Security Advisory
 
 Do not include live credentials, private cookies, browser-profile exports, or private KiCad libraries in reports, tests, fixtures, screenshots, or public discussion.
 
+The repository hygiene suite checks for high-confidence token/private-key patterns and common temporary, archive, log, and local-environment files. Treat that as a backstop, not as a substitute for reviewing changes before commit.
+
 ## Credential and Auth Handling
 
 The extension stores user settings in `chrome.storage.local`. That storage can include:
