@@ -1,3 +1,9 @@
+/*
+ * These tests cover repository-level governance rules. They inspect tracked
+ * docs, manifest shape, source footers, and reviewer explainers so convention
+ * drift is caught mechanically rather than by memory.
+ */
+
 import fs from "node:fs";
 import path from "node:path";
 
@@ -85,6 +91,13 @@ function applicableSourceFiles() {
   return files.sort();
 }
 
+function hasTopLevelExplainer(text) {
+  const normalized = normalizeNewlines(text)
+    .trimStart()
+    .replace(/^\/\/ .+work in this file: .+\n/, "");
+  return /^\/\*\n \* [\s\S]*?\n \*\//.test(normalized);
+}
+
 describe("repository hygiene", () => {
   it("requires the governance files", () => {
     for (const relativePath of GOVERNANCE_FILES) {
@@ -109,6 +122,28 @@ describe("repository hygiene", () => {
     );
   });
 
+  it("keeps README sections in the documented review order", () => {
+    const readmeText = normalizeNewlines(
+      fs.readFileSync(path.join(REPO_ROOT, "README.md"), "utf8")
+    );
+    const expectedOrder = [
+      "# EasyEDA Downloader",
+      "## Introduction",
+      "## Disclaimer",
+      "## Set-up",
+      "## Usage",
+      "## Contributing",
+      "## Supporting docs"
+    ];
+
+    let previousIndex = -1;
+    for (const heading of expectedOrder) {
+      const currentIndex = readmeText.indexOf(heading);
+      expect(currentIndex).toBeGreaterThan(previousIndex);
+      previousIndex = currentIndex;
+    }
+  });
+
   it("keeps the canonical footer on applicable maintained JS files exactly once", () => {
     const missingOrDuplicated = [];
 
@@ -121,6 +156,19 @@ describe("repository hygiene", () => {
     }
 
     expect(missingOrDuplicated).toEqual([]);
+  });
+
+  it("keeps a top-level explainer on applicable maintained JS files", () => {
+    const missingExplainers = [];
+
+    for (const fullPath of applicableSourceFiles()) {
+      const text = fs.readFileSync(fullPath, "utf8");
+      if (!hasTopLevelExplainer(text)) {
+        missingExplainers.push(path.relative(REPO_ROOT, fullPath));
+      }
+    }
+
+    expect(missingExplainers).toEqual([]);
   });
 
   it("keeps deviations focused on live mismatches rather than backlog or history", () => {

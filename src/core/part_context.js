@@ -48,7 +48,7 @@ function getBlockedPartContextError(
   samacsysFirefoxProxyBaseUrl = ""
 ) {
   if (isBlockedPartContext(partContext, userAgent, samacsysFirefoxProxyBaseUrl)) {
-    return "SamacSys distributor downloads require a proxy in Firefox. Chrome-only for now.";
+    return "SamacSys distributor downloads in Firefox require a configured proxy relay. Configure the Firefox SamacSys proxy URL in Advanced settings or use Chrome.";
   }
   return "";
 }

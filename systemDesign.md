@@ -261,7 +261,7 @@ The test suite remains the primary regression net for:
 - The service worker downloads the SamacSys ZIP and extracts only:
   - `KiCad/*.kicad_sym`
   - `KiCad/*.kicad_mod`
-  - `3D/*.stp`
+  - `3D/*.stp` and `3D/*.step`
   - optional `3D/*.wrl`
 - Loose-file mode downloads the extracted files directly into Downloads.
 - Library mode repackages the extracted assets into the current KiCad structure:

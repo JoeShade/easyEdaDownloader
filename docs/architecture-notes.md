@@ -39,5 +39,6 @@ This file records short implementation notes that supplement, but do not replace
 - Relay auth and upstream SamacSys auth are separate: relay auth is sent only on the Worker POST, while upstream auth is forwarded inside the relay payload.
 - SamacSys ZIP-export `401` responses are mapped to a sign-in-required error because upstream authentication can be stricter for downloads than for previews.
 - On Firefox relay mode, one failed SamacSys ZIP export can trigger a single auth-refresh attempt, then a single retry with the newly captured upstream auth.
+- SamacSys ZIP extraction treats `KiCad/` and `3D/` directories as valid whether they appear at the archive root or under a part-specific parent folder.
 - The current repository is intentionally compact; add new sources through focused adapters or distributor detection changes rather than introducing a broader application framework.
 - The manifest intentionally declares both `background.service_worker` and `background.scripts` so Chrome can run the service worker while Firefox falls back to a background document on Firefox 121+.

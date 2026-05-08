@@ -1,3 +1,10 @@
+/*
+ * These tests cover service-worker orchestration, shared worker helpers, and
+ * provider adapter behavior. They use mocked chrome, fetch, download, and ZIP
+ * dependencies so browser-runtime flows can be verified without launching a
+ * real extension host.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 
 import { createCadData, createSymbolLibrary } from "./helpers/fixtures.js";
@@ -15,8 +22,10 @@ import {
   extractSymbolBlock,
   mergeSymbolIntoLibrary
 } from "../src/core/library_store.js";
+import { createDownloadApi } from "../src/core/downloads.js";
 import { registerServiceWorkerRuntime } from "../src/service_worker_runtime.js";
 import {
+  extractSamacsysKiCadAssets,
   parseSamacsysPageMetadata,
   rewriteSamacsysFootprintModelPath,
   rewriteSamacsysSymbolFootprintReference,
@@ -476,6 +485,9 @@ describe("service worker", () => {
     expect(parseSamacsysAuthorizationHeader(" Authorization: Basic abc123 ")).toBe(
       "Basic abc123"
     );
+    expect(parseSamacsysAuthorizationHeader("Basic abc123\r\nX-Injected: yes")).toBe(
+      ""
+    );
     expect(
       parseSamacsysCapturedAuthorizationCapturedAt(
         "2026-04-14T11:40:00.000Z"
@@ -510,6 +522,20 @@ describe("service worker", () => {
       samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
       samacsysFirefoxCapturedAuthorizationCapturedAt: "2026-04-14T11:40:00.000Z"
     });
+  });
+
+  it("surfaces data-URL fallback download failures", async () => {
+    const { chrome } = createServiceWorkerChrome();
+    chrome.downloads.download.mockImplementation((_options, callback) => {
+      chrome.runtime.lastError = { message: "Download blocked." };
+      callback?.();
+      chrome.runtime.lastError = null;
+    });
+    const downloads = createDownloadApi(chrome, {}, undefined);
+
+    await expect(
+      downloads.downloadTextFile("part.kicad_sym", "(symbol)", "application/octet-stream")
+    ).rejects.toThrow("Download blocked.");
   });
 
   it("captures and persists the latest Firefox SamacSys Authorization header", async () => {
@@ -586,6 +612,7 @@ describe("service worker", () => {
   });
 
   it("fails SamacSys auth refresh when the page-native auth trigger is unavailable", async () => {
+    vi.useFakeTimers();
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
         samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
@@ -604,18 +631,23 @@ describe("service worker", () => {
       samacsysAuthRefreshTimeoutMs: 100
     });
 
-    const refreshPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
-      type: "REFRESH_SAMACSYS_AUTH",
-      partContext: createSamacsysPartContext("mouser"),
-      sourceTabId: 7
-    });
-    await flushAsyncWork();
+    try {
+      const refreshPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
+        type: "REFRESH_SAMACSYS_AUTH",
+        partContext: createSamacsysPartContext("mouser"),
+        sourceTabId: 7
+      });
+      await flushAsyncWork();
 
-    const result = await refreshPromise;
-    expect(result.response).toEqual({
-      ok: false,
-      error: "SamacSys auth trigger was not found on the current page."
-    });
+      const result = await refreshPromise;
+      expect(result.response).toEqual({
+        ok: false,
+        error: "SamacSys auth trigger was not found on the current page."
+      });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("triggers the current Farnell page instead of opening a separate auth tab", async () => {
@@ -717,6 +749,36 @@ describe("service worker", () => {
         pna: "Mouser"
       }
     });
+  });
+
+  it("extracts SamacSys assets from top-level KiCad and 3D ZIP directories", async () => {
+    const textEncoder = new TextEncoder();
+    const assets = await extractSamacsysKiCadAssets(
+      new Uint8Array([0x50, 0x4b]),
+      async () => [
+        {
+          name: "KiCad/STM32C552KEU6.kicad_sym",
+          data: textEncoder.encode(MOUZER_SYMBOL)
+        },
+        {
+          name: "KiCad/QFN50P500X500X60-33N-D.kicad_mod",
+          data: textEncoder.encode(MOUSER_FOOTPRINT)
+        },
+        {
+          name: "3D/STM32C552KEU6.step",
+          data: new Uint8Array([1, 2, 3])
+        },
+        {
+          name: "3D/STM32C552KEU6.wrl",
+          data: textEncoder.encode("#VRML")
+        }
+      ]
+    );
+
+    expect(assets.symbols[0].filename).toBe("STM32C552KEU6.kicad_sym");
+    expect(assets.footprints[0].filename).toBe("QFN50P500X500X60-33N-D.kicad_mod");
+    expect(assets.stepModels[0].filename).toBe("STM32C552KEU6.step");
+    expect(assets.wrlModels[0].filename).toBe("STM32C552KEU6.wrl");
   });
 
   it("returns EasyEDA preview URLs and datasheet availability for a valid CAD payload", async () => {
@@ -1376,11 +1438,13 @@ describe("service worker", () => {
 
     expect(previewResult.response).toEqual({
       ok: false,
-      error: "SamacSys distributor downloads require a proxy in Firefox. Chrome-only for now."
+      error:
+        "SamacSys distributor downloads in Firefox require a configured proxy relay. Configure the Firefox SamacSys proxy URL in Advanced settings or use Chrome."
     });
     expect(exportResult.response).toEqual({
       ok: false,
-      error: "SamacSys distributor downloads require a proxy in Firefox. Chrome-only for now."
+      error:
+        "SamacSys distributor downloads in Firefox require a configured proxy relay. Configure the Firefox SamacSys proxy URL in Advanced settings or use Chrome."
     });
     expect(fetchImpl).not.toHaveBeenCalled();
   });

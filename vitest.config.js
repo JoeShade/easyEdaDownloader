@@ -1,3 +1,8 @@
+/*
+ * Vitest configuration for the repository regression suite. Tests run in jsdom
+ * because popup and content-script behavior depend on DOM-like browser globals.
+ */
+
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({

@@ -1,3 +1,9 @@
+/*
+ * These tests cover provider-aware DOM detection in the content script. They
+ * run the script in jsdom with mocked chrome messaging so page parsing and
+ * SamacSys auth-trigger behavior can be exercised without a browser extension.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import { JSDOM } from "jsdom";
 

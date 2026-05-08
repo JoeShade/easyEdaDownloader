@@ -156,26 +156,55 @@ function sendTabMessage(chromeApi, tabId, message) {
   });
 }
 
-function waitForSamacsysAuthorizationRefresh(chromeApi, startedAtMs, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const timeoutId = globalThis.setTimeout(() => {
-      cleanup();
-      reject(new Error("SamacSys auth refresh timed out before a new authorization was captured."));
+// The waiter is cancelable so a failed page trigger does not leave a timeout
+// that can later reject without a caller.
+function waitForSamacsysAuthorizationRefresh(startedAtMs, timeoutMs) {
+  let cleanupListener = () => {};
+  let timeoutId = null;
+  let settled = false;
+  let cancel = () => {};
+
+  function settle(callback, value) {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    cleanupListener();
+    globalThis.clearTimeout(timeoutId);
+    callback(value);
+  }
+
+  const promise = new Promise((resolve, reject) => {
+    cancel = () => {
+      settle(resolve, {
+        authorizationHeader: "",
+        capturedAt: ""
+      });
+    };
+
+    timeoutId = globalThis.setTimeout(() => {
+      settle(
+        reject,
+        new Error("SamacSys auth refresh timed out before a new authorization was captured.")
+      );
     }, timeoutMs);
 
-    const cleanup = addSamacsysAuthorizationCaptureListener((payload) => {
+    cleanupListener = addSamacsysAuthorizationCaptureListener((payload) => {
       const capturedAtMs = Date.parse(payload?.capturedAt || "");
       if (!Number.isFinite(capturedAtMs) || capturedAtMs < startedAtMs) {
         return;
       }
-      globalThis.clearTimeout(timeoutId);
-      cleanup();
-      resolve({
+      settle(resolve, {
         authorizationHeader: payload.authorizationHeader || "",
         capturedAt: payload.capturedAt || ""
       });
     });
   });
+
+  return {
+    promise,
+    cancel
+  };
 }
 
 async function refreshSamacsysAuthorization(
@@ -196,24 +225,28 @@ async function refreshSamacsysAuthorization(
   }
 
   const startedAtMs = Date.now();
-  const refreshPromise = waitForSamacsysAuthorizationRefresh(
-    deps.chromeApi,
+  const refreshWaiter = waitForSamacsysAuthorizationRefresh(
     startedAtMs,
     deps.samacsysAuthRefreshTimeoutMs
   );
 
-  await sendTabMessage(deps.chromeApi, sourceTabId, {
-    type: "TRIGGER_SAMACSYS_AUTH",
-    partContext: normalizedPartContext
-  });
+  try {
+    await sendTabMessage(deps.chromeApi, sourceTabId, {
+      type: "TRIGGER_SAMACSYS_AUTH",
+      partContext: normalizedPartContext
+    });
 
-  const refreshResult = await refreshPromise;
+    const refreshResult = await refreshWaiter.promise;
 
-  return {
-    ok: true,
-    authorizationHeader: refreshResult.authorizationHeader,
-    capturedAt: refreshResult.capturedAt
-  };
+    return {
+      ok: true,
+      authorizationHeader: refreshResult.authorizationHeader,
+      capturedAt: refreshResult.capturedAt
+    };
+  } catch (error) {
+    refreshWaiter.cancel();
+    throw error;
+  }
 }
 
 function getSourceAdapter(provider, deps) {

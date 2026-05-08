@@ -1,3 +1,9 @@
+/*
+ * Shared test harness utilities for reading repository files, importing fresh
+ * modules, and executing source files inside controlled VM contexts. These
+ * helpers keep browser globals mocked consistently across implementation tests.
+ */
+
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";

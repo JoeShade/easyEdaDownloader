@@ -298,7 +298,7 @@ function angleToKi(rotation) {
 }
 
 function rotate(x, y, degrees) {
-  const radians = (degrees / 180) * 2 * Math.PI;
+  const radians = (degrees * Math.PI) / 180;
   return {
     x: x * Math.cos(radians) - y * Math.sin(radians),
     y: x * Math.sin(radians) + y * Math.cos(radians)

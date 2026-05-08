@@ -1,3 +1,9 @@
+/*
+ * These tests cover popup state, settings normalization, preview rendering, and
+ * export messaging. They use jsdom and mocked chrome APIs so UI behavior stays
+ * testable without loading the extension in Chrome or Firefox.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import { JSDOM } from "jsdom";
 
@@ -319,7 +325,9 @@ describe("popup", () => {
     activatePopupTab(state, 10);
     state.tabMessages[0].callback(MOUSER_PART_CONTEXT);
 
-    expect(hooks.elements.statusEl.textContent).toContain("Chrome-only for now");
+    expect(hooks.elements.statusEl.textContent).toContain(
+      "configured proxy relay"
+    );
     expect(hooks.elements.downloadButton.disabled).toBe(true);
     expect(hooks.elements.symbolPreviewFallbackEl.textContent).toBe("Unavailable");
     expect(hooks.elements.footprintPreviewFallbackEl.textContent).toBe(
@@ -380,7 +388,9 @@ describe("popup", () => {
     state.tabMessages[0].callback(FARNELL_PART_CONTEXT);
 
     expect(hooks.elements.downloadDatasheetEl.disabled).toBe(true);
-    expect(hooks.elements.statusEl.textContent).toContain("Chrome-only for now");
+    expect(hooks.elements.statusEl.textContent).toContain(
+      "configured proxy relay"
+    );
     expect(hooks.elements.downloadButton.disabled).toBe(true);
     expect(state.runtimeMessages).toHaveLength(0);
   });

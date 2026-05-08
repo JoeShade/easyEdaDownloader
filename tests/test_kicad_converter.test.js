@@ -1,3 +1,9 @@
+/*
+ * These tests cover the public EasyEDA-to-KiCad converter facade plus a small
+ * geometry regression for shared converter math. They use compact EasyEDA
+ * fixtures so parser, emitter, and OBJ-to-WRL behavior stay locked together.
+ */
+
 import { describe, expect, it } from "vitest";
 
 import { createCadData } from "./helpers/fixtures.js";
@@ -9,6 +15,7 @@ import {
   drillToKi,
   parseSvgPath
 } from "../src/kicad_converter.js";
+import { rotate } from "../src/kicad/shared.js";
 
 describe("kicad converter", () => {
   it("applies EasyEDA text styling rules to suffix-marked labels", () => {
@@ -49,6 +56,8 @@ describe("kicad converter", () => {
     expect(parsed.map((step) => step.type)).toEqual(["M", "A", "L", "Z"]);
     expect(drillToKi(0.5, 1.5, 2, 1)).toBe("(drill oval 1.00 1.50)");
     expect(drillToKi(0.5, 0, 2, 1)).toBe("(drill 1.00)");
+    expect(rotate(1, 0, 90).x).toBeCloseTo(0);
+    expect(rotate(1, 0, 90).y).toBeCloseTo(1);
   });
 
   it("converts OBJ material groups into WRL output", () => {

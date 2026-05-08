@@ -222,7 +222,7 @@ export default {
 3. If previews work and ZIP export still says sign-in is required:
    - prefer filling in `SamacSys username` and `SamacSys password` so the extension can generate the upstream HTTP Basic auth header locally
    - or let Firefox load a successful upstream SamacSys request first so the extension can auto-capture the latest upstream `Authorization` header
-   - confirm the popup now shows `Auto-captured SamacSys Authorization` as available
+   - confirm the popup now shows `Firefox-captured SamacSys Authorization` as available
    - if ZIP export still fails, copy the fallback value into `Manual SamacSys Authorization override`
 4. Retry ZIP export after updating either cookies or the auth header. The extension will also do one automatic refresh-and-retry cycle after a ZIP `401` in Firefox relay mode.
 

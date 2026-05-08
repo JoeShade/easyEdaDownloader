@@ -1,5 +1,7 @@
 # EasyEDA Downloader
 
+## Introduction
+
 EasyEDA Downloader is a browser extension that exports KiCad-compatible CAD assets from supported distributor product pages.
 
 The extension currently supports:
@@ -13,7 +15,7 @@ For EasyEDA-backed parts, the extension can export symbols, footprints, 3D model
 
 Generated library files may require manual review. Always verify symbols, footprints, 3D models, and datasheets before use in a real design.
 
-## Install
+## Set-up
 
 ### Chrome
 
@@ -44,7 +46,20 @@ Firefox:
 
 The development manifest expects Firefox `121+` so Firefox can use the background-document fallback while Chrome uses the Manifest V3 service worker.
 
-## Supported workflows
+### Development
+
+Use Node `22.13.0+` (recommended), Node `20.19.0+`, or Node `24+`. Node `21.x` is not supported by the current Vitest/Vite/jsdom stack.
+
+Install dependencies and run the regression suite:
+
+```bash
+npm install
+npm test
+```
+
+The repository includes `.nvmrc` for the recommended Node version.
+
+## Usage
 
 ### EasyEDA-backed JLCPCB and LCSC pages
 
@@ -60,16 +75,14 @@ The development manifest expects Firefox `121+` so Firefox can use the backgroun
 - Download the upstream KiCad ZIP
 - Export the selected symbol, footprint, and 3D assets
 
-## Browser support
+### Browser support
 
 - EasyEDA-backed JLCPCB and LCSC export works in Chrome and Firefox.
 - SamacSys distributor export works directly in Chrome.
 - Firefox can use SamacSys distributor export only when an advanced user-managed relay URL is configured in the popup settings.
 - SamacSys ZIP export may require the user to be signed in to the upstream service even when previews still load. Chrome first tries the normal browser session and then retries one ZIP download with configured upstream auth if the first ZIP request returns `401`. On Firefox relay mode, the extension forwards matching SamacSys cookies through the relay, can generate the upstream SamacSys HTTP Basic auth header locally from optional stored credentials, can fall back to the latest captured upstream `Authorization` header, and can send separate relay auth to the Worker itself.
 
-For a ready-to-deploy Cloudflare Worker relay example, see [docs/firefox-samacsys-proxy.md](docs/firefox-samacsys-proxy.md).
-
-## Settings
+### Settings
 
 The popup exposes persistent settings for download layout plus advanced SamacSys auth and Firefox relay controls:
 
@@ -100,18 +113,15 @@ Library mode uses the final folder segment as the library name:
 - `<library name>.pretty/`
 - `<library name>.3dshapes/`
 
-## Development
+## Contributing
 
-Use Node `22.13.0+` (recommended), Node `20.19.0+`, or Node `24+`. Node `21.x` is not supported by the current Vitest/Vite/jsdom stack.
+Read [contributing.md](contributing.md) for contribution expectations and [AGENTS.md](AGENTS.md) for repository working rules.
 
-Install dependencies and run the regression suite:
+## Supporting docs
 
-```bash
-npm install
-npm test
-```
-
-The repository includes `.nvmrc` for the recommended Node version.
+- [systemDesign.md](systemDesign.md): design source of truth
+- [docs/architecture-notes.md](docs/architecture-notes.md): short implementation notes
+- [docs/firefox-samacsys-proxy.md](docs/firefox-samacsys-proxy.md): Cloudflare Worker relay example for Firefox SamacSys support
 
 ## Repository layout
 
@@ -124,12 +134,6 @@ The repository includes `.nvmrc` for the recommended Node version.
 - `src/kicad_converter.js`: stable converter facade
 - `src/kicad/`: EasyEDA parsing, KiCad emitters, shared conversion helpers, and OBJ-to-WRL conversion
 - `tests/`: regression suite
-
-`systemDesign.md` is the design source of truth. `docs/architecture-notes.md` captures short implementation notes that supplement it.
-
-## Contributing
-
-Read [contributing.md](contributing.md) for contribution expectations and [AGENTS.md](AGENTS.md) for repository working rules.
 
 ## License and attribution
 

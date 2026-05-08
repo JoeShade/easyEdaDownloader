@@ -54,6 +54,29 @@ function createDownloadApi(chromeApi, urlApi = globalThis.URL, blobCtor = global
     });
   }
 
+  function downloadGeneratedUrl(filename, url, conflictAction) {
+    return new Promise((resolve, reject) => {
+      chromeApi.downloads.download(
+        {
+          url,
+          filename,
+          conflictAction: conflictAction || "uniquify"
+        },
+        (downloadId) => {
+          if (chromeApi.runtime.lastError || !downloadId) {
+            reject(
+              new Error(
+                chromeApi.runtime.lastError?.message || "Download failed to start."
+              )
+            );
+            return;
+          }
+          resolve(downloadId);
+        }
+      );
+    });
+  }
+
   async function downloadTextFile(filename, text, mimeType, conflictAction) {
     if (canUseBlobUrl) {
       const blob = new blobCtor([text], { type: mimeType });
@@ -62,11 +85,7 @@ function createDownloadApi(chromeApi, urlApi = globalThis.URL, blobCtor = global
     }
     const base64 = textToBase64(text);
     const url = `data:${mimeType};base64,${base64}`;
-    await chromeApi.downloads.download({
-      url,
-      filename,
-      conflictAction: conflictAction || "uniquify"
-    });
+    await downloadGeneratedUrl(filename, url, conflictAction);
   }
 
   async function downloadBinaryFile(filename, buffer, mimeType, conflictAction) {
@@ -78,11 +97,7 @@ function createDownloadApi(chromeApi, urlApi = globalThis.URL, blobCtor = global
     }
     const base64 = arrayBufferToBase64(buffer);
     const url = `data:${mimeType};base64,${base64}`;
-    await chromeApi.downloads.download({
-      url,
-      filename,
-      conflictAction: conflictAction || "uniquify"
-    });
+    await downloadGeneratedUrl(filename, url, conflictAction);
   }
 
   async function downloadUrlFile(filename, url, conflictAction) {

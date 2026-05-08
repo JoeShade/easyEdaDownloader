@@ -381,11 +381,33 @@ function ensureZipPayload(buffer) {
 }
 
 function basenameFromZipPath(filePath) {
-  return String(filePath || "").split("/").pop() || "";
+  return zipPathSegments(filePath).pop() || "";
 }
 
 function filenameWithoutExtension(filename) {
   return String(filename || "").replace(/\.[^.]+$/, "");
+}
+
+function zipPathSegments(filePath) {
+  return String(filePath || "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter(Boolean);
+}
+
+function isZipPathInsideDirectory(filePath, directoryName) {
+  const normalizedDirectoryName = String(directoryName || "").toLowerCase();
+  const segments = zipPathSegments(filePath);
+  return segments.some(
+    (segment, index) =>
+      segment.toLowerCase() === normalizedDirectoryName &&
+      index < segments.length - 1
+  );
+}
+
+function hasZipFileExtension(filePath, extensions) {
+  const lowerPath = String(filePath || "").toLowerCase();
+  return extensions.some((extension) => lowerPath.endsWith(extension));
 }
 
 function buildQueryString(entries) {
@@ -405,16 +427,24 @@ function decodeZipText(bytes) {
 async function extractSamacsysKiCadAssets(zipBuffer, readZipEntriesImpl = readZipEntries) {
   const entries = await readZipEntriesImpl(zipBuffer);
   const symbolEntries = entries.filter(
-    (entry) => entry.name.includes("/KiCad/") && entry.name.endsWith(".kicad_sym")
+    (entry) =>
+      isZipPathInsideDirectory(entry.name, "KiCad") &&
+      hasZipFileExtension(entry.name, [".kicad_sym"])
   );
   const footprintEntries = entries.filter(
-    (entry) => entry.name.includes("/KiCad/") && entry.name.endsWith(".kicad_mod")
+    (entry) =>
+      isZipPathInsideDirectory(entry.name, "KiCad") &&
+      hasZipFileExtension(entry.name, [".kicad_mod"])
   );
   const stepEntries = entries.filter(
-    (entry) => entry.name.includes("/3D/") && entry.name.toLowerCase().endsWith(".stp")
+    (entry) =>
+      isZipPathInsideDirectory(entry.name, "3D") &&
+      hasZipFileExtension(entry.name, [".stp", ".step"])
   );
   const wrlEntries = entries.filter(
-    (entry) => entry.name.includes("/3D/") && entry.name.toLowerCase().endsWith(".wrl")
+    (entry) =>
+      isZipPathInsideDirectory(entry.name, "3D") &&
+      entry.name.toLowerCase().endsWith(".wrl")
   );
 
   if (!symbolEntries.length && !footprintEntries.length && !stepEntries.length) {

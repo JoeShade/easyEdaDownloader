@@ -111,6 +111,9 @@ function parseAuthorizationHeaderValue(value) {
   const normalized = String(value || "")
     .trim()
     .replace(/^authorization\s*:\s*/i, "");
+  if (/[\r\n]/.test(normalized)) {
+    return "";
+  }
   return normalized;
 }
 
