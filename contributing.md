@@ -30,7 +30,7 @@ For SamacSys-backed pages, note whether previews worked, whether ZIP export fail
 1. Clone the repository.
 2. Install dependencies with `npm install`.
 3. Load the extension unpacked in Chrome or temporarily in Firefox.
-4. Run `npm test` before finalizing changes.
+4. Run `npm run validate` before finalizing changes.
 
 Use `README.md` for the operator-facing overview. Use `systemDesign.md` for the implemented design and `docs/architecture-notes.md` for short implementation notes.
 
@@ -44,13 +44,13 @@ Use `README.md` for the operator-facing overview. Use `systemDesign.md` for the 
 
 ## Pull requests
 
-- Run `npm test` before opening or updating a pull request.
+- Run `npm run validate` before opening or updating a pull request.
 - Summarize the user-visible or repository-level impact clearly.
 - Call out manual verification, assumptions, and remaining risks.
 
 ## Security
 
-Do not commit secrets, browser-profile data, or private keys. Report security-sensitive issues privately when appropriate.
+Do not commit secrets, browser-profile data, or private keys. Read `SECURITY.md` before reporting credential, permission, relay, or auth-forwarding issues, and report security-sensitive issues privately.
 
 ## License
 

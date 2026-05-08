@@ -13,6 +13,7 @@ import { REPO_ROOT, normalizeNewlines } from "./helpers/test_harness.js";
 
 const GOVERNANCE_FILES = [
   "AGENTS.md",
+  "SECURITY.md",
   "systemDesign.md",
   "docs/architecture-notes.md",
   "docs/deviations.md"
@@ -81,7 +82,10 @@ function applicableSourceFiles() {
     }
   }
 
-  const supportFiles = [path.join(REPO_ROOT, "vitest.config.js")];
+  const supportFiles = [
+    path.join(REPO_ROOT, "eslint.config.js"),
+    path.join(REPO_ROOT, "vitest.config.js")
+  ];
   for (const fullPath of supportFiles) {
     if (fs.existsSync(fullPath)) {
       files.push(fullPath);
@@ -142,6 +146,25 @@ describe("repository hygiene", () => {
       expect(currentIndex).toBeGreaterThan(previousIndex);
       previousIndex = currentIndex;
     }
+  });
+
+  it("keeps the local and CI validation gates wired together", () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")
+    );
+    const workflowText = normalizeNewlines(
+      fs.readFileSync(path.join(REPO_ROOT, ".github/workflows/ci.yml"), "utf8")
+    );
+
+    expect(fs.existsSync(path.join(REPO_ROOT, "package-lock.json"))).toBe(true);
+    expect(packageJson.scripts.lint).toBe("eslint .");
+    expect(packageJson.scripts.audit).toBe("npm audit --audit-level=moderate");
+    expect(packageJson.scripts.validate).toContain("npm run lint");
+    expect(packageJson.scripts.validate).toContain("npm test");
+    expect(packageJson.scripts.validate).toContain("npm run audit");
+    expect(packageJson.scripts.validate).toContain("git diff --check");
+    expect(workflowText).toContain("npm ci");
+    expect(workflowText).toContain("npm run validate");
   });
 
   it("keeps the canonical footer on applicable maintained JS files exactly once", () => {

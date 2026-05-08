@@ -196,7 +196,8 @@ function createSamacsysFetchImpl(
       });
     } catch (error) {
       throw new Error(
-        `SamacSys proxy request failed: ${error?.message || "Network error."}`
+        `SamacSys proxy request failed: ${error?.message || "Network error."}`,
+        { cause: error }
       );
     }
 
@@ -494,7 +495,7 @@ function rewriteSamacsysFootprintModelPath(footprintText, modelFilename, library
     return footprintText;
   }
   return String(footprintText).replace(
-    /(\(model\s+)(\"?)([^"\s)]+)(\"?)/,
+    /(\(model\s+)("?)([^"\s)]+)("?)/,
     `$1$2../${libraryName}.3dshapes/${modelFilename}$4`
   );
 }

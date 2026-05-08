@@ -335,6 +335,9 @@ The test suite remains the primary regression net for:
 - `src/service_worker_runtime.js` should be tested with mocked browser APIs, mocked fetch, mocked archive extraction, and controlled converter stubs.
 - The current Vitest/Vite/jsdom test stack requires Node `20.19.0+`, `22.13.0+`, or `24+`.
 - Production source should not be refactored solely to make tests easier; harnesses should adapt to the existing code shape.
+- Local and CI validation share `npm run validate`, which runs ESLint, Vitest, `npm audit --audit-level=moderate`, and `git diff --check`.
+- GitHub Actions runs validation with `npm ci` on Node `20.19.0`, `22.13.0`, and `24.x`.
+- `SECURITY.md` owns vulnerability reporting expectations and credential-handling guidance.
 
 ## 11. Repository rules that should remain true
 

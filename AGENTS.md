@@ -35,8 +35,9 @@ This repository is a compact browser extension that detects supported distributo
 - Add or update tests with every substantive behavior change.
 - Prefer regression tests for bug fixes.
 - Use test-only harnesses, mocks, fixtures, and loaders instead of production refactors for testability.
+- Run `npm run lint` for JavaScript source or test changes.
 - Run targeted tests while iterating.
-- Run `npm test` before finalizing.
+- Run `npm run validate` before finalizing when Node/npm are available.
 
 ## Using `systemDesign.md`
 
@@ -64,6 +65,7 @@ This repository is a compact browser extension that detects supported distributo
 - Remove obsolete references when files or behaviors change.
 - Keep test harnesses and developer support code under `tests/` or other clearly developer-only locations.
 - Let the repo-hygiene tests enforce governance files, footer coverage, and documentation discipline.
+- Keep CI, linting, audit, and local validation scripts aligned.
 
 ## Source footer
 

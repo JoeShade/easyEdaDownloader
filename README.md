@@ -50,14 +50,16 @@ The development manifest expects Firefox `121+` so Firefox can use the backgroun
 
 Use Node `22.13.0+` (recommended), Node `20.19.0+`, or Node `24+`. Node `21.x` is not supported by the current Vitest/Vite/jsdom stack.
 
-Install dependencies and run the regression suite:
+Install dependencies and run the local checks:
 
 ```bash
 npm install
+npm run lint
 npm test
+npm run validate
 ```
 
-The repository includes `.nvmrc` for the recommended Node version.
+`npm run validate` runs linting, the Vitest regression suite, a moderate-severity dependency audit, and whitespace checks. CI uses `npm ci` and the same validation script on the supported Node lines. The repository includes `.nvmrc` for the recommended Node version.
 
 ## Usage
 
@@ -120,6 +122,7 @@ Read [contributing.md](contributing.md) for contribution expectations and [AGENT
 ## Supporting docs
 
 - [systemDesign.md](systemDesign.md): design source of truth
+- [SECURITY.md](SECURITY.md): vulnerability reporting and credential-handling notes
 - [docs/architecture-notes.md](docs/architecture-notes.md): short implementation notes
 - [docs/firefox-samacsys-proxy.md](docs/firefox-samacsys-proxy.md): Cloudflare Worker relay example for Firefox SamacSys support
 

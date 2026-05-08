@@ -183,7 +183,7 @@ function parseFarnellDescriptionProductData() {
 
 function parseFarnellImageAltProductData() {
   const imageAlt = getMetaContent("property", "og:image:alt");
-  const match = imageAlt?.match(/^(.+?)\s+([A-Z0-9][A-Z0-9./_+\-]*)$/i);
+  const match = imageAlt?.match(/^(.+?)\s+([A-Z0-9][A-Z0-9./_+-]*)$/i);
   if (!match) {
     return null;
   }

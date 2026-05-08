@@ -6,10 +6,15 @@
     "node": "^20.19.0 || ^22.13.0 || >=24.0.0"
   },
   "scripts": {
+    "audit": "npm audit --audit-level=moderate",
+    "lint": "eslint .",
     "pretest": "node tests/helpers/check_node_version.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "validate": "npm run lint && npm test && npm run audit && git diff --check"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.3.0",
     "jsdom": "^29.0.1",
     "vitest": "^4.1.0"
   }
