@@ -26,6 +26,7 @@ This section summarizes the current `Development` branch compared with `main` as
 - Split the EasyEDA-to-KiCad converter into focused parser, emitter, shared conversion, and OBJ-to-WRL modules while keeping `src/kicad_converter.js` as the public facade.
 - Split the oversized service-worker regression file into focused core, EasyEDA, direct SamacSys, and Firefox SamacSys test files backed by a shared harness.
 - Reworked the popup into a provider-aware UI that shows fixed manufacturer metadata plus source-specific part metadata and advanced SamacSys/Firefox settings.
+- Moved persistent download layout, Firefox relay, and SamacSys auth settings from the popup into a dedicated extension settings page.
 - Updated the manifest for Chrome service-worker operation and Firefox background-document fallback on Firefox `121+`.
 - Updated README and project docs to describe supported providers, setup, settings, auth behavior, browser support, validation, and repository layout.
 

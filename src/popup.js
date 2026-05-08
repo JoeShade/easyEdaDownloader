@@ -7,19 +7,12 @@
  */
 
 import {
-  DEFAULT_LIBRARY_DOWNLOAD_ROOT,
   DEFAULT_SETTINGS,
-  loadSettings as loadStoredSettings,
-  parseLibraryDownloadRoot,
-  parseSamacsysCredentialValue,
-  parseSamacsysAuthorizationHeader,
-  parseSamacsysProxyAuthorizationHeader,
-  parseSamacsysFirefoxProxyBaseUrl
+  loadSettings as loadStoredSettings
 } from "./core/settings.js";
 import {
   getBlockedPartContextError,
   isBlockedPartContext,
-  isFirefoxRuntime,
   isSamacsysProvider as isSamacsysProviderShared
 } from "./core/part_context.js";
 
@@ -40,35 +33,11 @@ const downloadModelEl = popupDocument.getElementById("downloadModel");
 const downloadDatasheetEl = popupDocument.getElementById("downloadDatasheet");
 const downloadDatasheetOptionEl = popupDocument.getElementById("downloadDatasheetOption");
 const downloadDatasheetLabelEl = popupDocument.getElementById("downloadDatasheetLabel");
-const downloadIndividuallyEl = popupDocument.getElementById("downloadIndividually");
-const libraryDownloadRootEl = popupDocument.getElementById("libraryDownloadRoot");
-const resetLibraryDownloadRootEl = popupDocument.getElementById("resetLibraryDownloadRoot");
-const samacsysFirefoxProxyBaseUrlEl = popupDocument.getElementById(
-  "samacsysFirefoxProxyBaseUrl"
-);
-const samacsysFirefoxProxyAuthorizationHeaderEl = popupDocument.getElementById(
-  "samacsysFirefoxProxyAuthorizationHeader"
-);
-const samacsysFirefoxUsernameEl = popupDocument.getElementById(
-  "samacsysFirefoxUsername"
-);
-const samacsysFirefoxPasswordEl = popupDocument.getElementById(
-  "samacsysFirefoxPassword"
-);
-const samacsysFirefoxCapturedAuthorizationStatusEl = popupDocument.getElementById(
-  "samacsysFirefoxCapturedAuthorizationStatus"
-);
-const samacsysFirefoxAuthorizationHeaderEl = popupDocument.getElementById(
-  "samacsysFirefoxAuthorizationHeader"
-);
-const samacsysRelayRuntimeHintEl = popupDocument.getElementById(
-  "samacsysRelayRuntimeHint"
-);
+const settingsButton = popupDocument.getElementById("settingsButton");
 const symbolPreviewEl = popupDocument.getElementById("symbolPreview");
 const footprintPreviewEl = popupDocument.getElementById("footprintPreview");
 const symbolPreviewFallbackEl = popupDocument.getElementById("symbolPreviewFallback");
 const footprintPreviewFallbackEl = popupDocument.getElementById("footprintPreviewFallback");
-const isFirefoxPopupRuntime = isFirefoxRuntime(popupWindow.navigator?.userAgent);
 
 // Store the most recently detected part context.
 let currentPartContext = null;
@@ -157,40 +126,6 @@ function getPreviewDefaultDatasheetAvailability(partContext) {
   return isSamacsysProviderShared(partContext?.provider) ? false : null;
 }
 
-function formatCapturedAuthorizationStatus(
-  capturedAuthorizationHeader,
-  capturedAuthorizationCapturedAt
-) {
-  if (!capturedAuthorizationHeader) {
-    return "No Firefox-captured SamacSys auth header yet.";
-  }
-
-  if (!capturedAuthorizationCapturedAt) {
-    return "Firefox-captured SamacSys auth header available.";
-  }
-
-  const capturedDate = new Date(capturedAuthorizationCapturedAt);
-  if (Number.isNaN(capturedDate.getTime())) {
-    return "Firefox-captured SamacSys auth header available.";
-  }
-
-  return `Firefox-captured SamacSys auth header available from ${capturedDate.toLocaleString()}.`;
-}
-
-function updateRelaySettingsAvailability() {
-  samacsysFirefoxProxyBaseUrlEl.disabled = !isFirefoxPopupRuntime;
-  samacsysFirefoxProxyAuthorizationHeaderEl.disabled = !isFirefoxPopupRuntime;
-  samacsysRelayRuntimeHintEl.hidden = isFirefoxPopupRuntime;
-}
-
-function refreshSamacsysAuthStatus() {
-  samacsysFirefoxCapturedAuthorizationStatusEl.textContent =
-    formatCapturedAuthorizationStatus(
-      currentSettings.samacsysFirefoxCapturedAuthorizationHeader,
-      currentSettings.samacsysFirefoxCapturedAuthorizationCapturedAt
-    );
-}
-
 function setIdentifierDisplay(sourcePartLabel, sourcePartNumber, manufacturerPartNumber) {
   sourcePartLabelEl.textContent = sourcePartLabel || DEFAULT_SOURCE_PART_LABEL;
   manufacturerPartNumberEl.textContent = manufacturerPartNumber || "Not found";
@@ -208,7 +143,6 @@ function setUnavailableDisplay(statusMessage) {
   setDatasheetAvailability(false);
   setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Unavailable");
   setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Unavailable");
-  refreshSamacsysAuthStatus();
 }
 
 function requestPreviews(partContext) {
@@ -247,50 +181,10 @@ function requestPreviews(partContext) {
 
 // Apply settings values to the UI controls.
 function applySettingsToUi(settings) {
-  const normalizedRoot = parseLibraryDownloadRoot(settings.libraryDownloadRoot);
-  const normalizedProxy = parseSamacsysFirefoxProxyBaseUrl(
-    settings.samacsysFirefoxProxyBaseUrl
-  );
-  const normalizedProxyAuthorizationHeader = parseSamacsysProxyAuthorizationHeader(
-    settings.samacsysFirefoxProxyAuthorizationHeader
-  );
-  const normalizedUsername = parseSamacsysCredentialValue(
-    settings.samacsysFirefoxUsername
-  );
-  const normalizedPassword = parseSamacsysCredentialValue(
-    settings.samacsysFirefoxPassword
-  );
-  const normalizedAuthorizationHeader = parseSamacsysAuthorizationHeader(
-    settings.samacsysFirefoxAuthorizationHeader
-  );
-  const capturedAuthorizationHeader = parseSamacsysAuthorizationHeader(
-    settings.samacsysFirefoxCapturedAuthorizationHeader
-  );
-  downloadIndividuallyEl.checked =
-    typeof settings.downloadIndividually === "boolean"
-      ? settings.downloadIndividually
-      : DEFAULT_SETTINGS.downloadIndividually;
-  libraryDownloadRootEl.value = normalizedRoot.value;
-  samacsysFirefoxProxyBaseUrlEl.value = normalizedProxy.value;
-  samacsysFirefoxProxyAuthorizationHeaderEl.value =
-    normalizedProxyAuthorizationHeader;
-  samacsysFirefoxUsernameEl.value = normalizedUsername;
-  samacsysFirefoxPasswordEl.value = normalizedPassword;
-  samacsysFirefoxAuthorizationHeaderEl.value = normalizedAuthorizationHeader;
   currentSettings = {
-    downloadIndividually: downloadIndividuallyEl.checked,
-    libraryDownloadRoot: normalizedRoot.value,
-    samacsysFirefoxProxyBaseUrl: normalizedProxy.value,
-    samacsysFirefoxProxyAuthorizationHeader: normalizedProxyAuthorizationHeader,
-    samacsysFirefoxUsername: normalizedUsername,
-    samacsysFirefoxPassword: normalizedPassword,
-    samacsysFirefoxAuthorizationHeader: normalizedAuthorizationHeader,
-    samacsysFirefoxCapturedAuthorizationHeader: capturedAuthorizationHeader,
-    samacsysFirefoxCapturedAuthorizationCapturedAt:
-      settings.samacsysFirefoxCapturedAuthorizationCapturedAt || ""
+    ...DEFAULT_SETTINGS,
+    ...settings
   };
-  refreshSamacsysAuthStatus();
-  updateRelaySettingsAvailability();
   if (currentPartContext && isSamacsysProviderShared(currentPartContext.provider)) {
     setPartContext(currentPartContext);
   } else {
@@ -298,87 +192,20 @@ function applySettingsToUi(settings) {
   }
 }
 
-// Read settings from the UI and normalize them.
-function readSettingsFromUi() {
-  const normalizedRoot = parseLibraryDownloadRoot(libraryDownloadRootEl.value);
-  const normalizedProxy = parseSamacsysFirefoxProxyBaseUrl(
-    samacsysFirefoxProxyBaseUrlEl.value
-  );
-  const normalizedProxyAuthorizationHeader = parseSamacsysProxyAuthorizationHeader(
-    samacsysFirefoxProxyAuthorizationHeaderEl.value
-  );
-  const normalizedUsername = parseSamacsysCredentialValue(
-    samacsysFirefoxUsernameEl.value
-  );
-  const normalizedPassword = parseSamacsysCredentialValue(
-    samacsysFirefoxPasswordEl.value
-  );
-  const normalizedAuthorizationHeader = parseSamacsysAuthorizationHeader(
-    samacsysFirefoxAuthorizationHeaderEl.value
-  );
-  libraryDownloadRootEl.value = normalizedRoot.value;
-  samacsysFirefoxProxyBaseUrlEl.value = normalizedProxy.value;
-  samacsysFirefoxProxyAuthorizationHeaderEl.value =
-    normalizedProxyAuthorizationHeader;
-  samacsysFirefoxUsernameEl.value = normalizedUsername;
-  samacsysFirefoxPasswordEl.value = normalizedPassword;
-  samacsysFirefoxAuthorizationHeaderEl.value = normalizedAuthorizationHeader;
-  return {
-    downloadIndividually: Boolean(downloadIndividuallyEl.checked),
-    libraryDownloadRoot: normalizedRoot.value,
-    libraryDownloadRootIsValid: normalizedRoot.isValid,
-    samacsysFirefoxProxyBaseUrl: normalizedProxy.value,
-    samacsysFirefoxProxyBaseUrlIsValid: normalizedProxy.isValid,
-    samacsysFirefoxProxyAuthorizationHeader: normalizedProxyAuthorizationHeader,
-    samacsysFirefoxUsername: normalizedUsername,
-    samacsysFirefoxPassword: normalizedPassword,
-    samacsysFirefoxAuthorizationHeader: normalizedAuthorizationHeader,
-    samacsysFirefoxCapturedAuthorizationHeader:
-      currentSettings.samacsysFirefoxCapturedAuthorizationHeader || "",
-    samacsysFirefoxCapturedAuthorizationCapturedAt:
-      currentSettings.samacsysFirefoxCapturedAuthorizationCapturedAt || ""
-  };
-}
-
 // Load settings from extension storage.
 function loadSettings() {
   return loadStoredSettings(chromeApi).then(applySettingsToUi);
 }
 
-// Save settings to extension storage.
-function saveSettings() {
-  const settings = readSettingsFromUi();
-  const {
-    libraryDownloadRootIsValid,
-    samacsysFirefoxProxyBaseUrlIsValid,
-    ...storedSettings
-  } = settings;
-  chromeApi.storage.local.set(storedSettings, () => {
-    if (chromeApi.runtime.lastError) {
-      setStatus("Failed to save settings.", "error");
-      return;
-    }
-    currentSettings = { ...storedSettings };
-    const warnings = [];
-    if (!libraryDownloadRootIsValid) {
-      warnings.push(
-        "Download folder must stay inside Downloads. Reset to the default library folder."
-      );
-    }
-    if (!samacsysFirefoxProxyBaseUrlIsValid) {
-      warnings.push(
-        "Firefox SamacSys proxy URL must be an absolute http:// or https:// URL. Proxy disabled."
-      );
-    }
-    if (warnings.length) {
-      setStatus(warnings.join(" "), "warning");
-    }
-    if (currentPartContext && isSamacsysProviderShared(currentPartContext.provider)) {
-      setPartContext(currentPartContext);
-    } else {
-      updateDownloadEnabled();
-    }
-  });
+function openSettingsPage() {
+  if (typeof chromeApi.tabs?.create === "function") {
+    chromeApi.tabs.create({
+      url: chromeApi.runtime.getURL("src/settings.html")
+    });
+    return;
+  }
+
+  chromeApi.runtime.openOptionsPage?.();
 }
 
 // Update UI state based on whether a supported provider was found.
@@ -392,7 +219,6 @@ function setPartContext(partContext) {
     setDatasheetAvailability(false);
     setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Not found");
     setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Not found");
-    refreshSamacsysAuthStatus();
     return;
   }
 
@@ -415,12 +241,10 @@ function setPartContext(partContext) {
     setPreviewUnavailable(symbolPreviewFallbackEl, symbolPreviewEl, "Unavailable");
     setPreviewUnavailable(footprintPreviewFallbackEl, footprintPreviewEl, "Unavailable");
     updateDownloadEnabled();
-    refreshSamacsysAuthStatus();
     return;
   }
 
   updateDownloadEnabled();
-  refreshSamacsysAuthStatus();
   setStatus("");
   requestPreviews(currentPartContext);
 }
@@ -449,24 +273,13 @@ chromeApi.tabs.query({ active: true, currentWindow: true }, (tabs) => {
 
 // Load settings when the popup opens.
 loadSettings();
-updateRelaySettingsAvailability();
 
 // Keep button state in sync with checkbox changes.
 downloadSymbolEl.addEventListener("change", updateDownloadEnabled);
 downloadFootprintEl.addEventListener("change", updateDownloadEnabled);
 downloadModelEl.addEventListener("change", updateDownloadEnabled);
 downloadDatasheetEl.addEventListener("change", updateDownloadEnabled);
-downloadIndividuallyEl.addEventListener("change", saveSettings);
-libraryDownloadRootEl.addEventListener("change", saveSettings);
-samacsysFirefoxProxyBaseUrlEl.addEventListener("change", saveSettings);
-samacsysFirefoxProxyAuthorizationHeaderEl.addEventListener("change", saveSettings);
-samacsysFirefoxUsernameEl.addEventListener("change", saveSettings);
-samacsysFirefoxPasswordEl.addEventListener("change", saveSettings);
-samacsysFirefoxAuthorizationHeaderEl.addEventListener("change", saveSettings);
-resetLibraryDownloadRootEl.addEventListener("click", () => {
-  libraryDownloadRootEl.value = DEFAULT_LIBRARY_DOWNLOAD_ROOT;
-  saveSettings();
-});
+settingsButton.addEventListener("click", openSettingsPage);
 
 // When clicked, validate selections and ask the background worker to export.
 downloadButton.addEventListener("click", () => {
@@ -512,7 +325,6 @@ downloadButton.addEventListener("click", () => {
               response.authCapturedAt ||
               currentSettings.samacsysFirefoxCapturedAuthorizationCapturedAt
           };
-          refreshSamacsysAuthStatus();
         }
         const warnings = Array.isArray(response.warnings)
           ? response.warnings.filter(Boolean)
@@ -544,7 +356,6 @@ if (globalThis.__popupTestApi) {
     updateDownloadEnabled,
     setDatasheetAvailability,
     hasSelection,
-    normalizeLibraryDownloadRoot: parseLibraryDownloadRoot,
     getCurrentPartContext: () => currentPartContext,
     elements: {
       manufacturerPartNumberEl,
@@ -558,21 +369,13 @@ if (globalThis.__popupTestApi) {
       downloadDatasheetEl,
       downloadDatasheetOptionEl,
       downloadDatasheetLabelEl,
-      downloadIndividuallyEl,
-      libraryDownloadRootEl,
-      resetLibraryDownloadRootEl,
-      samacsysFirefoxProxyBaseUrlEl,
-      samacsysFirefoxProxyAuthorizationHeaderEl,
-      samacsysFirefoxUsernameEl,
-      samacsysFirefoxPasswordEl,
-      samacsysFirefoxCapturedAuthorizationStatusEl,
-      samacsysFirefoxAuthorizationHeaderEl,
-      samacsysRelayRuntimeHintEl,
+      settingsButton,
       symbolPreviewEl,
       footprintPreviewEl,
       symbolPreviewFallbackEl,
       footprintPreviewFallbackEl
-    }
+    },
+    openSettingsPage
   });
 }
 /*

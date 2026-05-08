@@ -1,0 +1,159 @@
+/*
+ * Settings-page styles for the extension options UI. The page keeps persistent
+ * configuration out of the popup while staying visually aligned with it.
+ */
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: #1c1f24;
+  background: #f2f4f7;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.settings-page {
+  width: min(720px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0;
+}
+
+.page-header {
+  margin-bottom: 20px;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 8px;
+  font-size: 24px;
+  color: #1663d6;
+}
+
+h2 {
+  margin-bottom: 14px;
+  font-size: 16px;
+}
+
+.page-intro,
+.settings-hint {
+  color: #5b6470;
+  line-height: 1.5;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 18px;
+  background: #ffffff;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.settings-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 9px 10px;
+  font: inherit;
+  color: #1c1f24;
+  background: #ffffff;
+}
+
+.settings-input:focus {
+  outline: 2px solid rgba(22, 99, 214, 0.18);
+  outline-offset: 1px;
+  border-color: #1663d6;
+}
+
+.settings-input:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.settings-readonly {
+  display: block;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 9px 10px;
+  background: #f8fafc;
+  color: #5b6470;
+  line-height: 1.4;
+}
+
+.settings-hint {
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.option input {
+  margin: 0;
+}
+
+.secondary {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #ffffff;
+  color: #1c1f24;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.secondary:hover,
+.secondary:focus {
+  border-color: #1663d6;
+}
+
+.status {
+  margin: 0;
+  min-height: 18px;
+  font-size: 13px;
+  color: #4a5568;
+}
+
+.status.error {
+  color: #b42318;
+}
+
+.status.warning {
+  color: #9a6700;
+}

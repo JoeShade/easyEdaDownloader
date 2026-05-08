@@ -5,7 +5,8 @@ This file records short implementation notes that supplement, but do not replace
 ## Layer boundaries
 
 - `src/content_script.js`: DOM inspection and provider-aware part-context detection only
-- `src/popup.js`: popup UI state, settings, preview requests, Firefox SamacSys relay gating, relay-auth input, cross-browser upstream-auth input, captured-auth status, and export requests
+- `src/popup.js`: popup UI state, preview requests, Firefox SamacSys relay gating, settings-page launch, and export requests
+- `src/settings_page.js`: persistent download layout, Firefox relay, and SamacSys auth settings
 - `src/service_worker.js`: thin runtime entrypoint only
 - `src/service_worker_runtime.js`: provider routing, runtime gating, Firefox SamacSys auth capture, automatic auth-refresh orchestration, response shaping, and composition of worker dependencies
 - `src/core/*.js`: shared worker business logic for settings, downloads, storage-backed symbol-library handling, shared export artifact writing, and common normalization
@@ -30,8 +31,8 @@ This file records short implementation notes that supplement, but do not replace
 - The runtime/router owns provider branching, while source adapters own source-specific preview and export behavior.
 - Farnell does not have its own backend adapter file because it intentionally reuses the shared SamacSys distributor backend.
 - Symbol library append behavior depends on `chrome.storage.local`, not on local filesystem reads.
-- Library-mode download paths remain relative to Downloads and are resolved from popup settings, not absolute filesystem paths.
-- SamacSys distributor support is still Chrome-first, but Firefox can opt into a user-managed relay through popup settings.
+- Library-mode download paths remain relative to Downloads and are resolved from extension settings, not absolute filesystem paths.
+- SamacSys distributor support is still Chrome-first, but Firefox can opt into a user-managed relay through the extension settings page.
 - Chrome direct SamacSys ZIP export now retries once with configured upstream auth after a `401`, but preview requests still use the normal direct browser session without preemptive auth headers.
 - Firefox relay mode forwards matching `componentsearchengine.com` cookies so authenticated SamacSys ZIP downloads can reuse the browser session instead of teaching the relay to log in.
 - Firefox relay mode can also generate the upstream SamacSys HTTP Basic auth header locally from optional stored username/password credentials, avoiding any dependency on a browser-captured header when the user prefers that setup.

@@ -18,6 +18,8 @@ function createPopupChrome() {
     queryCalls: [],
     tabMessages: [],
     runtimeMessages: [],
+    openOptionsPageCalls: [],
+    createdTabs: [],
     storageGetCalls: [],
     storageSetCalls: []
   };
@@ -25,6 +27,10 @@ function createPopupChrome() {
   const chrome = {
     runtime: {
       lastError: null,
+      getURL: vi.fn((path) => `chrome-extension://test/${path}`),
+      openOptionsPage: vi.fn(() => {
+        state.openOptionsPageCalls.push({});
+      }),
       sendMessage: vi.fn((message, callback) => {
         state.runtimeMessages.push({ message, callback });
       })
@@ -35,6 +41,9 @@ function createPopupChrome() {
       }),
       sendMessage: vi.fn((tabId, message, callback) => {
         state.tabMessages.push({ tabId, message, callback });
+      }),
+      create: vi.fn((createProperties) => {
+        state.createdTabs.push(createProperties);
       })
     },
     storage: {
@@ -158,27 +167,23 @@ describe("popup", () => {
     expect(hooks.elements.manufacturerPartNumberEl.textContent).toBe("Searching...");
     expect(hooks.elements.sourcePartLabelEl.textContent).toBe("Part");
     expect(hooks.elements.partNumberEl.textContent).toBe("Searching...");
-    expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
-    expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.value).toBe("");
-    expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.value).toBe("");
-    expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.disabled).toBe(true);
-    expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.disabled).toBe(
-      true
-    );
-    expect(hooks.elements.samacsysFirefoxUsernameEl.disabled).toBe(false);
-    expect(hooks.elements.samacsysFirefoxPasswordEl.disabled).toBe(false);
-    expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.value).toBe("");
-    expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.disabled).toBe(false);
-    expect(hooks.elements.samacsysRelayRuntimeHintEl.hidden).toBe(false);
-    expect(
-      hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent.trim()
-    ).toBe("No Firefox-captured SamacSys auth header yet.");
-    expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.type).toBe(
-      "password"
-    );
+    expect(hooks.elements.settingsButton.textContent.trim()).toBe("Open settings");
     expect(hooks.elements.downloadButton.disabled).toBe(true);
     expect(hooks.elements.symbolPreviewFallbackEl.textContent).toBe("Loading...");
     expect(hooks.elements.footprintPreviewFallbackEl.textContent).toBe("Loading...");
+  });
+
+  it("opens the dedicated settings page from the popup", async () => {
+    const { state, hooks } = await loadPopup();
+
+    hooks.elements.settingsButton.click();
+
+    expect(state.createdTabs).toEqual([
+      {
+        url: "chrome-extension://test/src/settings.html"
+      }
+    ]);
+    expect(state.openOptionsPageCalls).toHaveLength(0);
   });
 
   it("loads an EasyEDA part context and enables download only when a selection exists", async () => {
@@ -188,8 +193,6 @@ describe("popup", () => {
       downloadIndividually: true,
       libraryDownloadRoot: "KiCad\\easyEDA"
     });
-    expect(hooks.elements.downloadIndividuallyEl.checked).toBe(true);
-    expect(hooks.elements.libraryDownloadRootEl.value).toBe("KiCad/easyEDA");
 
     activatePopupTab(state, 7);
     expect(state.tabMessages[0]).toMatchObject({
@@ -368,14 +371,6 @@ describe("popup", () => {
 
     expect(hooks.elements.statusEl.textContent).toBe("");
     expect(hooks.elements.downloadButton.disabled).toBe(false);
-    expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.disabled).toBe(false);
-    expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.disabled).toBe(
-      false
-    );
-    expect(hooks.elements.samacsysFirefoxUsernameEl.disabled).toBe(false);
-    expect(hooks.elements.samacsysFirefoxPasswordEl.disabled).toBe(false);
-    expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.disabled).toBe(false);
-    expect(hooks.elements.samacsysRelayRuntimeHintEl.hidden).toBe(true);
   });
 
   it("treats Farnell SamacSys pages like Mouser for preview defaults and Firefox blocking", async () => {
@@ -393,251 +388,6 @@ describe("popup", () => {
     );
     expect(hooks.elements.downloadButton.disabled).toBe(true);
     expect(state.runtimeMessages).toHaveLength(0);
-  });
-
-  it("saves settings when the download organization toggle changes", async () => {
-    const { dom, state, hooks } = await loadPopup();
-
-    await applyStoredSettings(state);
-    hooks.elements.downloadIndividuallyEl.checked = true;
-    dispatchChange(dom, hooks.elements.downloadIndividuallyEl);
-
-    expect(state.storageSetCalls).toEqual([
-      {
-        downloadIndividually: true,
-        libraryDownloadRoot: "easyEDADownloader",
-        samacsysFirefoxProxyBaseUrl: "",
-        samacsysFirefoxProxyAuthorizationHeader: "",
-        samacsysFirefoxUsername: "",
-        samacsysFirefoxPassword: "",
-        samacsysFirefoxAuthorizationHeader: "",
-        samacsysFirefoxCapturedAuthorizationHeader: "",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-      }
-    ]);
-  });
-
-  it("normalizes and saves the library download root from the popup", async () => {
-    const { dom, state, hooks } = await loadPopup();
-
-    await applyStoredSettings(state);
-    hooks.elements.libraryDownloadRootEl.value = "  KiCad\\\\easyEDA//Parts  ";
-    dispatchChange(dom, hooks.elements.libraryDownloadRootEl);
-
-    expect(hooks.elements.libraryDownloadRootEl.value).toBe("KiCad/easyEDA/Parts");
-    expect(state.storageSetCalls).toEqual([
-      {
-        downloadIndividually: false,
-        libraryDownloadRoot: "KiCad/easyEDA/Parts",
-        samacsysFirefoxProxyBaseUrl: "",
-        samacsysFirefoxProxyAuthorizationHeader: "",
-        samacsysFirefoxUsername: "",
-        samacsysFirefoxPassword: "",
-        samacsysFirefoxAuthorizationHeader: "",
-        samacsysFirefoxCapturedAuthorizationHeader: "",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-      }
-    ]);
-  });
-
-  it("normalizes and saves the Firefox SamacSys proxy URL from advanced settings", async () => {
-    const { dom, state, hooks } = await loadPopup();
-
-    await applyStoredSettings(state);
-    hooks.elements.samacsysFirefoxProxyBaseUrlEl.value = " https://proxy.example.test/relay#frag ";
-    dispatchChange(dom, hooks.elements.samacsysFirefoxProxyBaseUrlEl);
-
-    expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.value).toBe(
-      "https://proxy.example.test/relay"
-    );
-    expect(state.storageSetCalls).toEqual([
-      {
-        downloadIndividually: false,
-        libraryDownloadRoot: "easyEDADownloader",
-        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
-        samacsysFirefoxProxyAuthorizationHeader: "",
-        samacsysFirefoxUsername: "",
-        samacsysFirefoxPassword: "",
-        samacsysFirefoxAuthorizationHeader: "",
-        samacsysFirefoxCapturedAuthorizationHeader: "",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-      }
-    ]);
-  });
-
-  it("normalizes and saves the Firefox SamacSys proxy Authorization header", async () => {
-    const { dom, state, hooks } = await loadPopup();
-
-    await applyStoredSettings(state);
-    hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.value =
-      " Authorization: Bearer relay123 ";
-    dispatchChange(dom, hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl);
-
-    expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.value).toBe(
-      "Bearer relay123"
-    );
-    expect(state.storageSetCalls).toEqual([
-      {
-        downloadIndividually: false,
-        libraryDownloadRoot: "easyEDADownloader",
-        samacsysFirefoxProxyBaseUrl: "",
-        samacsysFirefoxProxyAuthorizationHeader: "Bearer relay123",
-        samacsysFirefoxUsername: "",
-        samacsysFirefoxPassword: "",
-        samacsysFirefoxAuthorizationHeader: "",
-        samacsysFirefoxCapturedAuthorizationHeader: "",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-      }
-    ]);
-  });
-
-  it("normalizes and saves the manual SamacSys Authorization override", async () => {
-    const { dom, state, hooks } = await loadPopup();
-
-    await applyStoredSettings(state);
-    hooks.elements.samacsysFirefoxAuthorizationHeaderEl.value =
-      " Authorization: Basic abc123 ";
-    dispatchChange(dom, hooks.elements.samacsysFirefoxAuthorizationHeaderEl);
-
-    expect(hooks.elements.samacsysFirefoxAuthorizationHeaderEl.value).toBe(
-      "Basic abc123"
-    );
-    expect(state.storageSetCalls).toEqual([
-      {
-        downloadIndividually: false,
-        libraryDownloadRoot: "easyEDADownloader",
-        samacsysFirefoxProxyBaseUrl: "",
-        samacsysFirefoxProxyAuthorizationHeader: "",
-        samacsysFirefoxUsername: "",
-        samacsysFirefoxPassword: "",
-        samacsysFirefoxAuthorizationHeader: "Basic abc123",
-        samacsysFirefoxCapturedAuthorizationHeader: "",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-      }
-    ]);
-  });
-
-  it("trims and saves the optional SamacSys username and password", async () => {
-    const { dom, state, hooks } = await loadPopup();
-
-    await applyStoredSettings(state);
-    hooks.elements.samacsysFirefoxUsernameEl.value = "  user@example.com  ";
-    dispatchChange(dom, hooks.elements.samacsysFirefoxUsernameEl);
-    hooks.elements.samacsysFirefoxPasswordEl.value = "  secret123  ";
-    dispatchChange(dom, hooks.elements.samacsysFirefoxPasswordEl);
-
-    expect(hooks.elements.samacsysFirefoxUsernameEl.value).toBe("user@example.com");
-    expect(hooks.elements.samacsysFirefoxPasswordEl.value).toBe("secret123");
-    expect(state.storageSetCalls[0]).toEqual({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader",
-      samacsysFirefoxProxyBaseUrl: "",
-      samacsysFirefoxProxyAuthorizationHeader: "",
-      samacsysFirefoxUsername: "user@example.com",
-      samacsysFirefoxPassword: "",
-      samacsysFirefoxAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-    });
-    expect(state.storageSetCalls[1]).toEqual({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader",
-      samacsysFirefoxProxyBaseUrl: "",
-      samacsysFirefoxProxyAuthorizationHeader: "",
-      samacsysFirefoxUsername: "user@example.com",
-      samacsysFirefoxPassword: "secret123",
-      samacsysFirefoxAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-    });
-  });
-
-  it("shows captured SamacSys auth status without exposing the secret", async () => {
-    const { state, hooks } = await loadPopup();
-
-    await applyStoredSettings(state, {
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader",
-      samacsysFirefoxProxyBaseUrl: "",
-      samacsysFirefoxProxyAuthorizationHeader: "",
-      samacsysFirefoxAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationHeader: "Basic captured-secret",
-      samacsysFirefoxCapturedAuthorizationCapturedAt: "2026-04-14T11:40:00.000Z"
-    });
-
-    expect(hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent).toContain(
-      "Firefox-captured SamacSys auth header available from"
-    );
-    expect(hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent).not.toContain(
-      "captured-secret"
-    );
-  });
-
-  it("warns and disables the proxy setting when the advanced URL is invalid", async () => {
-    const { dom, state, hooks } = await loadPopup();
-
-    await applyStoredSettings(state);
-    hooks.elements.samacsysFirefoxProxyBaseUrlEl.value = "not-a-url";
-    dispatchChange(dom, hooks.elements.samacsysFirefoxProxyBaseUrlEl);
-
-    expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.value).toBe("");
-    expect(hooks.elements.statusEl.textContent).toContain(
-      "Firefox SamacSys proxy URL must be an absolute http:// or https:// URL."
-    );
-    expect(state.storageSetCalls[0]).toEqual({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader",
-      samacsysFirefoxProxyBaseUrl: "",
-      samacsysFirefoxProxyAuthorizationHeader: "",
-      samacsysFirefoxUsername: "",
-      samacsysFirefoxPassword: "",
-      samacsysFirefoxAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-    });
-  });
-
-  it("resets invalid or cleared library folder values to the default root", async () => {
-    const { dom, state, hooks } = await loadPopup();
-
-    await applyStoredSettings(state, {
-      downloadIndividually: false,
-      libraryDownloadRoot: "Projects/KiCad"
-    });
-
-    hooks.elements.libraryDownloadRootEl.value = "../outside";
-    dispatchChange(dom, hooks.elements.libraryDownloadRootEl);
-
-    expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
-    expect(hooks.elements.statusEl.textContent).toContain("inside Downloads");
-    expect(hooks.elements.statusEl.classList.contains("warning")).toBe(true);
-    expect(state.storageSetCalls[0]).toEqual({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader",
-      samacsysFirefoxProxyBaseUrl: "",
-      samacsysFirefoxProxyAuthorizationHeader: "",
-      samacsysFirefoxUsername: "",
-      samacsysFirefoxPassword: "",
-      samacsysFirefoxAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-    });
-
-    hooks.elements.libraryDownloadRootEl.value = "Nested/Parts";
-    hooks.elements.resetLibraryDownloadRootEl.click();
-
-    expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
-    expect(state.storageSetCalls[1]).toEqual({
-      downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader",
-      samacsysFirefoxProxyBaseUrl: "",
-      samacsysFirefoxProxyAuthorizationHeader: "",
-      samacsysFirefoxUsername: "",
-      samacsysFirefoxPassword: "",
-      samacsysFirefoxAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-    });
   });
 
   it("shows identifiers as unavailable when the content script cannot respond", async () => {

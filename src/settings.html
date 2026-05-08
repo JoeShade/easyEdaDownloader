@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EasyEDA Downloader Settings</title>
+    <link rel="stylesheet" href="settings_page.css" />
+  </head>
+  <body>
+    <main class="settings-page">
+      <header class="page-header">
+        <h1>EasyEDA Downloader Settings</h1>
+        <p class="page-intro">
+          Choose where files are saved. Add sign-in details only if Mouser or
+          Farnell downloads ask for them.
+        </p>
+      </header>
+      <form id="settingsForm" class="settings-form">
+        <section class="settings-section" aria-labelledby="downloadSettingsTitle">
+          <h2 id="downloadSettingsTitle">Downloads</h2>
+          <label class="option">
+            <input type="checkbox" id="downloadIndividually" />
+            Save each file separately
+          </label>
+          <label class="settings-field" for="libraryDownloadRoot">
+            <span class="settings-label">KiCad library folder</span>
+            <input
+              type="text"
+              id="libraryDownloadRoot"
+              class="settings-input"
+              value="easyEDADownloader"
+              spellcheck="false"
+            />
+          </label>
+          <p class="settings-hint">
+            When files are grouped as a KiCad library, save them in this Downloads
+            folder. Example:
+            <code>KiCad/easyEDA</code>.
+          </p>
+          <button id="resetLibraryDownloadRoot" type="button" class="secondary">
+            Use default folder
+          </button>
+        </section>
+
+        <section
+          id="firefoxRelaySection"
+          class="settings-section"
+          aria-labelledby="relaySettingsTitle"
+        >
+          <h2 id="relaySettingsTitle">Firefox Mouser/Farnell support</h2>
+          <label class="settings-field" for="samacsysFirefoxProxyBaseUrl">
+            <span class="settings-label">Helper service URL</span>
+            <input
+              type="text"
+              id="samacsysFirefoxProxyBaseUrl"
+              class="settings-input"
+              value=""
+              placeholder="https://proxy.example.test/relay"
+              spellcheck="false"
+            />
+          </label>
+          <p class="settings-hint">
+            Only needed if Firefox cannot download Mouser/Farnell CAD files. Use
+            the URL for your own helper service.
+          </p>
+          <label class="settings-field" for="samacsysFirefoxProxyAuthorizationHeader">
+            <span class="settings-label">Helper service password or token</span>
+            <input
+              type="password"
+              id="samacsysFirefoxProxyAuthorizationHeader"
+              class="settings-input"
+              value=""
+              placeholder="Bearer ... or Basic ..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </label>
+          <p class="settings-hint">
+            Leave blank unless your helper service requires a password or token.
+          </p>
+          <p id="samacsysRelayRuntimeHint" class="settings-hint" hidden>
+            Chrome does not need these Firefox helper settings.
+          </p>
+        </section>
+
+        <section class="settings-section" aria-labelledby="authSettingsTitle">
+          <h2 id="authSettingsTitle">SamacSys sign-in</h2>
+          <label class="settings-field" for="samacsysFirefoxUsername">
+            <span class="settings-label">SamacSys username</span>
+            <input
+              type="text"
+              id="samacsysFirefoxUsername"
+              class="settings-input"
+              value=""
+              placeholder="name@example.com"
+              autocomplete="username"
+              spellcheck="false"
+            />
+          </label>
+          <label class="settings-field" for="samacsysFirefoxPassword">
+            <span class="settings-label">SamacSys password</span>
+            <input
+              type="password"
+              id="samacsysFirefoxPassword"
+              class="settings-input"
+              value=""
+              placeholder="Password"
+              autocomplete="current-password"
+              spellcheck="false"
+            />
+          </label>
+          <p class="settings-hint">
+            Optional. Use only if Mouser/Farnell CAD downloads ask you to sign in.
+          </p>
+          <div
+            id="firefoxCapturedAuthorizationField"
+            class="settings-field"
+            aria-live="polite"
+          >
+            <span class="settings-label">Saved Firefox sign-in</span>
+            <output
+              id="samacsysFirefoxCapturedAuthorizationStatus"
+              class="settings-readonly"
+            >
+              No saved Firefox sign-in yet.
+            </output>
+          </div>
+          <p id="firefoxCapturedAuthorizationHint" class="settings-hint">
+            Firefox can reuse a recent SamacSys sign-in when it is available.
+          </p>
+          <label class="settings-field" for="samacsysFirefoxAuthorizationHeader">
+            <span class="settings-label">Advanced sign-in code</span>
+            <input
+              type="password"
+              id="samacsysFirefoxAuthorizationHeader"
+              class="settings-input"
+              value=""
+              placeholder="Basic ..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </label>
+          <p class="settings-hint">
+            Leave blank for normal use. Only fill this in if you know you need a
+            custom sign-in value.
+          </p>
+        </section>
+
+        <p id="status" class="status" aria-live="polite"></p>
+      </form>
+    </main>
+    <script type="module" src="settings_page.js"></script>
+  </body>
+</html>

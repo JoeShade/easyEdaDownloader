@@ -297,6 +297,10 @@ describe("repository hygiene", () => {
       preferred_environment: ["document", "service_worker"],
       type: "module"
     });
+    expect(manifest.options_ui).toEqual({
+      page: "src/settings.html",
+      open_in_tab: true
+    });
     expect(manifest.browser_specific_settings?.gecko?.strict_min_version).toBe(
       "121.0"
     );

@@ -17,11 +17,12 @@ The repository remains intentionally compact. If code and design diverge, update
 ### 2.1 Supported operator flow
 
 1. Open a supported JLCPCB, LCSC, Mouser, or Farnell product page.
-2. Open the extension popup.
-3. Ask the content script for a provider-aware part context via `GET_PART_CONTEXT`.
-4. Ask the service worker for `GET_PART_PREVIEWS`.
-5. Choose which artifacts to export and whether to download them individually.
-6. Ask the service worker to export the current part with `EXPORT_PART`.
+2. Optionally open the extension settings page to configure download layout or advanced SamacSys options.
+3. Open the extension popup.
+4. Ask the content script for a provider-aware part context via `GET_PART_CONTEXT`.
+5. Ask the service worker for `GET_PART_PREVIEWS`.
+6. Choose which artifacts to export.
+7. Ask the service worker to export the current part with `EXPORT_PART`.
 
 ### 2.2 Explicit non-goals
 
@@ -44,7 +45,7 @@ The current repository does not implement:
 - EasyEDA datasheet availability comes from URLs exposed by the upstream payload.
 - SamacSys distributor datasheet export is currently unsupported.
 - SamacSys distributor preview and export work directly in Chrome.
-- Firefox SamacSys support is opt-in and depends on a user-managed relay URL stored in popup settings.
+- Firefox SamacSys support is opt-in and depends on a user-managed relay URL stored by the extension settings page.
 - SamacSys ZIP export may still require upstream authentication.
 - On Chrome direct requests, the worker first tries the normal browser session and retries the ZIP request once with configured upstream auth if the first ZIP request returns `401`.
 - On Firefox relay mode, the worker uses the relay path and keeps the existing auth-refresh retry behavior after ZIP-auth failures.
@@ -52,7 +53,7 @@ The current repository does not implement:
 - Firefox relay mode can send a separate relay `Authorization` header on the Worker POST when the user configures proxy auth.
 - Firefox relay mode can forward an upstream SamacSys `Authorization` header for ZIP endpoints that rely on HTTP Basic auth instead of cookies alone.
 - Across authenticated SamacSys ZIP flows, upstream auth precedence is:
-  - manual override from popup settings
+  - manual override from extension settings
   - locally generated HTTP Basic auth header from stored SamacSys username and password
   - latest Firefox-captured upstream header
   - no upstream authorization header
@@ -71,6 +72,7 @@ flowchart LR
     productPage["JLCPCB / LCSC / Mouser / Farnell DOM"]
     contentScript["Content script\nsrc/content_script.js"]
     popup["Extension popup\nsrc/popup.js"]
+    settingsPage["Settings page\nsrc/settings_page.js"]
     storage["Browser storage\nchrome.storage.local"]
     serviceWorker["Extension backend\nsrc/service_worker.js"]
     converter["EasyEDA converter\nsrc/kicad_converter.js"]
@@ -81,10 +83,12 @@ flowchart LR
 
     user --> productPage
     user --> popup
+    user --> settingsPage
     popup -- "GET_PART_CONTEXT" --> contentScript
     contentScript --> productPage
     contentScript -- "provider-aware part context" --> popup
     popup <--> storage
+    settingsPage <--> storage
     popup -- "GET_PART_PREVIEWS / EXPORT_PART" --> serviceWorker
     serviceWorker <--> storage
     serviceWorker --> easyeda
@@ -116,17 +120,29 @@ It remains a DOM-reading boundary with no network or download logic.
 Owns popup UI state and user interaction:
 
 - cache popup DOM elements
-- load and save popup settings through `chrome.storage.local`
+- load current settings from `chrome.storage.local` for provider gating
 - query the active tab and request the current provider-aware part context
 - render the fixed `Mfr. Part #` row plus a dynamic provider-specific source row
 - request previews and datasheet availability
 - gate downloads based on provider support and checkbox selection
-- expose advanced Firefox SamacSys relay settings plus cross-browser upstream SamacSys auth inputs, including separate relay auth, optional stored SamacSys credentials, read-only Firefox-captured auth status, and a manual upstream auth override
+- open the dedicated settings page from the popup settings button
 - send `EXPORT_PART` requests to the service worker
 
 It remains the UI-facing boundary. It does not own fetch, archive extraction, or conversion logic.
 
-### 4.4 `src/service_worker.js`
+### 4.4 `src/settings_page.js`
+
+Owns persistent settings UI:
+
+- load and save settings through `chrome.storage.local`
+- expose the download layout controls, including loose-file mode and library folder root
+- expose advanced Firefox SamacSys relay settings
+- expose cross-browser upstream SamacSys auth inputs, including separate relay auth, optional stored SamacSys credentials, read-only Firefox-captured auth status, and a manual upstream auth override
+- normalize settings through `src/core/settings.js`
+
+It does not request part contexts, previews, exports, or downloads.
+
+### 4.5 `src/service_worker.js`
 
 Owns runtime registration only:
 
@@ -135,7 +151,7 @@ Owns runtime registration only:
 
 The operational core now lives behind this entrypoint rather than inside one file.
 
-### 4.5 `src/service_worker_runtime.js` and supporting modules
+### 4.6 `src/service_worker_runtime.js` and supporting modules
 
 Own the service-worker backend orchestration:
 
@@ -158,7 +174,7 @@ Within `src/sources/`, the current SamacSys-backed distributors share:
 
 This keeps the message boundary stable while allowing future sources to be added without expanding the entrypoint.
 
-### 4.6 `src/kicad_converter.js`
+### 4.7 `src/kicad_converter.js`
 
 Keeps the public conversion API stable and delegates implementation to focused converter modules under `src/kicad/`.
 
@@ -173,7 +189,7 @@ Those modules own:
 
 Mouser parts do not flow through this converter for symbol or footprint generation because the upstream ZIP already contains KiCad assets.
 
-### 4.7 `src/vendor/zip_reader.js`
+### 4.8 `src/vendor/zip_reader.js`
 
 Owns small runtime archive extraction support:
 
@@ -183,7 +199,7 @@ Owns small runtime archive extraction support:
 
 It exists so the service worker can extract the KiCad subtree from the SamacSys ZIP without adding a build step.
 
-### 4.8 `tests`
+### 4.9 `tests`
 
 The test suite remains the primary regression net for:
 
@@ -275,7 +291,10 @@ The test suite remains the primary regression net for:
 
 ## 6. Storage and settings behavior
 
-- `chrome.storage.local` stores popup settings:
+- The popup stays focused on detection, previews, export selection, and opening the dedicated settings page.
+- The settings page owns persistent controls for download layout, Firefox relay configuration, and optional SamacSys auth values.
+- The settings page hides Firefox-only relay and captured-auth controls when opened in Chrome.
+- `chrome.storage.local` stores extension settings:
   - `downloadIndividually`
   - `libraryDownloadRoot`
   - `samacsysFirefoxProxyBaseUrl`
