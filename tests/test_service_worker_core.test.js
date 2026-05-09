@@ -116,6 +116,20 @@ describe("service worker core helpers", () => {
     });
   });
 
+  it("ignores future-dated Firefox-captured SamacSys auth from session storage", async () => {
+    const { chrome } = createServiceWorkerChrome({
+      sessionStorageState: {
+        samacsysFirefoxCapturedAuthorizationHeader: "Basic future123",
+        samacsysFirefoxCapturedAuthorizationCapturedAt: "2999-01-01T00:00:00.000Z"
+      }
+    });
+
+    await expect(loadSettings(chrome)).resolves.toMatchObject({
+      samacsysFirefoxCapturedAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
+    });
+  });
+
   it("surfaces data-URL fallback download failures", async () => {
     const { chrome } = createServiceWorkerChrome();
     chrome.downloads.download.mockImplementation((_options, callback) => {

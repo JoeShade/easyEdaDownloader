@@ -180,7 +180,8 @@ function isSamacsysCapturedAuthorizationFresh(capturedAt, nowMs = Date.now()) {
     return false;
   }
   const capturedAtMs = new Date(normalizedCapturedAt).getTime();
-  return nowMs - capturedAtMs <= SAMACSYS_CAPTURED_AUTH_SESSION_TTL_MS;
+  const ageMs = nowMs - capturedAtMs;
+  return ageMs >= 0 && ageMs <= SAMACSYS_CAPTURED_AUTH_SESSION_TTL_MS;
 }
 
 function resolveSamacsysAuthorizationHeader(settings = {}) {

@@ -18,7 +18,7 @@ Use the repository's private vulnerability reporting or GitHub Security Advisory
 
 Do not include live credentials, private cookies, browser-profile exports, or private KiCad libraries in reports, tests, fixtures, screenshots, or public discussion.
 
-The repository hygiene suite checks for high-confidence token/private-key patterns and common temporary, archive, log, and local-environment files. Treat that as a backstop, not as a substitute for reviewing changes before commit.
+The repository hygiene suite checks for high-confidence token/private-key patterns, placeholder-only credential fixtures, encoded HTTP Basic auth examples, and common temporary, archive, log, and local-environment files. A separate history-wide security check applies those rules across reachable Git history during full validation and CI. Treat these as backstops, not as a substitute for reviewing changes before commit; the history-wide check does not need to be run manually for every intermediate local commit.
 
 ## Credential and Auth Handling
 

@@ -41,9 +41,11 @@ This section summarizes the current `Development` branch compared with `main` as
 - Reworked SamacSys ZIP `401` handling into clearer sign-in-required errors and retry behavior.
 - Kept relay auth separate from upstream SamacSys auth so relay credentials are not forwarded to upstream providers.
 - Removed real-looking SamacSys auth values from tests and fixtures.
+- Removed a stale repository review plan from tracked docs so `systemDesign.md` remains the design source of truth.
 
 ### Security
 
 - Documented credential storage, relay responsibility, vulnerability reporting, and stored credential clearing in `SECURITY.md`.
 - Added automated checks for common secret/token formats and private-key material in text files.
 - Added ignore rules and hygiene checks for local secret files, generated extension archives, logs, editor backups, OS metadata, and temporary files.
+- Added full-history security hygiene validation for reachable Git commits.

@@ -367,6 +367,9 @@ The test suite remains the primary regression net for:
 - GitHub Actions runs validation with `npm ci` on Node `20.19.0`, `22.13.0`, and `24.x`.
 - `SECURITY.md` owns vulnerability reporting expectations and credential-handling guidance.
 - Repository hygiene tests reject high-confidence secret patterns plus common local environment, archive, log, editor, and temporary files.
+- Repository hygiene tests reject non-placeholder email addresses in code and fixture text while leaving documentation and canonical source footer contact details intact.
+- Repository hygiene tests decode long HTTP Basic auth examples and require decoded identities to use placeholder email domains.
+- Git-history security tests run those security checks across every reachable commit; CI uses a full-history checkout so rewritten or rebased branches are scanned beyond the tip tree. This is a full-validation and CI gate, not a manual per-intermediate-commit requirement while iterating locally.
 - Repository hygiene tests also enforce conventional file names, lower camelCase function declarations, and maintained-file line-count limits.
 
 ## 11. Repository rules that should remain true

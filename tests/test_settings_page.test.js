@@ -10,6 +10,7 @@ import { JSDOM } from "jsdom";
 import {
   flushAsyncWork,
   importRepoModule,
+  normalizeNewlines,
   readRepoFile
 } from "./helpers/test_harness.js";
 
@@ -131,7 +132,9 @@ async function saveChanges(hooks) {
 
 describe("settings page", () => {
   it("keeps hidden runtime-specific sections visually hidden", () => {
-    const settingsPageCss = readRepoFile("src/settings_page.css");
+    const settingsPageCss = normalizeNewlines(
+      readRepoFile("src/settings_page.css")
+    );
 
     expect(settingsPageCss).toContain(
       "[hidden] {\n  display: none !important;\n}"

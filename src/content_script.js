@@ -344,7 +344,7 @@ function parseSamacsysLinkUrl(url, fallbackPartnerName = null) {
   } catch (error) {
     return null;
   }
-  if (!/componentsearchengine\.com$/i.test(parsedUrl.hostname)) {
+  if (!/(^|\.)componentsearchengine\.com$/i.test(parsedUrl.hostname)) {
     return null;
   }
 

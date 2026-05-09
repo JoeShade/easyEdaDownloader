@@ -10,6 +10,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT, normalizeNewlines } from "./helpers/test_harness.js";
+import {
+  artifactFindingsForPath,
+  basicAuthorizationFindings,
+  fixtureEmailFindings,
+  highConfidenceSecretFindings,
+  isTextFile
+} from "./helpers/security_hygiene.js";
 
 const GOVERNANCE_FILES = [
   "AGENTS.md",
@@ -21,53 +28,6 @@ const GOVERNANCE_FILES = [
 ];
 
 const SKIPPED_REPOSITORY_DIRS = new Set([".git", "coverage", "node_modules"]);
-
-const FORBIDDEN_ARTIFACT_PATTERNS = [
-  { label: "local environment file", pattern: /(^|\/)\.env(?:\..*)?$/ },
-  { label: "generated extension archive", pattern: /\.(?:crx|xpi|zip)$/i },
-  { label: "archive artifact", pattern: /\.(?:tar|tgz|tar\.gz|7z|rar)$/i },
-  { label: "private key or certificate bundle", pattern: /\.(?:key|p12|pfx|pem)$/i },
-  { label: "local log file", pattern: /\.log$/i },
-  { label: "patch reject file", pattern: /\.rej$/i },
-  { label: "merge backup file", pattern: /\.(?:orig|bak|backup|old)$/i },
-  { label: "temporary file", pattern: /\.(?:tmp|temp)$/i },
-  { label: "editor swap file", pattern: /\.(?:swp|swo)$/i },
-  { label: "editor backup file", pattern: /~$/ },
-  { label: "macOS metadata file", pattern: /(^|\/)\.DS_Store$/ },
-  { label: "Windows metadata file", pattern: /(^|\/)(?:Thumbs\.db|desktop\.ini)$/i },
-  { label: "SSH private key", pattern: /(^|\/)id_(?:rsa|dsa|ecdsa|ed25519)$/ }
-];
-
-const TEXT_FILE_EXTENSIONS = new Set([
-  ".css",
-  ".html",
-  ".js",
-  ".json",
-  ".md",
-  ".txt",
-  ".yaml",
-  ".yml"
-]);
-
-const TEXT_FILE_NAMES = new Set([".gitignore", "AGENTS.md", "LICENSE"]);
-
-const HIGH_CONFIDENCE_SECRET_PATTERNS = [
-  { label: "private key block", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
-  { label: "AWS access key id", pattern: /AKIA[0-9A-Z]{16}/ },
-  { label: "AWS temporary access key id", pattern: /ASIA[0-9A-Z]{16}/ },
-  { label: "GitLab token", pattern: /glpat-[A-Za-z0-9_-]{20,}/ },
-  { label: "GitHub token", pattern: /gh[pousr]_[A-Za-z0-9_]{36,}/ },
-  { label: "Google API key", pattern: /AIza[0-9A-Za-z_-]{35}/ },
-  { label: "OpenAI project or service token", pattern: /sk-(?:proj|svcacct)-[A-Za-z0-9_-]{20,}/ },
-  { label: "OpenAI legacy token", pattern: /sk-[A-Za-z0-9]{32,}/ },
-  { label: "Anthropic API token", pattern: /sk-ant-api[0-9]{2}-[A-Za-z0-9_-]{40,}/ },
-  { label: "Stripe live secret key", pattern: /(?:sk|rk)_live_[A-Za-z0-9]{24,}/ },
-  { label: "Slack token", pattern: /xox[baprs]-[A-Za-z0-9-]{20,}/ },
-  { label: "Slack webhook URL", pattern: /hooks\.slack\.com\/services\/[A-Za-z0-9_-]{8,}\/[A-Za-z0-9_-]{8,}\/[A-Za-z0-9_-]{20,}/ },
-  { label: "npm token", pattern: /npm_[A-Za-z0-9]{36}/ },
-  { label: "SendGrid API token", pattern: /SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/ },
-  { label: "JWT bearer token", pattern: /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/ }
-];
 
 const CONVENTIONAL_ROOT_FILES = new Set([
   ".gitignore",
@@ -192,13 +152,6 @@ function repositoryFiles() {
 
 function repoRelativePath(fullPath) {
   return path.relative(REPO_ROOT, fullPath).replaceAll(path.sep, "/");
-}
-
-function isTextFile(relativePath) {
-  return (
-    TEXT_FILE_EXTENSIONS.has(path.extname(relativePath).toLowerCase()) ||
-    TEXT_FILE_NAMES.has(path.basename(relativePath))
-  );
 }
 
 function isLowerSnakeFileName(filename) {
@@ -352,12 +305,7 @@ describe("repository hygiene", () => {
 
     for (const fullPath of repositoryFiles()) {
       const relativePath = repoRelativePath(fullPath);
-      const match = FORBIDDEN_ARTIFACT_PATTERNS.find(({ pattern }) =>
-        pattern.test(relativePath)
-      );
-      if (match) {
-        forbiddenFiles.push(`${relativePath} (${match.label})`);
-      }
+      forbiddenFiles.push(...artifactFindingsForPath(relativePath));
     }
 
     expect(forbiddenFiles).toEqual([]);
@@ -373,11 +321,39 @@ describe("repository hygiene", () => {
       }
 
       const text = fs.readFileSync(fullPath, "utf8");
-      for (const { label, pattern } of HIGH_CONFIDENCE_SECRET_PATTERNS) {
-        if (pattern.test(text)) {
-          findings.push(`${relativePath} (${label})`);
-        }
+      findings.push(...highConfidenceSecretFindings(relativePath, text));
+    }
+
+    expect(findings).toEqual([]);
+  });
+
+  it("keeps fixture email addresses on placeholder domains", () => {
+    const findings = [];
+
+    for (const fullPath of repositoryFiles()) {
+      const relativePath = repoRelativePath(fullPath);
+      if (!isTextFile(relativePath)) {
+        continue;
       }
+
+      const text = fs.readFileSync(fullPath, "utf8");
+      findings.push(...fixtureEmailFindings(relativePath, text));
+    }
+
+    expect(findings).toEqual([]);
+  });
+
+  it("keeps encoded HTTP Basic auth fixtures on placeholder identities", () => {
+    const findings = [];
+
+    for (const fullPath of repositoryFiles()) {
+      const relativePath = repoRelativePath(fullPath);
+      if (!isTextFile(relativePath)) {
+        continue;
+      }
+
+      const text = normalizeNewlines(fs.readFileSync(fullPath, "utf8"));
+      findings.push(...basicAuthorizationFindings(relativePath, text));
     }
 
     expect(findings).toEqual([]);

@@ -61,6 +61,8 @@ npm run validate
 
 `npm run validate` runs linting, the Vitest regression suite, a moderate-severity dependency audit, and whitespace checks. CI uses `npm ci` and the same validation script on the supported Node lines. The repository includes `.nvmrc` for the recommended Node version.
 
+The Vitest suite includes a history-wide security hygiene check. It is meant for full validation, CI, security cleanup, and before sharing pushed history; it does not need to be run manually for every intermediate local commit while iterating.
+
 ## Usage
 
 ### EasyEDA-backed JLCPCB and LCSC pages

@@ -372,6 +372,19 @@ describe("content script", () => {
     });
   });
 
+  it("rejects SamacSys links on lookalike component-search hostnames", () => {
+    const { hooks } = loadContentScript("", {
+      url: "https://uk.farnell.com/webapp/wcs/stores/servlet/ProductDisplay?partNumber=1848693"
+    });
+
+    expect(
+      hooks.parseSamacsysLinkUrl(
+        "https://evilcomponentsearchengine.com/icon.php?mna=ONSEMI&mpn=FQP27P06&pna=farnell",
+        "farnell"
+      )
+    ).toBeNull();
+  });
+
   it("falls back to Farnell page labels when the Supplyframe link is absent", () => {
     const { hooks } = loadContentScript(
       `
