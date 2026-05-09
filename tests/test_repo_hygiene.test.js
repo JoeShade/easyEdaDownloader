@@ -264,7 +264,7 @@ describe("repository hygiene", () => {
       fs.readFileSync(path.join(REPO_ROOT, "README.md"), "utf8")
     );
     const expectedOrder = [
-      "# EasyEDA Downloader",
+      "# Easy ECAD Downloader",
       "## Introduction",
       "## Disclaimer",
       "## Set-up",

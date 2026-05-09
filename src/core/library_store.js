@@ -22,7 +22,7 @@ function mergeSymbolIntoLibrary(existingLibrary, symbolBlock, symbolId) {
     return existingLibrary;
   }
   if (!existingLibrary) {
-    return `(kicad_symbol_lib\n  (version 20211014)\n  (generator "easy EDA downloader")\n  ${symbolBlock.replace(/\n/g, "\n  ")}\n)\n`;
+    return `(kicad_symbol_lib\n  (version 20211014)\n  (generator "Easy ECAD Downloader")\n  ${symbolBlock.replace(/\n/g, "\n  ")}\n)\n`;
   }
   if (existingLibrary.includes(`(symbol "${symbolId}"`)) {
     return existingLibrary;

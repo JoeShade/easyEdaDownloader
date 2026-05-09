@@ -22,6 +22,7 @@ This section summarizes the current `Development` branch compared with `main` as
 
 ### Changed
 
+- Renamed the extension to Easy ECAD Downloader, including package metadata, UI labels, documentation links, generated KiCad metadata, and the default library folder name.
 - Split the service worker into a thin Manifest V3 entrypoint plus a runtime/router module with source adapters and shared core helpers.
 - Split the EasyEDA-to-KiCad converter into focused parser, emitter, shared conversion, and OBJ-to-WRL modules while keeping `src/kicad_converter.js` as the public facade.
 - Split the oversized service-worker regression file into focused core, EasyEDA, direct SamacSys, and Firefox SamacSys test files backed by a shared harness.

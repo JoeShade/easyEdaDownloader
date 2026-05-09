@@ -74,7 +74,7 @@ export function createCadData({
 export function createSymbolLibrary(symbolId = "ExistingSymbol") {
   return `(kicad_symbol_lib
   (version 20211014)
-  (generator "easy EDA downloader")
+  (generator "Easy ECAD Downloader")
   (symbol "${symbolId}"
     (in_bom yes)
     (on_board yes)

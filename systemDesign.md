@@ -1,8 +1,8 @@
-# System Design: EasyEDA Downloader
+# System Design: Easy ECAD Downloader
 
 ## 1. Purpose
 
-This document describes the current implemented design of the EasyEDA Downloader browser extension.
+This document describes the current implemented design of the Easy ECAD Downloader browser extension.
 
 The extension supports three provider flows:
 
@@ -353,7 +353,7 @@ The test suite remains the primary regression net for:
 - Footprint output uses the extracted or generated `.kicad_mod` filename.
 - SamacSys distributor footprint library-mode downloads rewrite the model path into the library `.3dshapes` directory.
 - EasyEDA datasheet output uses a sanitized base name plus `-datasheet` and the detected extension.
-- The library root name defaults to `easyEDADownloader` and can be changed to another Downloads-relative folder for library mode.
+- The library root name defaults to `easyECADDownloader` and can be changed to another Downloads-relative folder for library mode.
 
 ## 10. Maintainability and testing boundaries
 

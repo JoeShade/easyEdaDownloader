@@ -136,7 +136,7 @@ async function applyStoredSettings(
   state,
   settings = {
     downloadIndividually: false,
-    libraryDownloadRoot: "easyEDADownloader",
+    libraryDownloadRoot: "easyECADDownloader",
     samacsysFirefoxProxyBaseUrl: "",
     samacsysFirefoxProxyAuthorizationHeader: "",
     samacsysFirefoxUsername: "",
@@ -191,7 +191,7 @@ describe("popup", () => {
 
     await applyStoredSettings(state, {
       downloadIndividually: true,
-      libraryDownloadRoot: "KiCad\\easyEDA"
+      libraryDownloadRoot: "KiCad\\easyECAD"
     });
 
     activatePopupTab(state, 7);
@@ -362,7 +362,7 @@ describe("popup", () => {
 
     await applyStoredSettings(state, {
       downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader",
+      libraryDownloadRoot: "easyECADDownloader",
       samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
     });
     activatePopupTab(state, 12);

@@ -16,7 +16,7 @@ import {
 
 const DEFAULT_STORED_SETTINGS = {
   downloadIndividually: false,
-  libraryDownloadRoot: "easyEDADownloader",
+  libraryDownloadRoot: "easyECADDownloader",
   samacsysFirefoxProxyBaseUrl: "",
   samacsysFirefoxProxyAuthorizationHeader: "",
   samacsysFirefoxUsername: "",
@@ -157,7 +157,7 @@ describe("settings page", () => {
     await applyStoredSettings(state, {
       ...DEFAULT_STORED_SETTINGS,
       downloadIndividually: true,
-      libraryDownloadRoot: "KiCad\\easyEDA",
+      libraryDownloadRoot: "KiCad\\easyECAD",
       samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay#frag",
       samacsysFirefoxProxyAuthorizationHeader: "Authorization: Bearer relay123",
       samacsysFirefoxUsername: " user@example.com ",
@@ -168,7 +168,7 @@ describe("settings page", () => {
     });
 
     expect(hooks.elements.downloadIndividuallyEl.checked).toBe(true);
-    expect(hooks.elements.libraryDownloadRootEl.value).toBe("KiCad/easyEDA");
+    expect(hooks.elements.libraryDownloadRootEl.value).toBe("KiCad/easyECAD");
     expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.value).toBe(
       "https://proxy.example.test/relay"
     );
@@ -209,7 +209,7 @@ describe("settings page", () => {
       hooks.elements.statusEl
     );
     expect(dom.window.document.querySelector(".footer-link")?.href).toBe(
-      "https://github.com/JoeShade/easyEdaDownloader"
+      "https://github.com/JoeShade/easyECADDownloader"
     );
   });
 
@@ -230,16 +230,16 @@ describe("settings page", () => {
       downloadIndividually: true
     });
 
-    hooks.elements.libraryDownloadRootEl.value = "  KiCad\\\\easyEDA//Parts  ";
+    hooks.elements.libraryDownloadRootEl.value = "  KiCad\\\\easyECAD//Parts  ";
     dispatchInput(dom, hooks.elements.libraryDownloadRootEl);
     await flushAsyncWork();
     await saveChanges(hooks);
 
-    expect(hooks.elements.libraryDownloadRootEl.value).toBe("KiCad/easyEDA/Parts");
+    expect(hooks.elements.libraryDownloadRootEl.value).toBe("KiCad/easyECAD/Parts");
     expect(state.storageSetCalls[1]).toEqual({
       ...DEFAULT_STORED_SETTINGS,
       downloadIndividually: true,
-      libraryDownloadRoot: "KiCad/easyEDA/Parts"
+      libraryDownloadRoot: "KiCad/easyECAD/Parts"
     });
     expect(hooks.elements.statusEl.textContent).toBe("Settings saved.");
   });
@@ -349,7 +349,7 @@ describe("settings page", () => {
     await flushAsyncWork();
     await saveChanges(hooks);
 
-    expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
+    expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyECADDownloader");
     expect(hooks.elements.statusEl.textContent).toContain("inside Downloads");
     expect(hooks.elements.statusEl.classList.contains("warning")).toBe(true);
     expect(state.storageSetCalls[0]).toEqual(DEFAULT_STORED_SETTINGS);
@@ -377,7 +377,7 @@ describe("settings page", () => {
     await flushAsyncWork();
     await saveChanges(hooks);
 
-    expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyEDADownloader");
+    expect(hooks.elements.libraryDownloadRootEl.value).toBe("easyECADDownloader");
     expect(state.storageSetCalls[0]).toEqual(DEFAULT_STORED_SETTINGS);
   });
 

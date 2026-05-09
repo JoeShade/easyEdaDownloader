@@ -1,8 +1,8 @@
-# EasyEDA Downloader
+# Easy ECAD Downloader
 
 ## Introduction
 
-EasyEDA Downloader is a browser extension that exports KiCad-compatible CAD assets from supported distributor product pages.
+Easy ECAD Downloader is a browser extension that exports KiCad-compatible CAD assets from supported distributor product pages.
 
 The extension currently supports:
 
@@ -21,13 +21,13 @@ Generated library files may require manual review. Always verify symbols, footpr
 
 Install from the Chrome Web Store:
 
-[EasyEDA Downloader](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
+[Easy ECAD Downloader](https://chromewebstore.google.com/detail/easy-ecad-downloader/egbkokdcahpjimldjjaobimnofbdnncb)
 
 ### Firefox
 
 Install from Firefox Add-ons:
 
-[EasyEDA Downloader on AMO](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/)
+[Easy ECAD Downloader on AMO](https://addons.mozilla.org/en-GB/firefox/addon/easy-ecad-downloader/)
 
 ### Manual install for development
 
@@ -91,7 +91,7 @@ The Vitest suite includes a history-wide security hygiene check. It is meant for
 Use the popup `Open settings` button, or the browser extension settings page, to choose where files are saved and add sign-in details only when Mouser/Farnell downloads require them:
 
 - `Save each file separately`: downloads separate files directly into `Downloads`
-- `KiCad library folder`: stores grouped KiCad library exports in a Downloads folder, such as `easyEDADownloader` or `KiCad/easyEDA`
+- `KiCad library folder`: stores grouped KiCad library exports in a Downloads folder, such as `easyECADDownloader` or `KiCad/easyECAD`
 - `SamacSys username` and `SamacSys password`: optional sign-in details for Mouser/Farnell CAD downloads
 
 Firefox shows an `Advanced Firefox settings` menu for the helper service URL, optional helper password/token, and recent Firefox sign-in status. Chrome hides that menu.

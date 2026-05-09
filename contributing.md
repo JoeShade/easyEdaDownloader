@@ -1,4 +1,4 @@
-# Contributing to easyEdaDownloader
+# Contributing to Easy ECAD Downloader
 
 Thanks for contributing.
 

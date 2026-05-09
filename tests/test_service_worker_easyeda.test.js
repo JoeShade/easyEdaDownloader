@@ -86,7 +86,7 @@ describe("service worker EasyEDA flow", () => {
         name: "Logic_Buffer",
         content: `(kicad_symbol_lib
   (version 20211014)
-  (generator "easy EDA downloader")
+  (generator "Easy ECAD Downloader")
   (symbol "Logic_Buffer"
     (in_bom yes)
     (on_board yes)

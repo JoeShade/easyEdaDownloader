@@ -42,7 +42,7 @@ import {
 describe("service worker core helpers", () => {
   it("normalizes library roots and builds KiCad library paths", () => {
     expect(normalizeLibraryDownloadRoot("KiCad\\Workspace")).toBe("KiCad/Workspace");
-    expect(normalizeLibraryDownloadRoot("../outside")).toBe("easyEDADownloader");
+    expect(normalizeLibraryDownloadRoot("../outside")).toBe("easyECADDownloader");
     expect(parseSamacsysFirefoxProxyBaseUrl(" https://proxy.example.test/relay#frag ")).toEqual({
       value: "https://proxy.example.test/relay",
       isValid: true
@@ -88,7 +88,7 @@ describe("service worker core helpers", () => {
 
     await expect(loadSettings(chrome)).resolves.toEqual({
       downloadIndividually: false,
-      libraryDownloadRoot: "easyEDADownloader",
+      libraryDownloadRoot: "easyECADDownloader",
       samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
       samacsysFirefoxProxyAuthorizationHeader: "Bearer proxy123",
       samacsysFirefoxUsername: "",

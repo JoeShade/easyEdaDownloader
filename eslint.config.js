@@ -40,8 +40,8 @@ export default [
   {
     ignores: [
       "coverage/**",
-      "easyEdaDownloader.crx",
-      "easyEdaDownloader.zip",
+      "easyECADDownloader.crx",
+      "easyECADDownloader.zip",
       "node_modules/**"
     ]
   },

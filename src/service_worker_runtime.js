@@ -88,12 +88,12 @@ function registerSamacsysAuthorizationCapture(chromeApi, userAgent) {
   if (
     !isFirefoxRuntime(userAgent) ||
     !chromeApi?.webRequest?.onBeforeSendHeaders?.addListener ||
-    chromeApi.__easyEdaSamacsysAuthCaptureRegistered
+    chromeApi.__easyEcadSamacsysAuthCaptureRegistered
   ) {
     return;
   }
 
-  chromeApi.__easyEdaSamacsysAuthCaptureRegistered = true;
+  chromeApi.__easyEcadSamacsysAuthCaptureRegistered = true;
   chromeApi.webRequest.onBeforeSendHeaders.addListener(
     (details) => {
       const capturedAuthorizationHeader = readAuthorizationHeader(
@@ -363,7 +363,7 @@ function registerServiceWorkerRuntime(chromeApi = globalThis.chrome, overrides =
           });
         })
         .catch((error) => {
-          console.error("easy EDA downloader preview error:", error);
+          console.error("Easy ECAD Downloader preview error:", error);
           sendResponse({ ok: false, error: error?.message || "Preview failed." });
         });
       return true;
@@ -376,7 +376,7 @@ function registerServiceWorkerRuntime(chromeApi = globalThis.chrome, overrides =
       })
         .then((result) => sendResponse({ ok: true, ...result }))
         .catch((error) => {
-          console.error("easy EDA downloader extension error:", error);
+          console.error("Easy ECAD Downloader extension error:", error);
           sendResponse({ ok: false, error: error?.message || "Download failed." });
         });
       return true;
@@ -386,7 +386,7 @@ function registerServiceWorkerRuntime(chromeApi = globalThis.chrome, overrides =
       refreshSamacsysAuthorization(message.partContext, message.sourceTabId || null, deps)
         .then((result) => sendResponse(result))
         .catch((error) => {
-          console.error("easy EDA downloader auth refresh error:", error);
+          console.error("Easy ECAD Downloader auth refresh error:", error);
           sendResponse({ ok: false, error: error?.message || "Auth refresh failed." });
         });
       return true;

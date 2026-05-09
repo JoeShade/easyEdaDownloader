@@ -5,7 +5,7 @@
  */
 
 const KI_SYMBOL_LIB_VERSION = "20211014";
-const KI_SYMBOL_GENERATOR = "easy EDA downloader";
+const KI_SYMBOL_GENERATOR = "Easy ECAD Downloader";
 
 const KI_SYMBOL_CONFIG = {
   pinLength: 2.54,
