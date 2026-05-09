@@ -17,6 +17,7 @@ import {
 } from "./core/part_context.js";
 
 const DEFAULT_SOURCE_PART_LABEL = "Part";
+const SAMACSYS_PREVIEW_IMAGE_CLASS = "samacsys-preview-image";
 const chromeApi = globalThis.chrome;
 const popupWindow = globalThis.window;
 const popupDocument = globalThis.document;
@@ -73,6 +74,18 @@ function hasSelection() {
 function updateDownloadEnabled() {
   downloadButton.disabled =
     !currentPartContext?.provider || isBlockedProvider() || !hasSelection();
+}
+
+function setPreviewProviderStyle(partContext) {
+  const isSamacsysPreview = isSamacsysProviderShared(partContext?.provider);
+  symbolPreviewEl.classList.toggle(
+    SAMACSYS_PREVIEW_IMAGE_CLASS,
+    isSamacsysPreview
+  );
+  footprintPreviewEl.classList.toggle(
+    SAMACSYS_PREVIEW_IMAGE_CLASS,
+    isSamacsysPreview
+  );
 }
 
 function setPreviewLoading(fallbackEl, imgEl) {
@@ -135,6 +148,7 @@ function setIdentifierDisplay(sourcePartLabel, sourcePartNumber, manufacturerPar
 function setUnavailableDisplay(statusMessage) {
   currentPartContext = null;
   currentSourceTabId = null;
+  setPreviewProviderStyle(null);
   sourcePartLabelEl.textContent = DEFAULT_SOURCE_PART_LABEL;
   manufacturerPartNumberEl.textContent = "Unavailable";
   partNumberEl.textContent = "Unavailable";
@@ -211,6 +225,7 @@ function openSettingsPage() {
 // Update UI state based on whether a supported provider was found.
 function setPartContext(partContext) {
   currentPartContext = partContext?.provider ? partContext : null;
+  setPreviewProviderStyle(currentPartContext);
 
   if (!currentPartContext) {
     setIdentifierDisplay(DEFAULT_SOURCE_PART_LABEL, null, null);

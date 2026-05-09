@@ -85,6 +85,11 @@ h1 {
   object-fit: contain;
 }
 
+.preview-image.samacsys-preview-image {
+  filter: grayscale(1) saturate(0) brightness(0.58) contrast(12);
+  mix-blend-mode: multiply;
+}
+
 .preview-image.hidden {
   display: none;
 }
@@ -156,12 +161,6 @@ h1 {
   flex-direction: column;
   gap: 8px;
   padding-top: 6px;
-  border-top: 1px solid #e2e8f0;
-  font-size: 12px;
-}
-
-.settings-header {
-  font-weight: 600;
   font-size: 12px;
 }
 
@@ -268,6 +267,10 @@ h1 {
   color: #4a5568;
   min-height: 16px;
   text-align: center;
+}
+
+.status:empty {
+  display: none;
 }
 
 /* Error state for status messages. */

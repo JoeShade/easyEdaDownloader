@@ -228,6 +228,14 @@ describe("popup", () => {
     expect(hooks.elements.downloadButton.disabled).toBe(false);
     expect(hooks.elements.symbolPreviewEl.src).toContain("data:image/svg+xml");
     expect(hooks.elements.footprintPreviewEl.src).toContain("data:image/svg+xml");
+    expect(
+      hooks.elements.symbolPreviewEl.classList.contains("samacsys-preview-image")
+    ).toBe(false);
+    expect(
+      hooks.elements.footprintPreviewEl.classList.contains(
+        "samacsys-preview-image"
+      )
+    ).toBe(false);
 
     hooks.elements.downloadSymbolEl.checked = false;
     hooks.elements.downloadFootprintEl.checked = false;
@@ -276,6 +284,14 @@ describe("popup", () => {
     );
     expect(hooks.elements.symbolPreviewEl.src).toContain("data:image/png;base64");
     expect(hooks.elements.footprintPreviewEl.src).toContain("data:image/png;base64");
+    expect(
+      hooks.elements.symbolPreviewEl.classList.contains("samacsys-preview-image")
+    ).toBe(true);
+    expect(
+      hooks.elements.footprintPreviewEl.classList.contains(
+        "samacsys-preview-image"
+      )
+    ).toBe(true);
 
     hooks.elements.downloadDatasheetEl.checked = false;
     hooks.elements.downloadButton.click();
