@@ -78,8 +78,11 @@ describe("service worker core helpers", () => {
         samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
         samacsysFirefoxProxyAuthorizationHeader: "Authorization: Bearer proxy123",
         samacsysFirefoxAuthorizationHeader: "Authorization: Basic abc123",
+        rememberSamacsysFirefoxProxyAuthorizationHeader: true
+      },
+      sessionStorageState: {
         samacsysFirefoxCapturedAuthorizationHeader: "Authorization: Basic captured123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: "2026-04-14T11:40:00.000Z"
+        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
       }
     });
 
@@ -92,7 +95,24 @@ describe("service worker core helpers", () => {
       samacsysFirefoxPassword: "",
       samacsysFirefoxAuthorizationHeader: "Basic abc123",
       samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
-      samacsysFirefoxCapturedAuthorizationCapturedAt: "2026-04-14T11:40:00.000Z"
+      samacsysFirefoxCapturedAuthorizationCapturedAt: expect.any(String),
+      rememberSamacsysCredentials: false,
+      rememberSamacsysFirefoxProxyAuthorizationHeader: true
+    });
+  });
+
+  it("ignores expired Firefox-captured SamacSys auth from session storage", async () => {
+    const { chrome } = createServiceWorkerChrome({
+      sessionStorageState: {
+        samacsysFirefoxCapturedAuthorizationHeader: "Basic expired123",
+        samacsysFirefoxCapturedAuthorizationCapturedAt:
+          "2026-04-14T11:40:00.000Z"
+      }
+    });
+
+    await expect(loadSettings(chrome)).resolves.toMatchObject({
+      samacsysFirefoxCapturedAuthorizationHeader: "",
+      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
     });
   });
 
@@ -111,7 +131,7 @@ describe("service worker core helpers", () => {
   });
 
   it("captures and persists the latest Firefox SamacSys Authorization header", async () => {
-    const { chrome, listeners, storage } = createServiceWorkerChrome();
+    const { chrome, listeners, sessionStorage } = createServiceWorkerChrome();
     loadServiceWorker({
       chrome,
       fetchImpl: vi.fn(),
@@ -129,16 +149,16 @@ describe("service worker core helpers", () => {
       ]
     });
 
-    expect(storage.samacsysFirefoxCapturedAuthorizationHeader).toBe(
+    expect(sessionStorage.samacsysFirefoxCapturedAuthorizationHeader).toBe(
       "Basic captured-from-browser"
     );
-    expect(storage.samacsysFirefoxCapturedAuthorizationCapturedAt).toMatch(
+    expect(sessionStorage.samacsysFirefoxCapturedAuthorizationCapturedAt).toMatch(
       /^20\d\d-\d\d-\d\dT/
     );
   });
 
   it("refreshes SamacSys auth by triggering the page-native auth flow on the source tab", async () => {
-    const { chrome, listeners, storage } = createServiceWorkerChrome({
+    const { chrome, listeners, sessionStorage } = createServiceWorkerChrome({
       storageState: {
         samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
       }
@@ -179,7 +199,7 @@ describe("service worker core helpers", () => {
     expect(result.response).toEqual({
       ok: true,
       authorizationHeader: "Basic refreshed123",
-      capturedAt: storage.samacsysFirefoxCapturedAuthorizationCapturedAt
+      capturedAt: sessionStorage.samacsysFirefoxCapturedAuthorizationCapturedAt
     });
   });
 
@@ -223,7 +243,7 @@ describe("service worker core helpers", () => {
   });
 
   it("triggers the current Farnell page instead of opening a separate auth tab", async () => {
-    const { chrome, listeners, storage } = createServiceWorkerChrome({
+    const { chrome, listeners, sessionStorage } = createServiceWorkerChrome({
       storageState: {
         samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
       }
@@ -264,7 +284,7 @@ describe("service worker core helpers", () => {
     expect(result.response).toEqual({
       ok: true,
       authorizationHeader: "Basic refreshed123",
-      capturedAt: storage.samacsysFirefoxCapturedAuthorizationCapturedAt
+      capturedAt: sessionStorage.samacsysFirefoxCapturedAuthorizationCapturedAt
     });
   });
 

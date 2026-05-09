@@ -463,9 +463,8 @@ describe("repository hygiene", () => {
       fs.readFileSync(path.join(REPO_ROOT, "docs/deviations.md"), "utf8")
     );
 
-    expect(deviationsText).toContain(
-      "No material code/design mismatches are intentionally tracked at this time."
-    );
+    expect(deviationsText).toContain("samacsysFirefoxAuthorizationHeader");
+    expect(deviationsText).toContain("settings page no longer exposes");
     expect(deviationsText).not.toMatch(/^\s*[-*]\s+/m);
     expect(deviationsText).not.toMatch(/^\s*\d+\.\s+/m);
     expect(deviationsText.trim().split("\n").length).toBeLessThanOrEqual(6);

@@ -82,7 +82,7 @@ npm run validate
 - EasyEDA-backed JLCPCB and LCSC export works in Chrome and Firefox.
 - SamacSys distributor export works directly in Chrome.
 - Firefox can use SamacSys distributor export only when an advanced user-managed relay URL is configured in the extension settings page.
-- SamacSys ZIP export may require the user to be signed in to the upstream service even when previews still load. Chrome first tries the normal browser session and then retries one ZIP download with configured upstream auth if the first ZIP request returns `401`. On Firefox relay mode, the extension forwards matching SamacSys cookies through the relay, can generate the upstream SamacSys HTTP Basic auth header locally from optional stored credentials, can fall back to the latest captured upstream `Authorization` header, and can send separate relay auth to the Worker itself.
+- SamacSys ZIP export may require the user to be signed in to the upstream service even when previews still load. Chrome first tries the normal browser session and then retries one ZIP download with configured upstream auth if the first ZIP request returns `401`. On Firefox relay mode, the extension forwards matching SamacSys cookies through the relay, can generate the upstream SamacSys HTTP Basic auth header locally from optional session or remembered credentials, can fall back to a fresh captured upstream `Authorization` header, and can send separate helper-service auth to the Worker itself.
 
 ### Settings
 
@@ -90,22 +90,21 @@ Use the popup `Open settings` button, or the browser extension settings page, to
 
 - `Save each file separately`: downloads separate files directly into `Downloads`
 - `KiCad library folder`: stores grouped KiCad library exports in a Downloads folder, such as `easyEDADownloader` or `KiCad/easyEDA`
-- `Helper service URL`: Firefox-only setting used when Firefox needs a user-managed helper service for Mouser/Farnell downloads
-- `Helper service password or token`: optional Firefox-only password/token for that helper service
 - `SamacSys username` and `SamacSys password`: optional sign-in details for Mouser/Farnell CAD downloads
-- `Advanced sign-in code`: leave blank unless you know you need a custom sign-in value
-- `Saved Firefox sign-in`: Firefox-only status showing whether a recent SamacSys sign-in can be reused
 
-Firefox-only helper and saved sign-in fields are hidden when the settings page is opened in Chrome.
+Firefox shows an `Advanced Firefox settings` menu for the helper service URL, optional helper password/token, and recent Firefox sign-in status. Chrome hides that menu.
+
+Password and token fields are blank when the settings page opens. New values are kept for the current browser session by default. Tick the relevant `Remember ... on this device` box only if you accept the risk of storing that secret in the browser profile.
+
+Settings changes are not stored until you press `Save`. Use `Discard` to restore the last loaded settings.
 
 For authenticated SamacSys ZIP downloads, the extension uses this upstream auth precedence:
 
-- `Advanced sign-in code`
 - generated Basic auth from `SamacSys username` and `SamacSys password`
 - latest captured upstream SamacSys `Authorization` header
 - no upstream auth header
 
-If you do not want to store credentials, stay signed in on the upstream Mouser/Farnell SamacSys flow so the extension can reuse the browser session directly on Chrome or through the helper service on Firefox. If your helper service is protected, put its password or token in `Helper service password or token`.
+If you do not want to remember credentials on this device, leave the remember boxes unticked and stay signed in on the upstream Mouser/Farnell SamacSys flow so the extension can reuse the browser session directly on Chrome or through the helper service on Firefox.
 
 When `Download individually` is disabled, the extension writes a KiCad-style library layout under:
 

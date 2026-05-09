@@ -50,12 +50,12 @@ The current repository does not implement:
 - On Chrome direct requests, the worker first tries the normal browser session and retries the ZIP request once with configured upstream auth if the first ZIP request returns `401`.
 - On Firefox relay mode, the worker uses the relay path and keeps the existing auth-refresh retry behavior after ZIP-auth failures.
 - In Firefox relay mode, the service worker forwards matching `componentsearchengine.com` cookies through the relay so authenticated ZIP downloads can reuse the user's upstream browser session.
-- Firefox relay mode can send a separate relay `Authorization` header on the Worker POST when the user configures proxy auth.
+- Firefox relay mode can send a separate relay `Authorization` header on the Worker POST when the user configures helper-service auth.
 - Firefox relay mode can forward an upstream SamacSys `Authorization` header for ZIP endpoints that rely on HTTP Basic auth instead of cookies alone.
 - Across authenticated SamacSys ZIP flows, upstream auth precedence is:
-  - manual override from extension settings
-  - locally generated HTTP Basic auth header from stored SamacSys username and password
-  - latest Firefox-captured upstream header
+  - hidden stored manual override, when already present
+  - locally generated HTTP Basic auth header from SamacSys username and password stored for the session or explicitly remembered on this device
+  - latest fresh Firefox-captured upstream header
   - no upstream authorization header
 - The Manifest V3 background is declared for both Chrome and Firefox: Chrome uses `background.service_worker`, while Firefox uses the background-document fallback from `background.scripts`. This combined manifest relies on Firefox 121 or newer.
 - The configurable library download root must remain relative to the browser's Downloads directory.
@@ -73,7 +73,7 @@ flowchart LR
     contentScript["Content script\nsrc/content_script.js"]
     popup["Extension popup\nsrc/popup.js"]
     settingsPage["Settings page\nsrc/settings_page.js"]
-    storage["Browser storage\nchrome.storage.local"]
+    storage["Browser storage\nchrome.storage.local/session"]
     serviceWorker["Extension backend\nsrc/service_worker.js"]
     converter["EasyEDA converter\nsrc/kicad_converter.js"]
     zipReader["SamacSys ZIP reader\nsrc/vendor/zip_reader.js"]
@@ -120,7 +120,7 @@ It remains a DOM-reading boundary with no network or download logic.
 Owns popup UI state and user interaction:
 
 - cache popup DOM elements
-- load current settings from `chrome.storage.local` for provider gating
+- load current settings from extension storage for provider gating
 - query the active tab and request the current provider-aware part context
 - render the fixed `Mfr. Part #` row plus a dynamic provider-specific source row
 - request previews and datasheet availability
@@ -134,10 +134,12 @@ It remains the UI-facing boundary. It does not own fetch, archive extraction, or
 
 Owns persistent settings UI:
 
-- load and save settings through `chrome.storage.local`
+- load and save ordinary settings through `chrome.storage.local`
+- keep helper tokens and SamacSys credentials in `chrome.storage.session` unless the user explicitly opts to remember them on this device
+- keep form edits local to the page until the user chooses `Save`, with `Discard` restoring the last loaded settings
 - expose the download layout controls, including loose-file mode and library folder root
-- expose advanced Firefox SamacSys relay settings
-- expose cross-browser upstream SamacSys auth inputs, including separate relay auth, optional stored SamacSys credentials, read-only Firefox-captured auth status, and a manual upstream auth override
+- expose SamacSys username/password auth inputs for Mouser/Farnell downloads
+- expose Firefox-only helper-service auth, relay URL, and captured-auth status inside a hidden-by-default advanced Firefox settings menu
 - normalize settings through `src/core/settings.js`
 
 It does not request part contexts, previews, exports, or downloads.
@@ -157,7 +159,7 @@ Own the service-worker backend orchestration:
 
 - normalize part context and route preview/export requests by provider
 - enforce runtime-specific blocking such as Firefox SamacSys gating when no relay is configured
-- capture the latest Firefox SamacSys upstream `Authorization` header through `webRequest` and persist it for relay reuse
+- capture the latest Firefox SamacSys upstream `Authorization` header through `webRequest` and store it as short-lived session data for relay reuse
 - orchestrate Firefox SamacSys auth refresh and retry behavior after ZIP-auth failures and wait for a fresh captured upstream `Authorization`
 - compose source adapters with shared download, storage, and settings helpers
 - shape success and error responses back to the popup
@@ -268,7 +270,7 @@ The test suite remains the primary regression net for:
 - For authenticated ZIP flows that use HTTP Basic auth, the service worker resolves upstream SamacSys `Authorization` from the shared precedence and:
   - on Chrome direct requests, retries one ZIP request with that auth after an initial `401`
   - on Firefox relay requests, forwards that auth through the relay as part of the proxied upstream request
-- When proxy auth is configured, the relay POST itself also carries a separate relay `Authorization` header that is never forwarded upstream.
+- When helper-service auth is configured, the relay POST itself also carries a separate relay `Authorization` header that is never forwarded upstream.
 - When Firefox SamacSys ZIP export returns the sign-in-required `401` error, the runtime tells the current product tab to trigger its native SamacSys ECAD flow once, waits for the first new captured upstream `Authorization` header, and retries that export one time.
 - The part page supplies:
   - a stable `partID`
@@ -293,17 +295,23 @@ The test suite remains the primary regression net for:
 
 - The popup stays focused on detection, previews, export selection, and opening the dedicated settings page.
 - The settings page owns persistent controls for download layout, Firefox relay configuration, and optional SamacSys auth values.
-- The settings page hides Firefox-only relay and captured-auth controls when opened in Chrome.
-- `chrome.storage.local` stores extension settings:
+- The settings page uses explicit `Save` and `Discard` actions rather than writing every field edit immediately.
+- The settings page hides the advanced Firefox settings menu when opened in Chrome.
+- `chrome.storage.local` stores ordinary extension settings:
   - `downloadIndividually`
   - `libraryDownloadRoot`
   - `samacsysFirefoxProxyBaseUrl`
+  - `rememberSamacsysCredentials`
+  - `rememberSamacsysFirefoxProxyAuthorizationHeader`
+  - `samacsysFirefoxAuthorizationHeader`, a hidden legacy/manual override still honored by worker auth resolution
+- `chrome.storage.session` stores session-only secret values by default:
   - `samacsysFirefoxProxyAuthorizationHeader`
   - `samacsysFirefoxUsername`
   - `samacsysFirefoxPassword`
-  - `samacsysFirefoxAuthorizationHeader`
   - `samacsysFirefoxCapturedAuthorizationHeader`
   - `samacsysFirefoxCapturedAuthorizationCapturedAt`
+- If a remember-on-this-device box is checked, the corresponding helper token or SamacSys username/password is stored in `chrome.storage.local` instead.
+- Firefox-captured upstream auth is ignored when it is older than one hour.
 - `chrome.storage.local` also stores accumulated symbol library text used for append-style symbol exports in library mode.
 - Stored symbol-library content is keyed by the resolved library root so separate library folders keep separate merged symbol libraries.
 
@@ -330,6 +338,7 @@ The test suite remains the primary regression net for:
 
 - `chrome.runtime`
 - `chrome.storage.local`
+- `chrome.storage.session`
 - `chrome.downloads`
 - `chrome.cookies` for Firefox relay cookie forwarding on SamacSys requests
 - `chrome.webRequest` for Firefox SamacSys upstream `Authorization` capture

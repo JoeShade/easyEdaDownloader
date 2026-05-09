@@ -486,7 +486,9 @@ describe("service worker SamacSys direct flow", () => {
   it("retries one Chrome SamacSys ZIP request with generated Basic auth after a 401", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
-        downloadIndividually: true,
+        downloadIndividually: true
+      },
+      sessionStorageState: {
         samacsysFirefoxUsername: "user@example.com",
         samacsysFirefoxPassword: "secret123"
       }
@@ -534,10 +536,11 @@ describe("service worker SamacSys direct flow", () => {
   it("uses a stored captured SamacSys header for the Chrome ZIP retry when one exists", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
-        downloadIndividually: true,
+        downloadIndividually: true
+      },
+      sessionStorageState: {
         samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt:
-          "2026-04-14T11:40:00.000Z"
+        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
       }
     });
     const readZipEntries = vi.fn(async () => [

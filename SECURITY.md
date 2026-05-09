@@ -22,20 +22,22 @@ The repository hygiene suite checks for high-confidence token/private-key patter
 
 ## Credential and Auth Handling
 
-The extension stores user settings in `chrome.storage.local`. That storage can include:
+The extension stores ordinary settings in `chrome.storage.local`. That storage can include:
 
 - the optional Firefox SamacSys relay URL
-- the optional Firefox SamacSys relay `Authorization` header
-- optional SamacSys username and password values used to generate upstream HTTP Basic auth
+- remember-on-this-device flags for optional secrets
 - an optional manual upstream SamacSys `Authorization` override
-- the latest Firefox-captured upstream SamacSys `Authorization` header and capture timestamp
 - accumulated KiCad symbol-library text used for library-mode exports
+
+The optional Firefox helper password/token and optional SamacSys username/password are stored in `chrome.storage.session` by default, so they are kept only for the current browser session. They are copied to `chrome.storage.local` only when the user explicitly ticks the matching `Remember ... on this device` box after reading the warning in the settings page.
+
+The latest Firefox-captured upstream SamacSys `Authorization` header is stored in `chrome.storage.session` and treated as short-lived session data. The extension ignores captured auth values older than one hour.
 
 Relay auth and upstream SamacSys auth are intentionally separate. The relay auth header is sent only to the configured user-managed relay. Upstream SamacSys auth is sent only to SamacSys or inside a relay payload that asks the relay to contact SamacSys.
 
 The repository does not host or operate a relay service. Users who configure a relay are responsible for its deployment, access controls, logs, and secret handling.
 
-To clear stored credentials, blank the corresponding popup settings and save them, or remove the extension's local storage from the browser. Removing the extension also clears its extension-owned local storage in normal browser configurations.
+To clear stored credentials, use the clear buttons in the settings page, untick remember-on-this-device options, or remove the extension's local/session storage from the browser. Removing the extension also clears its extension-owned storage in normal browser configurations.
 
 ## Security-Sensitive Areas
 

@@ -286,8 +286,10 @@ describe("service worker Firefox SamacSys flow", () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
         samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
-        samacsysFirefoxProxyAuthorizationHeader: "Bearer relay-secret",
         samacsysFirefoxAuthorizationHeader: "Basic abc123"
+      },
+      sessionStorageState: {
+        samacsysFirefoxProxyAuthorizationHeader: "Bearer relay-secret"
       },
       cookieState: {
         "*": [
@@ -322,10 +324,11 @@ describe("service worker Firefox SamacSys flow", () => {
   it("uses the captured SamacSys Authorization header when no manual override exists", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
-        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+      },
+      sessionStorageState: {
         samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt:
-          "2026-04-14T11:40:00.000Z"
+        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
       }
     });
     const fetchImpl = createSamacsysFetchImpl({
@@ -351,12 +354,13 @@ describe("service worker Firefox SamacSys flow", () => {
   it("builds the SamacSys Authorization header from stored credentials when no manual override exists", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
-        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
+      },
+      sessionStorageState: {
         samacsysFirefoxUsername: "user@example.com",
         samacsysFirefoxPassword: "secret123",
         samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt:
-          "2026-04-14T11:40:00.000Z"
+        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
       }
     });
     const fetchImpl = createSamacsysFetchImpl({
@@ -383,10 +387,11 @@ describe("service worker Firefox SamacSys flow", () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
         samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
-        samacsysFirefoxAuthorizationHeader: "Basic manual123",
+        samacsysFirefoxAuthorizationHeader: "Basic manual123"
+      },
+      sessionStorageState: {
         samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt:
-          "2026-04-14T11:40:00.000Z"
+        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
       }
     });
     const fetchImpl = createSamacsysFetchImpl({

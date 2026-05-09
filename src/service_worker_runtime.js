@@ -104,26 +104,31 @@ function registerSamacsysAuthorizationCapture(chromeApi, userAgent) {
       }
       const capturedAt = new Date().toISOString();
 
-      chromeApi.storage?.local?.set?.(
-        {
-          samacsysFirefoxCapturedAuthorizationHeader:
-            capturedAuthorizationHeader,
-          samacsysFirefoxCapturedAuthorizationCapturedAt: capturedAt
-        },
-        () => {
-          if (chromeApi.runtime?.lastError) {
-            console.warn(
-              "Failed to persist SamacSys Authorization header:",
-              chromeApi.runtime.lastError
-            );
-            return;
-          }
-          notifySamacsysAuthorizationCaptured({
-            authorizationHeader: capturedAuthorizationHeader,
-            capturedAt
-          });
+      const capture = {
+        samacsysFirefoxCapturedAuthorizationHeader:
+          capturedAuthorizationHeader,
+        samacsysFirefoxCapturedAuthorizationCapturedAt: capturedAt
+      };
+      if (!chromeApi.storage?.session?.set) {
+        notifySamacsysAuthorizationCaptured({
+          authorizationHeader: capturedAuthorizationHeader,
+          capturedAt
+        });
+        return undefined;
+      }
+      chromeApi.storage.session.set(capture, () => {
+        if (chromeApi.runtime?.lastError) {
+          console.warn(
+            "Failed to persist SamacSys Authorization header for this session:",
+            chromeApi.runtime.lastError
+          );
+          return;
         }
-      );
+        notifySamacsysAuthorizationCaptured({
+          authorizationHeader: capturedAuthorizationHeader,
+          capturedAt
+        });
+      });
       return undefined;
     },
     {

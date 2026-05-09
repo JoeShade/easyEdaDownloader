@@ -7,13 +7,18 @@ import { expect, vi } from "vitest";
 
 import { registerServiceWorkerRuntime } from "../../src/service_worker_runtime.js";
 
-export function createServiceWorkerChrome({ storageState = {}, cookieState = {} } = {}) {
+export function createServiceWorkerChrome({
+  storageState = {},
+  sessionStorageState = {},
+  cookieState = {}
+} = {}) {
   const listeners = {
     runtimeMessage: [],
     downloadsChanged: [],
     beforeSendHeaders: []
   };
   const storage = { ...storageState };
+  const sessionStorage = { ...sessionStorageState };
   const cookieJar = { ...cookieState };
   let nextDownloadId = 1;
 
@@ -69,6 +74,24 @@ export function createServiceWorkerChrome({ storageState = {}, cookieState = {} 
           Object.assign(storage, items);
           callback?.();
         })
+      },
+      session: {
+        get: vi.fn((defaults, callback) => {
+          const result = {};
+          for (const [key, fallback] of Object.entries(defaults)) {
+            result[key] = Object.prototype.hasOwnProperty.call(
+              sessionStorage,
+              key
+            )
+              ? sessionStorage[key]
+              : fallback;
+          }
+          callback(result);
+        }),
+        set: vi.fn((items, callback) => {
+          Object.assign(sessionStorage, items);
+          callback?.();
+        })
       }
     },
     cookies: {
@@ -78,7 +101,7 @@ export function createServiceWorkerChrome({ storageState = {}, cookieState = {} 
     }
   };
 
-  return { chrome, listeners, storage };
+  return { chrome, listeners, storage, sessionStorage };
 }
 
 export function createMockUrlApi() {

@@ -1,5 +1,5 @@
 # Current Deviations from `systemDesign.md`
 
-No material code/design mismatches are intentionally tracked at this time.
+The stored `samacsysFirefoxAuthorizationHeader` manual SamacSys sign-in override is still honored by backend auth resolution, but the settings page no longer exposes a field to create or edit it.
 
-Use this file only for active temporary divergences that should be reconciled in code or in `systemDesign.md`. Remove resolved items instead of leaving backlog or historical notes behind.
+Resolve this by either removing backend/manual-override support or adding a deliberately advanced UI with clearer safety copy.
