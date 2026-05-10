@@ -292,7 +292,7 @@ Easy ECAD Downloader can only export files that are available from the source pa
 ## <img src="docs/assets/readme/icon-technical.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Technical overview
 
 <p align="center">
-  <img src="docs/assets/readme/architecture.svg" alt="Extension architecture overview" width="760">
+  <img src="docs/assets/readme/architectureDiagram.png" alt="Extension architecture overview" width="760">
 </p>
 
 At a high level, the content script detects supported part pages, the popup requests previews and downloads, the service-worker runtime routes provider-specific work, and the source adapters fetch or repackage upstream CAD assets for KiCad.
