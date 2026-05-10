@@ -128,7 +128,7 @@ Downloads/
 ## <img src="docs/assets/readme/icon-settings.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Settings
 
 <p align="center">
-  <img src="docs/assets/readme/settings.svg" alt="Placeholder settings page" width="720">
+  <img src="docs/assets/readme/settingsPreview.png" alt="Easy ECAD Downloader settings page" width="760">
 </p>
 
 | Setting | Purpose |
