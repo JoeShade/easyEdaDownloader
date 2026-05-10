@@ -1,13 +1,14 @@
-# Firefox SamacSys Proxy for Cloudflare Workers
+# Firefox SamacSys Reverse Proxy
 
-This document provides a minimal Cloudflare Worker relay for the Firefox SamacSys proxy setting added in the extension.
+This document provides a minimal reverse proxy framework for the Firefox SamacSys proxy included in the extension, this is needed for SamacSys use in firefox.
 
-Use it only for testing or for your own self-managed setup. The extension does not host or operate this relay.
+This is an experimental feature and the maintainers take no responsibility for this feature, the extension does not host or operate this proxy
 
-## Worker contract
+## Reverse Proxy Logic
 
-The extension sends a `POST` request to the Worker. The Worker request itself can include a relay-only `Authorization` header, while the JSON payload continues to carry upstream SamacSys headers separately:
+The extension sends a `POST` request to the proxy. The proxy request includes a `Authorization` header to authorise the request with the proxy using a bearer token, while the JSON payload includes the SamacSys headers and body separately:
 
+SamacSys Body and Headers:
 ```json
 {
   "url": "https://ms.componentsearchengine.com/entry_u_newDesign.php?...",
@@ -23,29 +24,53 @@ The extension sends a `POST` request to the Worker. The Worker request itself ca
 }
 ```
 
-The Worker request headers look like:
+The Reverse Proxy request headers look like:
 
-```http
-Authorization: Bearer your-relay-secret
-Content-Type: application/json
-Accept: */*
+```json
+{
+  "Content-Type": "application/json",
+  "Authorization": "Bearer YOUR_RELAY_TOKEN"
+}
 ```
 
-The Worker:
+a combined post request to the proxy would look something like this
 
-- optionally validates the relay request `Authorization` header before doing any upstream work
-- fetches the upstream SamacSys URL server-side
-- forwards the provided upstream cookie header when present
-- forwards the provided upstream `Authorization` header when present
-- returns the upstream response body and status
-- adds permissive CORS headers
-- adds `x-upstream-url` so the extension can preserve the final upstream URL after redirects
+```json
+{
+  "url": "https://your-worker.your-subdomain.workers.dev",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer YOUR_RELAY_TOKEN"
+  },
+  "body": {
+    "url": "https://ms.componentsearchengine.com/entry_u_newDesign.php?...",
+    "method": "GET",
+    "headers": {
+      "Accept": "text/html",
+      "Cookie": "PHPSESSID=example-session; partner=mouser",
+      "Authorization": "Basic SAMACSYS_AUTH_VALUE"
+    },
+    "bodyText": null,
+    "bodyBase64": null
+  }
+}
+```
 
-## Cloudflare Worker source
+
+The Proxy:
+
+This proxy first authenticates the caller by validating the incoming Authorization header against the configured proxy token.
+
+After authentication, it performs the SamacSys / Component Search Engine request server-side. It forwards the supplied upstream Cookie and Authorization headers to SamacSys, then returns the upstream response body and HTTP status code unchanged.
+
+The response is then edited to include permissive CORS headers so the browser extension can access it. It also includes an x-upstream-url header, allowing the extension to see the final upstream URL after any redirects.
+
+## Below is a minimal cloudflare worker implementation  
 
 ```js
-const ALLOWED_HOST_PATTERN = /(^|\\.)componentsearchengine\\.com$/i;
-const RELAY_AUTHORIZATION = "Bearer replace-me";
+const ALLOWED_HOST_PATTERN = /(^|\.)componentsearchengine\.com$/i;
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization",
@@ -53,67 +78,49 @@ const CORS_HEADERS = {
   "Access-Control-Max-Age": "86400"
 };
 
-function withCorsHeaders(headers = new Headers()) {
+const BLOCKED_FORWARD_HEADERS = new Set([
+  "host",
+  "content-length"
+]);
+
+function withCors(headers = new Headers()) {
   for (const [key, value] of Object.entries(CORS_HEADERS)) {
     headers.set(key, value);
   }
+
   return headers;
 }
 
-function decodeBase64ToUint8Array(value) {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
+function textResponse(body, status) {
+  return new Response(body, {
+    status,
+    headers: withCors()
+  });
 }
 
-function normalizeForwardHeaders(headers = {}) {
-  const result = new Headers();
-  for (const [key, value] of Object.entries(headers || {})) {
-    if (!value) {
-      continue;
-    }
-    const normalizedKey = String(key).toLowerCase();
-    if (
-      normalizedKey === "host" ||
-      normalizedKey === "content-length" ||
-      normalizedKey.startsWith("cf-")
-    ) {
-      continue;
-    }
-    result.set(key, value);
-  }
-  return result;
-}
+function isAuthorized(request, env) {
+  const token = String(env.RELAY_BEARER_TOKEN || "").trim();
 
-function buildUpstreamRequest(body) {
-  const requestInit = {
-    method: body.method || "GET",
-    headers: normalizeForwardHeaders(body.headers)
-  };
-
-  if (body.bodyText !== null && body.bodyText !== undefined) {
-    requestInit.body = body.bodyText;
-  } else if (body.bodyBase64) {
-    requestInit.body = decodeBase64ToUint8Array(body.bodyBase64);
+  if (!token) {
+    return false;
   }
 
-  return requestInit;
+  return request.headers.get("Authorization") === `Bearer ${token}`;
 }
 
 function validateTargetUrl(url) {
   let parsedUrl;
+
   try {
     parsedUrl = new URL(String(url || ""));
   } catch {
     throw new Error("Invalid upstream URL.");
   }
 
-  if (!/^https?:$/i.test(parsedUrl.protocol)) {
+  if (!["http:", "https:"].includes(parsedUrl.protocol)) {
     throw new Error("Unsupported upstream protocol.");
   }
+
   if (!ALLOWED_HOST_PATTERN.test(parsedUrl.hostname)) {
     throw new Error("Upstream host is not allowed.");
   }
@@ -121,78 +128,110 @@ function validateTargetUrl(url) {
   return parsedUrl.toString();
 }
 
-function isAuthorizedRelayRequest(request) {
-  if (!RELAY_AUTHORIZATION) {
-    return true;
+function decodeBase64(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
   }
-  return request.headers.get("Authorization") === RELAY_AUTHORIZATION;
+
+  return bytes;
+}
+
+function buildForwardHeaders(headers = {}) {
+  const result = new Headers();
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (!value) continue;
+
+    const normalizedKey = key.toLowerCase();
+
+    if (
+      BLOCKED_FORWARD_HEADERS.has(normalizedKey) ||
+      normalizedKey.startsWith("cf-")
+    ) {
+      continue;
+    }
+
+    result.set(key, String(value));
+  }
+
+  return result;
+}
+
+function buildUpstreamRequest(payload) {
+  const requestInit = {
+    method: payload.method || "GET",
+    headers: buildForwardHeaders(payload.headers)
+  };
+
+  if (payload.bodyText !== null && payload.bodyText !== undefined) {
+    requestInit.body = payload.bodyText;
+  } else if (payload.bodyBase64) {
+    requestInit.body = decodeBase64(payload.bodyBase64);
+  }
+
+  return requestInit;
+}
+
+async function handleRequest(request, env) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: withCors()
+    });
+  }
+
+  if (request.method !== "POST") {
+    return textResponse("Method not allowed.", 405);
+  }
+
+  if (!isAuthorized(request, env)) {
+    return textResponse("Unauthorized.", 401);
+  }
+
+  let payload;
+
+  try {
+    payload = await request.json();
+  } catch {
+    return textResponse("Invalid JSON payload.", 400);
+  }
+
+  let upstreamUrl;
+
+  try {
+    upstreamUrl = validateTargetUrl(payload.url);
+  } catch (error) {
+    return textResponse(error.message || "Bad upstream URL.", 400);
+  }
+
+  let upstreamResponse;
+
+  try {
+    upstreamResponse = await fetch(upstreamUrl, {
+      ...buildUpstreamRequest(payload),
+      redirect: "follow"
+    });
+  } catch (error) {
+    return textResponse(
+      `Upstream fetch failed: ${error.message || "network error"}`,
+      502
+    );
+  }
+
+  const responseHeaders = withCors(new Headers(upstreamResponse.headers));
+  responseHeaders.set("x-upstream-url", upstreamResponse.url || upstreamUrl);
+
+  return new Response(upstreamResponse.body, {
+    status: upstreamResponse.status,
+    headers: responseHeaders
+  });
 }
 
 export default {
-  async fetch(request) {
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: withCorsHeaders()
-      });
-    }
-
-    if (request.method !== "POST") {
-      return new Response("Method not allowed.", {
-        status: 405,
-        headers: withCorsHeaders()
-      });
-    }
-
-    if (!isAuthorizedRelayRequest(request)) {
-      return new Response("Unauthorized.", {
-        status: 401,
-        headers: withCorsHeaders()
-      });
-    }
-
-    let payload;
-    try {
-      payload = await request.json();
-    } catch {
-      return new Response("Invalid JSON payload.", {
-        status: 400,
-        headers: withCorsHeaders()
-      });
-    }
-
-    let upstreamUrl;
-    try {
-      upstreamUrl = validateTargetUrl(payload.url);
-    } catch (error) {
-      return new Response(error.message || "Bad upstream URL.", {
-        status: 400,
-        headers: withCorsHeaders()
-      });
-    }
-
-    let upstreamResponse;
-    try {
-      upstreamResponse = await fetch(upstreamUrl, {
-        ...buildUpstreamRequest(payload),
-        redirect: "follow"
-      });
-    } catch (error) {
-      return new Response(`Upstream fetch failed: ${error.message || "network error"}`, {
-        status: 502,
-        headers: withCorsHeaders()
-      });
-    }
-
-    const responseHeaders = new Headers(upstreamResponse.headers);
-    responseHeaders.set("x-upstream-url", upstreamResponse.url || upstreamUrl);
-    withCorsHeaders(responseHeaders);
-
-    return new Response(upstreamResponse.body, {
-      status: upstreamResponse.status,
-      headers: responseHeaders
-    });
-  }
+  fetch: handleRequest
 };
 ```
 
@@ -200,36 +239,32 @@ export default {
 
 1. Go to [Cloudflare Workers](https://workers.cloudflare.com/).
 2. Create a new Worker.
-3. Replace the default Worker code with the script above.
-4. Deploy it.
-5. Copy the Worker URL, for example:
-   `https://your-samacsys-relay.your-subdomain.workers.dev`
-6. In the extension popup:
-   - open `Advanced`
-   - paste the Worker URL into `Firefox SamacSys proxy URL`
-   - if the Worker validates relay auth, paste the matching value into `Authentication token`
-   - leave `Remember authentication token on this device` unticked unless you accept the local-storage risk
-7. Reload the target Mouser or Farnell page and test previews in Firefox first.
-8. If previews work, try ZIP export.
+3. Replace the default Worker code with the proxy script above.
+4. Add a Worker secret named:
+   `PROXY_BEARER_TOKEN`
+   Set its value to a long random token, for example:
+   `a-long-random-private-token`
+   Do not include `Bearer` in the secret value. The Worker code adds/checks the `Bearer` prefix itself.
+5. Deploy the Worker.
+6. Copy the Worker URL, for example:
+   `https://your-samacsys-proxy.your-subdomain.workers.dev`
+7. In the extension settings, open `Advanced Firefox settings`.
+8. Paste the Worker URL into:
 
-## Troubleshooting order
+   `Firefox SamacSys proxy URL`
+9. Paste the same raw token into:
 
-1. If previews fail:
-   - check the relay URL
-   - confirm the Worker is deployed
-   - confirm the Worker still allows `*.componentsearchengine.com`
-2. If previews work but ZIP export says sign-in is required:
-   - visit the upstream Mouser or Farnell ECAD flow first so Firefox has fresh `componentsearchengine.com` cookies for the extension to forward
-3. If previews work and ZIP export still says sign-in is required:
-   - prefer filling in `SamacSys username` and `SamacSys password` so the extension can generate the upstream HTTP Basic auth header locally
-   - leave `Remember SamacSys sign-in on this device` unticked unless you accept the local-storage risk
-4. Retry ZIP export after updating either cookies or the typed SamacSys credentials.
+   `Authentication token`
+
+   For the Worker code above, this should match the value stored in `PROXY_BEARER_TOKEN`.
+10. Leave `Remember helper password/token on this device` unticked unless you accept the local-storage risk.
+11. Reload the target Mouser or Farnell page.
+12. Test previews in Firefox first.
+13. If previews work, try ZIP export.
 
 ## Notes
 
-- This Worker is intentionally restricted to `*.componentsearchengine.com` targets so it does not become a generic open proxy.
-- The current extension relay contract expects the Worker to expose the final upstream URL through `x-upstream-url`.
-- The extension now forwards matching upstream SamacSys cookies in `headers.Cookie`, so the Worker does not need to manage its own login state.
-- The extension can send relay auth separately in the Worker request `Authorization` header.
-- The extension can also forward an explicit upstream SamacSys `Authorization` header in `headers.Authorization`, sourced from locally generated Basic auth using session/remembered SamacSys credentials.
-- If you want to relay more than SamacSys traffic, change the allowed-host validation deliberately rather than removing it entirely.
+- This Porxy is intentionally restricted to `*.componentsearchengine.com` targets so it does not become a generic open proxy.
+- The current extension relay contract expects the proxy to expose the final upstream URL through `x-upstream-url`.
+- The extension sends porxy auth separately in the proxy request `Authorization` header.
+- The extension also forwards an explicit upstream SamacSys `Authorization` header in `headers.Authorization`, sourced from locally generated Basic auth.
