@@ -52,6 +52,13 @@ const BINARY_EXTENSIONS = new Set([".png"]);
 
 const CAMEL_CASE_FUNCTION_NAME = /^[a-z][A-Za-z0-9]*$/;
 
+const githubSlugForPlainHeading = (heading) =>
+  heading
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9 -]/g, "")
+    .replace(/\s+/g, "-");
+
 const CANONICAL_FOOTER = normalizeNewlines(
   [
     "/*",
@@ -283,6 +290,38 @@ describe("repository hygiene", () => {
       );
       expect(currentIndex).toBeGreaterThan(previousIndex);
       previousIndex = currentIndex;
+    }
+  });
+
+  it("keeps README contents links aligned with GitHub heading anchors", () => {
+    const readmeText = normalizeNewlines(
+      fs.readFileSync(path.join(REPO_ROOT, "README.md"), "utf8")
+    );
+    const contentsMatch = readmeText.match(
+      /^## Contents\n\n((?:- \[[^\]]+\]\(#[^)]+\)\n)+)/m
+    );
+
+    expect(contentsMatch).not.toBeNull();
+
+    const contentsBlock = contentsMatch[1];
+    const linkedFragments = Array.from(
+      contentsBlock.matchAll(/^- \[[^\]]+\]\(#([^)]+)\)$/gm),
+      ([, fragment]) => fragment
+    );
+    const headingFragments = new Set(
+      readmeText
+        .split("\n")
+        .filter((line) => line.startsWith("## "))
+        .map((line) => line.slice(3).trim())
+        .map((heading) => {
+          expect(heading).not.toMatch(/<[^>]+>/);
+          return githubSlugForPlainHeading(heading);
+        })
+    );
+
+    expect(linkedFragments).toEqual([...new Set(linkedFragments)]);
+    for (const fragment of linkedFragments) {
+      expect(headingFragments).toContain(fragment);
     }
   });
 
