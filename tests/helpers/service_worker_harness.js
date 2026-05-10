@@ -14,8 +14,7 @@ export function createServiceWorkerChrome({
 } = {}) {
   const listeners = {
     runtimeMessage: [],
-    downloadsChanged: [],
-    beforeSendHeaders: []
+    downloadsChanged: []
   };
   const storage = { ...storageState };
   const sessionStorage = { ...sessionStorageState };
@@ -28,13 +27,6 @@ export function createServiceWorkerChrome({
       onMessage: {
         addListener(listener) {
           listeners.runtimeMessage.push(listener);
-        }
-      }
-    },
-    webRequest: {
-      onBeforeSendHeaders: {
-        addListener(listener) {
-          listeners.beforeSendHeaders.push(listener);
         }
       }
     },
@@ -115,7 +107,6 @@ export function loadServiceWorker({
   chrome,
   fetchImpl,
   userAgent = "Mozilla/5.0 Chrome/135.0.0.0",
-  samacsysAuthRefreshTimeoutMs,
   convertEasyedaCadToKicad = vi.fn(() => ({})),
   convertObjToWrlString = vi.fn(() => "#VRML"),
   readZipEntries = vi.fn(async () => []),
@@ -124,7 +115,6 @@ export function loadServiceWorker({
   registerServiceWorkerRuntime(chrome, {
     fetchImpl,
     userAgent,
-    samacsysAuthRefreshTimeoutMs,
     convertEasyedaCadToKicad,
     convertObjToWrlString,
     readZipEntries,
@@ -142,10 +132,6 @@ export function sendRuntimeMessage(listener, message) {
       resolve({ handled, response: undefined });
     }
   });
-}
-
-export function emitBeforeSendHeaders(listener, details) {
-  return listener(details);
 }
 
 export function createSamacsysPartContext(distributor, overrides = {}) {

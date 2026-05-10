@@ -207,8 +207,8 @@ export default {
 6. In the extension popup:
    - open `Advanced`
    - paste the Worker URL into `Firefox SamacSys proxy URL`
-   - if the Worker validates relay auth, paste the matching value into `Helper service password or token`
-   - leave `Remember helper password/token on this device` unticked unless you accept the local-storage risk
+   - if the Worker validates relay auth, paste the matching value into `Authentication token`
+   - leave `Remember authentication token on this device` unticked unless you accept the local-storage risk
 7. Reload the target Mouser or Farnell page and test previews in Firefox first.
 8. If previews work, try ZIP export.
 
@@ -223,9 +223,7 @@ export default {
 3. If previews work and ZIP export still says sign-in is required:
    - prefer filling in `SamacSys username` and `SamacSys password` so the extension can generate the upstream HTTP Basic auth header locally
    - leave `Remember SamacSys sign-in on this device` unticked unless you accept the local-storage risk
-   - or let Firefox load a successful upstream SamacSys request first so the extension can auto-capture the latest upstream `Authorization` header
-   - confirm the settings page now shows `Saved Firefox sign-in` as available
-4. Retry ZIP export after updating either cookies or the auth header. The extension will also do one automatic refresh-and-retry cycle after a ZIP `401` in Firefox relay mode.
+4. Retry ZIP export after updating either cookies or the typed SamacSys credentials.
 
 ## Notes
 
@@ -233,6 +231,5 @@ export default {
 - The current extension relay contract expects the Worker to expose the final upstream URL through `x-upstream-url`.
 - The extension now forwards matching upstream SamacSys cookies in `headers.Cookie`, so the Worker does not need to manage its own login state.
 - The extension can send relay auth separately in the Worker request `Authorization` header.
-- The extension can also forward an explicit upstream SamacSys `Authorization` header in `headers.Authorization`, sourced from locally generated Basic auth using session/remembered SamacSys credentials or from the latest fresh Firefox-captured request.
-- Upstream SamacSys auth capture is Firefox-oriented and depends on the extension's `webRequest` permission.
+- The extension can also forward an explicit upstream SamacSys `Authorization` header in `headers.Authorization`, sourced from locally generated Basic auth using session/remembered SamacSys credentials.
 - If you want to relay more than SamacSys traffic, change the allowed-host validation deliberately rather than removing it entirely.

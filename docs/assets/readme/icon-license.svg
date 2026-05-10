@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1155cc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="License and attribution">
+  <g transform="translate(1.2 0.2) scale(0.9)">
+  <path d="M12 3v18"/>
+  <path d="M5 7h14"/>
+  <path d="m6 7-3 7h6L6 7Z"/>
+  <path d="m18 7-3 7h6l-3-7Z"/>
+  <path d="M9 21h6"/>
+  </g>
+</svg>

@@ -140,10 +140,7 @@ async function applyStoredSettings(
     samacsysFirefoxProxyBaseUrl: "",
     samacsysFirefoxProxyAuthorizationHeader: "",
     samacsysFirefoxUsername: "",
-    samacsysFirefoxPassword: "",
-    samacsysFirefoxAuthorizationHeader: "",
-    samacsysFirefoxCapturedAuthorizationHeader: "",
-    samacsysFirefoxCapturedAuthorizationCapturedAt: ""
+    samacsysFirefoxPassword: ""
   }
 ) {
   state.storageGetCalls[0].callback(settings);
@@ -298,7 +295,6 @@ describe("popup", () => {
     expect(state.runtimeMessages[1].message).toEqual({
       type: "EXPORT_PART",
       partContext,
-      sourceTabId: 8,
       options: {
         symbol: true,
         footprint: true,

@@ -7,7 +7,7 @@ This repository is a compact browser extension that detects supported distributo
 - `src/content_script.js`: page detection for EasyEDA/LCSC and SamacSys-backed Mouser/Farnell contexts
 - `src/popup.js`: popup UI state, settings interaction, preview requests, and export requests
 - `src/service_worker.js`: thin background entrypoint that registers the runtime
-- `src/service_worker_runtime.js`: provider routing, runtime gating, auth-refresh orchestration, and worker dependency composition
+- `src/service_worker_runtime.js`: provider routing, runtime gating, response shaping, and worker dependency composition
 - `src/core/`: shared worker helpers for settings, downloads, preview data, export artifacts, and storage-backed libraries
 - `src/sources/`: EasyEDA and SamacSys source adapters and upstream fetch/archive helpers
 - `src/kicad_converter.js` and `src/kicad/`: EasyEDA-to-KiCad conversion and OBJ-to-WRL conversion

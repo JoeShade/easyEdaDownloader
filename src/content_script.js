@@ -28,10 +28,6 @@ const EMPTY_PART_CONTEXT = {
   manufacturerPartNumber: null,
   lookup: null
 };
-const SAMACSYS_DOWNLOAD_TRIGGER_TEXT = "download cad models";
-const SAMACSYS_DOWNLOAD_TRIGGER_TIMEOUT_MS = 5000;
-let scheduledSamacsysDownloadObserver = null;
-let scheduledSamacsysDownloadTimeoutId = null;
 
 function isEasyedaHost() {
   return /(^|\.)((lcsc|jlcpcb)\.com)$/i.test(window.location.hostname);
@@ -471,141 +467,10 @@ function findPartContext() {
   );
 }
 
-function findSamacsysAuthTriggerElement(provider = findPartContext()?.provider) {
-  if (provider === MOUSER_PROVIDER) {
-    return document.querySelector('#lnk_CadModel[data-testid="ProductInfoECAD"]');
-  }
-  if (provider === FARNELL_PROVIDER) {
-    return findSamacsysLinkElement();
-  }
-  return null;
-}
-
-function clearScheduledSamacsysDownloadClick() {
-  scheduledSamacsysDownloadObserver?.disconnect();
-  scheduledSamacsysDownloadObserver = null;
-  if (scheduledSamacsysDownloadTimeoutId !== null) {
-    window.clearTimeout(scheduledSamacsysDownloadTimeoutId);
-    scheduledSamacsysDownloadTimeoutId = null;
-  }
-}
-
-function readSamacsysTriggerLabel(element) {
-  if (!element) {
-    return "";
-  }
-  if (element instanceof window.HTMLInputElement) {
-    return normalizeDetectedValue(element.value) || "";
-  }
-  return (
-    normalizeDetectedValue(element.textContent) ||
-    normalizeDetectedValue(element.getAttribute("aria-label")) ||
-    normalizeDetectedValue(element.getAttribute("title")) ||
-    ""
-  );
-}
-
-function findDownloadCadModelsElement(root = document) {
-  const candidates = root.querySelectorAll(
-    'button, a, [role="button"], input[type="button"], input[type="submit"]'
-  );
-  return Array.from(candidates).find((element) =>
-    normalizeLabel(readSamacsysTriggerLabel(element)).includes(
-      SAMACSYS_DOWNLOAD_TRIGGER_TEXT
-    )
-  ) || null;
-}
-
-function scheduleSamacsysDownloadCadModelsClick(
-  timeoutMs = SAMACSYS_DOWNLOAD_TRIGGER_TIMEOUT_MS
-) {
-  clearScheduledSamacsysDownloadClick();
-
-  const tryClick = () => {
-    const downloadTrigger = findDownloadCadModelsElement();
-    if (!downloadTrigger) {
-      return false;
-    }
-    downloadTrigger.click();
-    clearScheduledSamacsysDownloadClick();
-    return true;
-  };
-
-  if (tryClick() || !document.body) {
-    return;
-  }
-
-  const MutationObserverConstructor = window.MutationObserver;
-  if (!MutationObserverConstructor) {
-    return;
-  }
-
-  scheduledSamacsysDownloadObserver = new MutationObserverConstructor(() => {
-    tryClick();
-  });
-  scheduledSamacsysDownloadObserver.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true
-  });
-  scheduledSamacsysDownloadTimeoutId = window.setTimeout(() => {
-    clearScheduledSamacsysDownloadClick();
-  }, timeoutMs);
-}
-
-function triggerSamacsysAuthFrame(url) {
-  if (!url) {
-    return false;
-  }
-
-  const existingFrame = document.getElementById("easyeda-samacsys-auth-frame");
-  existingFrame?.remove();
-
-  const authFrame = document.createElement("iframe");
-  authFrame.id = "easyeda-samacsys-auth-frame";
-  authFrame.src = url;
-  authFrame.setAttribute("aria-hidden", "true");
-  authFrame.style.position = "fixed";
-  authFrame.style.width = "1px";
-  authFrame.style.height = "1px";
-  authFrame.style.opacity = "0";
-  authFrame.style.pointerEvents = "none";
-  authFrame.style.border = "0";
-  authFrame.style.left = "-9999px";
-  authFrame.style.bottom = "0";
-  document.body.appendChild(authFrame);
-  return true;
-}
-
-function triggerSamacsysAuth(partContext = findPartContext()) {
-  const triggerElement = findSamacsysAuthTriggerElement(partContext?.provider);
-  if (!triggerElement) {
-    const fallbackUrl =
-      partContext?.lookup?.authRefreshUrl || partContext?.lookup?.entryUrl || "";
-    if (triggerSamacsysAuthFrame(fallbackUrl)) {
-      scheduleSamacsysDownloadCadModelsClick();
-      return { ok: true };
-    }
-    return {
-      ok: false,
-      error: "SamacSys auth trigger was not found on the current page."
-    };
-  }
-
-  triggerElement.click();
-  scheduleSamacsysDownloadCadModelsClick();
-  return { ok: true };
-}
-
 // Listen for extension messages and reply with the detected part context.
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "GET_PART_CONTEXT") {
     sendResponse(findPartContext());
-    return true;
-  }
-
-  if (message?.type === "TRIGGER_SAMACSYS_AUTH") {
-    sendResponse(triggerSamacsysAuth(message.partContext));
     return true;
   }
 

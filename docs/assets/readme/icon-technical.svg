@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1155cc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Technical overview">
+  <g transform="translate(1.2 0.2) scale(0.9)">
+  <rect x="7" y="7" width="10" height="10" rx="2"/>
+  <path d="M4 10h3"/>
+  <path d="M4 14h3"/>
+  <path d="M17 10h3"/>
+  <path d="M17 14h3"/>
+  <path d="M10 4v3"/>
+  <path d="M14 4v3"/>
+  <path d="M10 17v3"/>
+  <path d="M14 17v3"/>
+  </g>
+</svg>

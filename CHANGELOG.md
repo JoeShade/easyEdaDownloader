@@ -11,7 +11,7 @@ This section summarizes the current `Development` branch compared with `main` as
 - Added Mouser SamacSys support for part detection, preview loading, upstream KiCad ZIP download, and KiCad library or loose-file export.
 - Added Farnell SamacSys support through the shared SamacSys distributor flow.
 - Added Firefox SamacSys relay support for preview and export requests through a user-managed relay URL.
-- Added SamacSys authentication settings for relay auth, upstream username/password Basic auth generation, manual upstream `Authorization` override, captured Firefox upstream auth reuse, and one automatic Firefox auth-refresh retry after ZIP `401` responses.
+- Added SamacSys authentication settings for relay auth and upstream username/password Basic auth generation.
 - Added a configurable Downloads-relative KiCad library folder.
 - Added runtime ZIP extraction for SamacSys archives, including KiCad symbols, footprints, STEP models, and WRL files already present in the archive.
 - Added `systemDesign.md`, architecture notes, Firefox relay documentation, contribution guidance, and security reporting documentation.
@@ -28,9 +28,10 @@ This section summarizes the current `Development` branch compared with `main` as
 - Split the oversized service-worker regression file into focused core, EasyEDA, direct SamacSys, and Firefox SamacSys test files backed by a shared harness.
 - Reworked the popup into a provider-aware UI that shows fixed manufacturer metadata plus source-specific part metadata and advanced SamacSys/Firefox settings.
 - Moved persistent download layout, Firefox relay, and SamacSys auth settings from the popup into a dedicated extension settings page.
-- Grouped Firefox helper and captured-sign-in controls into a Firefox-only advanced settings menu.
+- Grouped Firefox helper controls into a Firefox-only advanced settings menu.
 - Added explicit `Save` and `Discard` controls to the settings page.
 - Made helper tokens and SamacSys passwords session-only by default, with explicit remember-on-this-device opt-ins and warning copy.
+- Removed hidden upstream `Authorization` capture, manual override handling, and automatic Firefox auth-refresh retry behavior.
 - Updated the manifest for Chrome service-worker operation and Firefox background-document fallback on Firefox `121+`.
 - Updated README and project docs to describe supported providers, setup, settings, auth behavior, browser support, validation, and repository layout.
 

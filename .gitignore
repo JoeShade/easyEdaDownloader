@@ -4,6 +4,7 @@ node_modules/
 coverage/
 docs/easy-ecad-downloader-architecture.drawio
 docs/professional-grade-review.md
+*.psd
 
 # Local secrets and environment files
 .env

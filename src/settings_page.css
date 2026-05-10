@@ -7,11 +7,16 @@
   color-scheme: light;
 }
 
+html,
+body {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   font-family: "Segoe UI", Tahoma, sans-serif;
   color: #1c1f24;
-  background: #f2f4f7;
+  background: #f2f4f7 url("assets/settings-bg.png") no-repeat center / cover;
 }
 
 [hidden] {
@@ -30,6 +35,7 @@ body {
 
 .page-header {
   margin-bottom: 20px;
+  text-align: center;
 }
 
 h1,
@@ -40,7 +46,7 @@ p {
 
 h1 {
   margin-bottom: 8px;
-  font-size: 24px;
+  font-size: 28px;
   color: #1663d6;
 }
 
@@ -92,6 +98,7 @@ h2 {
 
 .settings-input {
   width: 100%;
+  display: block;
   box-sizing: border-box;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
@@ -111,6 +118,81 @@ h2 {
   background: #f8fafc;
   color: #94a3b8;
   cursor: not-allowed;
+}
+
+.password-input-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.password-input-row .settings-input {
+  grid-area: 1 / 1;
+  padding-right: 44px;
+}
+
+.password-toggle {
+  grid-area: 1 / 1;
+  justify-self: end;
+  align-self: stretch;
+  z-index: 1;
+  width: 40px;
+  margin: 1px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 5px 5px 0;
+  background: #1663d6;
+  appearance: none;
+  -webkit-appearance: none;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-toggle:hover,
+.password-toggle:focus {
+  color: #ffffff;
+  background: #0f4ea8;
+}
+
+.password-input-row:focus-within .settings-input {
+  outline: none;
+  border-color: #1663d6;
+  box-shadow: 0 0 0 2px rgba(22, 99, 214, 0.18);
+}
+
+.password-toggle:focus-visible {
+  outline: none;
+}
+
+.password-toggle:disabled {
+  color: #ffffff;
+  background: #9bb5dd;
+  cursor: not-allowed;
+}
+
+.password-toggle-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.password-toggle-icon-hide {
+  display: none;
+}
+
+.password-toggle.is-visible .password-toggle-icon-show {
+  display: none;
+}
+
+.password-toggle.is-visible .password-toggle-icon-hide {
+  display: block;
 }
 
 .field-action-row {
@@ -153,9 +235,9 @@ h2 {
 
 .security-note {
   margin: 0 0 12px;
-  border-left: 3px solid #b45309;
+  border-left: 3px solid #1663d6;
   padding-left: 10px;
-  color: #7c2d12;
+  color: #0f4ea8;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -170,6 +252,7 @@ h2 {
 
 .option input {
   margin: 0;
+  accent-color: #1663d6;
 }
 
 .form-actions {
@@ -235,17 +318,30 @@ h2 {
 
 .secondary {
   margin-bottom: 12px;
-  background: #ffffff;
-  color: #1c1f24;
+  border-color: #1663d6;
+  background: #1663d6;
+  color: #ffffff;
 }
 
 .form-actions .secondary {
   margin-bottom: 0;
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #1c1f24;
 }
 
 .secondary:not(:disabled):hover,
 .secondary:not(:disabled):focus {
+  border-color: #0f4ea8;
+  background: #0f4ea8;
+  color: #ffffff;
+}
+
+.form-actions .secondary:not(:disabled):hover,
+.form-actions .secondary:not(:disabled):focus {
   border-color: #1663d6;
+  background: #ffffff;
+  color: #1c1f24;
 }
 
 .danger {
@@ -295,7 +391,7 @@ h2 {
 
 .footer {
   margin: auto 0 0;
-  font-size: 10px;
+  font-size: 12px;
   color: #5b6470;
   line-height: 1.4;
   text-align: center;

@@ -26,12 +26,9 @@ The extension stores ordinary settings in `chrome.storage.local`. That storage c
 
 - the optional Firefox SamacSys relay URL
 - remember-on-this-device flags for optional secrets
-- an optional manual upstream SamacSys `Authorization` override
 - accumulated KiCad symbol-library text used for library-mode exports
 
-The optional Firefox helper password/token and optional SamacSys username/password are stored in `chrome.storage.session` by default, so they are kept only for the current browser session. They are copied to `chrome.storage.local` only when the user explicitly ticks the matching `Remember ... on this device` box after reading the warning in the settings page.
-
-The latest Firefox-captured upstream SamacSys `Authorization` header is stored in `chrome.storage.session` and treated as short-lived session data. The extension ignores captured auth values older than one hour.
+The optional Firefox authentication token and optional SamacSys username/password are stored in `chrome.storage.session` by default, so they are kept only for the current browser session. They are copied to `chrome.storage.local` only when the user explicitly ticks the matching `Remember ... on this device` box after reading the warning in the settings page.
 
 Relay auth and upstream SamacSys auth are intentionally separate. The relay auth header is sent only to the configured user-managed relay. Upstream SamacSys auth is sent only to SamacSys or inside a relay payload that asks the relay to contact SamacSys.
 

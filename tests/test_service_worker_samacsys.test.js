@@ -332,7 +332,6 @@ describe("service worker SamacSys direct flow", () => {
   it("does not attach upstream auth to Chrome direct preview requests", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
-        samacsysFirefoxAuthorizationHeader: "Basic manual123",
         samacsysFirefoxUsername: "user@example.com",
         samacsysFirefoxPassword: "secret123"
       }
@@ -395,11 +394,13 @@ describe("service worker SamacSys direct flow", () => {
     expect(result.response.ok).toBe(true);
   });
 
-  it("does not preemptively attach configured SamacSys auth on Chrome ZIP exports", async () => {
+  it("does not preemptively attach generated SamacSys auth on Chrome ZIP exports", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
         downloadIndividually: true,
-        samacsysFirefoxAuthorizationHeader: "Basic manual123"
+        samacsysFirefoxUsername: "user@example.com",
+        samacsysFirefoxPassword: "secret123",
+        rememberSamacsysCredentials: true
       }
     });
     const readZipEntries = vi.fn(async () => [
@@ -439,50 +440,6 @@ describe("service worker SamacSys direct flow", () => {
     expect(fetchImpl.getZipCalls()).toHaveLength(1);
   });
 
-  it("retries one Chrome SamacSys ZIP request with the manual override after a 401", async () => {
-    const { chrome, listeners } = createServiceWorkerChrome({
-      storageState: {
-        downloadIndividually: true,
-        samacsysFirefoxAuthorizationHeader: "Basic manual123"
-      }
-    });
-    const readZipEntries = vi.fn(async () => [
-      {
-        name: "STM32C552KEU6/KiCad/STM32C552KEU6.kicad_sym",
-        data: new TextEncoder().encode(MOUSER_SYMBOL)
-      }
-    ]);
-    const fetchImpl = createDirectSamacsysZipFetchImpl({
-      zipStatuses: [401, 200],
-      expectedZipAuthorizationHeaders: ["", "Basic manual123"]
-    });
-
-    loadServiceWorker({
-      chrome,
-      fetchImpl,
-      readZipEntries,
-      userAgent: "Mozilla/5.0 Chrome/135.0.0.0"
-    });
-
-    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
-      type: "EXPORT_PART",
-      partContext: createSamacsysPartContext("mouser"),
-      options: {
-        symbol: true,
-        footprint: false,
-        model3d: false,
-        datasheet: false
-      }
-    });
-
-    expect(result.response).toEqual({
-      ok: true,
-      warnings: [],
-      downloadCount: 1
-    });
-    expect(fetchImpl.getZipCalls()).toHaveLength(2);
-  });
-
   it("retries one Chrome SamacSys ZIP request with generated Basic auth after a 401", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
@@ -505,53 +462,6 @@ describe("service worker SamacSys direct flow", () => {
         "",
         "Basic dXNlckBleGFtcGxlLmNvbTpzZWNyZXQxMjM="
       ]
-    });
-
-    loadServiceWorker({
-      chrome,
-      fetchImpl,
-      readZipEntries,
-      userAgent: "Mozilla/5.0 Chrome/135.0.0.0"
-    });
-
-    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
-      type: "EXPORT_PART",
-      partContext: createSamacsysPartContext("mouser"),
-      options: {
-        symbol: true,
-        footprint: false,
-        model3d: false,
-        datasheet: false
-      }
-    });
-
-    expect(result.response).toEqual({
-      ok: true,
-      warnings: [],
-      downloadCount: 1
-    });
-    expect(fetchImpl.getZipCalls()).toHaveLength(2);
-  });
-
-  it("uses a stored captured SamacSys header for the Chrome ZIP retry when one exists", async () => {
-    const { chrome, listeners } = createServiceWorkerChrome({
-      storageState: {
-        downloadIndividually: true
-      },
-      sessionStorageState: {
-        samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
-      }
-    });
-    const readZipEntries = vi.fn(async () => [
-      {
-        name: "STM32C552KEU6/KiCad/STM32C552KEU6.kicad_sym",
-        data: new TextEncoder().encode(MOUSER_SYMBOL)
-      }
-    ]);
-    const fetchImpl = createDirectSamacsysZipFetchImpl({
-      zipStatuses: [401, 200],
-      expectedZipAuthorizationHeaders: ["", "Basic captured123"]
     });
 
     loadServiceWorker({
@@ -621,14 +531,20 @@ describe("service worker SamacSys direct flow", () => {
   it("stops after one authenticated Chrome retry when the SamacSys ZIP still returns 401", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
-        downloadIndividually: true,
-        samacsysFirefoxAuthorizationHeader: "Basic manual123"
+        downloadIndividually: true
+      },
+      sessionStorageState: {
+        samacsysFirefoxUsername: "user@example.com",
+        samacsysFirefoxPassword: "secret123"
       }
     });
     const readZipEntries = vi.fn(async () => []);
     const fetchImpl = createDirectSamacsysZipFetchImpl({
       zipStatuses: [401, 401],
-      expectedZipAuthorizationHeaders: ["", "Basic manual123"]
+      expectedZipAuthorizationHeaders: [
+        "",
+        "Basic dXNlckBleGFtcGxlLmNvbTpzZWNyZXQxMjM="
+      ]
     });
 
     loadServiceWorker({

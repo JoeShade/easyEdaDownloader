@@ -1,7 +1,7 @@
 /*
  * These tests cover the dedicated settings page that owns persistent extension
  * preferences. They keep popup behavior focused while ensuring settings still
- * normalize, save, and hide captured secret values correctly.
+ * normalize, save, and hide secret values correctly.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -21,9 +21,6 @@ const DEFAULT_STORED_SETTINGS = {
   samacsysFirefoxProxyAuthorizationHeader: "",
   samacsysFirefoxUsername: "",
   samacsysFirefoxPassword: "",
-  samacsysFirefoxAuthorizationHeader: "",
-  samacsysFirefoxCapturedAuthorizationHeader: "",
-  samacsysFirefoxCapturedAuthorizationCapturedAt: "",
   rememberSamacsysCredentials: false,
   rememberSamacsysFirefoxProxyAuthorizationHeader: false
 };
@@ -31,9 +28,7 @@ const DEFAULT_STORED_SETTINGS = {
 const DEFAULT_SESSION_SETTINGS = {
   samacsysFirefoxProxyAuthorizationHeader: "",
   samacsysFirefoxUsername: "",
-  samacsysFirefoxPassword: "",
-  samacsysFirefoxCapturedAuthorizationHeader: "",
-  samacsysFirefoxCapturedAuthorizationCapturedAt: ""
+  samacsysFirefoxPassword: ""
 };
 
 function createSettingsChrome({ sessionStorageState = {} } = {}) {
@@ -141,17 +136,14 @@ describe("settings page", () => {
     );
     expect(settingsPageCss).toContain(".primary:not(:disabled):hover");
     expect(settingsPageCss).toContain(".danger:not(:disabled):hover");
+    expect(settingsPageCss).toContain('url("assets/settings-bg.png")');
+    expect(settingsPageCss).toContain(".password-toggle.is-visible");
     expect(settingsPageCss).toContain("min-height: 100vh;");
     expect(settingsPageCss).toContain("margin: auto 0 0;");
   });
 
   it("loads saved settings and hides Firefox-only fields outside Firefox", async () => {
-    const { dom, state, hooks } = await loadSettingsPage({
-      sessionStorageState: {
-        samacsysFirefoxCapturedAuthorizationHeader: "Basic captured-secret",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
-      }
-    });
+    const { dom, state, hooks } = await loadSettingsPage();
 
     expect(state.storageGetCalls).toHaveLength(1);
     await applyStoredSettings(state, {
@@ -162,7 +154,6 @@ describe("settings page", () => {
       samacsysFirefoxProxyAuthorizationHeader: "Authorization: Bearer relay123",
       samacsysFirefoxUsername: " user@example.com ",
       samacsysFirefoxPassword: " secret123 ",
-      samacsysFirefoxAuthorizationHeader: "Authorization: Basic manual123",
       rememberSamacsysCredentials: true,
       rememberSamacsysFirefoxProxyAuthorizationHeader: true
     });
@@ -174,7 +165,7 @@ describe("settings page", () => {
     );
     expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.value).toBe("");
     expect(hooks.elements.helperSecretStatusEl.textContent).toBe(
-      "Helper password/token remembered on this device."
+      "Authentication token remembered on this device."
     );
     expect(hooks.elements.helperSecretStatusEl.previousElementSibling).toBe(
       hooks.elements.clearHelperSecretEl
@@ -191,13 +182,6 @@ describe("settings page", () => {
     );
     expect(hooks.elements.firefoxAdvancedSettingsEl.hidden).toBe(true);
     expect(hooks.elements.firefoxRelaySectionEl.hidden).toBe(true);
-    expect(hooks.elements.firefoxCapturedAuthorizationFieldEl.hidden).toBe(true);
-    expect(
-      hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent
-    ).toContain("Saved Firefox sign-in from");
-    expect(
-      hooks.elements.samacsysFirefoxCapturedAuthorizationStatusEl.textContent
-    ).not.toContain("captured-secret");
     expect(hooks.elements.saveSettingsEl.disabled).toBe(true);
     expect(hooks.elements.discardSettingsEl.disabled).toBe(true);
     expect(hooks.elements.saveSettingsEl.textContent.trim()).toBe("Save");
@@ -211,6 +195,54 @@ describe("settings page", () => {
     expect(dom.window.document.querySelector(".footer-link")?.href).toBe(
       "https://github.com/JoeShade/easyECADDownloader"
     );
+  });
+
+  it("shows and hides secret fields without marking settings dirty", async () => {
+    const { state, hooks } = await loadSettingsPage({
+      userAgent: "Mozilla/5.0 Firefox/149.0"
+    });
+
+    await applyStoredSettings(state);
+    hooks.elements.samacsysFirefoxPasswordEl.value = "secret123";
+    hooks.elements.toggleSamacsysFirefoxPasswordEl.click();
+
+    expect(hooks.elements.samacsysFirefoxPasswordEl.type).toBe("text");
+    expect(
+      hooks.elements.toggleSamacsysFirefoxPasswordEl.classList.contains(
+        "is-visible"
+      )
+    ).toBe(true);
+    expect(
+      hooks.elements.toggleSamacsysFirefoxPasswordEl.getAttribute("aria-pressed")
+    ).toBe("true");
+    expect(
+      hooks.elements.toggleSamacsysFirefoxPasswordEl.getAttribute("aria-label")
+    ).toBe("Hide SamacSys password");
+
+    hooks.elements.toggleSamacsysFirefoxPasswordEl.click();
+
+    expect(hooks.elements.samacsysFirefoxPasswordEl.type).toBe("password");
+    expect(
+      hooks.elements.toggleSamacsysFirefoxPasswordEl.getAttribute("aria-pressed")
+    ).toBe("false");
+    expect(
+      hooks.elements.toggleSamacsysFirefoxPasswordEl.getAttribute("aria-label")
+    ).toBe("Show SamacSys password");
+
+    hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.value =
+      "Bearer helper-secret";
+    hooks.elements.toggleSamacsysFirefoxProxyAuthorizationHeaderEl.click();
+
+    expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.type).toBe(
+      "text"
+    );
+    expect(
+      hooks.elements.toggleSamacsysFirefoxProxyAuthorizationHeaderEl.getAttribute(
+        "aria-label"
+      )
+    ).toBe("Hide authentication token");
+    expect(hooks.elements.saveSettingsEl.disabled).toBe(true);
+    expect(hooks.elements.discardSettingsEl.disabled).toBe(true);
   });
 
   it("saves download layout settings from the options page", async () => {
@@ -249,10 +281,7 @@ describe("settings page", () => {
       userAgent: "Mozilla/5.0 Firefox/149.0"
     });
 
-    await applyStoredSettings(state, {
-      ...DEFAULT_STORED_SETTINGS,
-      samacsysFirefoxAuthorizationHeader: "Authorization: Basic existing123"
-    });
+    await applyStoredSettings(state);
     expect(hooks.elements.samacsysFirefoxProxyBaseUrlEl.disabled).toBe(false);
     expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.disabled).toBe(
       false
@@ -260,7 +289,6 @@ describe("settings page", () => {
     expect(hooks.elements.firefoxAdvancedSettingsEl.hidden).toBe(false);
     expect(hooks.elements.firefoxAdvancedSettingsEl.open).toBe(false);
     expect(hooks.elements.firefoxRelaySectionEl.hidden).toBe(false);
-    expect(hooks.elements.firefoxCapturedAuthorizationFieldEl.hidden).toBe(false);
 
     hooks.elements.samacsysFirefoxProxyBaseUrlEl.value =
       " https://proxy.example.test/relay#frag ";
@@ -280,8 +308,7 @@ describe("settings page", () => {
 
     expect(state.storageSetCalls.at(-1)).toEqual({
       ...DEFAULT_STORED_SETTINGS,
-      samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
-      samacsysFirefoxAuthorizationHeader: "Basic existing123"
+      samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
     });
     expect(state.sessionSetCalls.at(-1)).toEqual({
       ...DEFAULT_SESSION_SETTINGS,
@@ -292,7 +319,7 @@ describe("settings page", () => {
     expect(hooks.elements.samacsysFirefoxProxyAuthorizationHeaderEl.value).toBe("");
     expect(hooks.elements.samacsysFirefoxPasswordEl.value).toBe("");
     expect(hooks.elements.helperSecretStatusEl.textContent).toBe(
-      "Helper password/token saved for this browser session."
+      "Authentication token saved for this browser session."
     );
     expect(hooks.elements.samacsysCredentialsStatusEl.textContent).toBe(
       "SamacSys password saved for this browser session."
@@ -330,7 +357,7 @@ describe("settings page", () => {
     });
     expect(state.sessionSetCalls.at(-1)).toEqual(DEFAULT_SESSION_SETTINGS);
     expect(hooks.elements.helperSecretStatusEl.textContent).toBe(
-      "Helper password/token remembered on this device."
+      "Authentication token remembered on this device."
     );
     expect(hooks.elements.samacsysCredentialsStatusEl.textContent).toBe(
       "SamacSys password remembered on this device."

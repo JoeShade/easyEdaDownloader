@@ -121,11 +121,8 @@ function wrapProxyResponse(response, requestUrl) {
   };
 }
 
-function resolveUpstreamAuthorizationHeader(
-  authorizationHeader = "",
-  capturedAuthorizationHeader = ""
-) {
-  return String(authorizationHeader || capturedAuthorizationHeader || "").trim();
+function resolveUpstreamAuthorizationHeader(authorizationHeader = "") {
+  return String(authorizationHeader || "").trim();
 }
 
 function buildRetryHeaders(headers, authorizationHeader) {
@@ -146,8 +143,7 @@ function createSamacsysFetchImpl(
     userAgent,
     proxyBaseUrl = "",
     proxyAuthorizationHeader = "",
-    authorizationHeader = "",
-    capturedAuthorizationHeader = ""
+    authorizationHeader = ""
   } = {}
 ) {
   if (!isFirefoxRuntime(userAgent) || !proxyBaseUrl) {
@@ -157,10 +153,8 @@ function createSamacsysFetchImpl(
   return async (url, options = {}) => {
     const requestUrl = String(url);
     const forwardHeaders = normalizeForwardHeaders(options.headers);
-    const upstreamAuthorizationHeader = resolveUpstreamAuthorizationHeader(
-      authorizationHeader,
-      capturedAuthorizationHeader
-    );
+    const upstreamAuthorizationHeader =
+      resolveUpstreamAuthorizationHeader(authorizationHeader);
     if (options.credentials === "include" && !hasHeader(forwardHeaders, "cookie")) {
       const cookieHeader = await getCookieHeader(chromeApi, requestUrl);
       if (cookieHeader) {

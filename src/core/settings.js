@@ -10,82 +10,41 @@ const DEFAULT_SAMACSYS_FIREFOX_PROXY_BASE_URL = "";
 const DEFAULT_SAMACSYS_FIREFOX_PROXY_AUTHORIZATION_HEADER = "";
 const DEFAULT_SAMACSYS_FIREFOX_USERNAME = "";
 const DEFAULT_SAMACSYS_FIREFOX_PASSWORD = "";
-const DEFAULT_SAMACSYS_FIREFOX_AUTHORIZATION_HEADER = "";
-const DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_HEADER = "";
-const DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_CAPTURED_AT = "";
 const DEFAULT_REMEMBER_SAMACSYS_CREDENTIALS = false;
 const DEFAULT_REMEMBER_SAMACSYS_FIREFOX_PROXY_AUTHORIZATION_HEADER = false;
-const SAMACSYS_CAPTURED_AUTH_SESSION_TTL_MS = 60 * 60 * 1000;
+
+const DEFAULT_SECRET_SETTINGS = {
+  samacsysFirefoxProxyAuthorizationHeader:
+    DEFAULT_SAMACSYS_FIREFOX_PROXY_AUTHORIZATION_HEADER,
+  samacsysFirefoxUsername: DEFAULT_SAMACSYS_FIREFOX_USERNAME,
+  samacsysFirefoxPassword: DEFAULT_SAMACSYS_FIREFOX_PASSWORD
+};
 
 const DEFAULT_SETTINGS = {
   downloadIndividually: false,
   libraryDownloadRoot: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
   samacsysFirefoxProxyBaseUrl: DEFAULT_SAMACSYS_FIREFOX_PROXY_BASE_URL,
-  samacsysFirefoxProxyAuthorizationHeader:
-    DEFAULT_SAMACSYS_FIREFOX_PROXY_AUTHORIZATION_HEADER,
-  samacsysFirefoxUsername: DEFAULT_SAMACSYS_FIREFOX_USERNAME,
-  samacsysFirefoxPassword: DEFAULT_SAMACSYS_FIREFOX_PASSWORD,
-  samacsysFirefoxAuthorizationHeader:
-    DEFAULT_SAMACSYS_FIREFOX_AUTHORIZATION_HEADER,
-  samacsysFirefoxCapturedAuthorizationHeader:
-    DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_HEADER,
-  samacsysFirefoxCapturedAuthorizationCapturedAt:
-    DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_CAPTURED_AT,
+  ...DEFAULT_SECRET_SETTINGS,
   rememberSamacsysCredentials: DEFAULT_REMEMBER_SAMACSYS_CREDENTIALS,
   rememberSamacsysFirefoxProxyAuthorizationHeader:
     DEFAULT_REMEMBER_SAMACSYS_FIREFOX_PROXY_AUTHORIZATION_HEADER
 };
 
-const SESSION_SECRET_SETTINGS = {
-  samacsysFirefoxProxyAuthorizationHeader:
-    DEFAULT_SAMACSYS_FIREFOX_PROXY_AUTHORIZATION_HEADER,
-  samacsysFirefoxUsername: DEFAULT_SAMACSYS_FIREFOX_USERNAME,
-  samacsysFirefoxPassword: DEFAULT_SAMACSYS_FIREFOX_PASSWORD,
-  samacsysFirefoxCapturedAuthorizationHeader:
-    DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_HEADER,
-  samacsysFirefoxCapturedAuthorizationCapturedAt:
-    DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_CAPTURED_AT
-};
+const SESSION_SECRET_SETTINGS = { ...DEFAULT_SECRET_SETTINGS };
 
 function parseLibraryDownloadRoot(value) {
   const raw = String(value || "").trim();
-  if (!raw) {
-    return {
-      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
-      isValid: false
-    };
-  }
-  if (
-    raw.startsWith("/") ||
-    raw.startsWith("\\") ||
-    raw.startsWith("\\\\") ||
-    /^[a-zA-Z]:/.test(raw)
-  ) {
-    return {
-      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
-      isValid: false
-    };
-  }
-
   const normalized = raw.replace(/[\\/]+/g, "/").replace(/^\/+|\/+$/g, "");
-  if (!normalized) {
-    return {
-      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
-      isValid: false
-    };
-  }
-
-  const segments = normalized.split("/");
-  if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
-    return {
-      value: DEFAULT_LIBRARY_DOWNLOAD_ROOT,
-      isValid: false
-    };
-  }
+  const isAbsolute =
+    raw.startsWith("/") || raw.startsWith("\\") || /^[a-zA-Z]:/.test(raw);
+  const hasValidSegments =
+    Boolean(normalized) &&
+    normalized.split("/").every((segment) => segment !== "." && segment !== "..");
+  const isValid = Boolean(raw && !isAbsolute && hasValidSegments);
 
   return {
-    value: normalized,
-    isValid: true
+    value: isValid ? normalized : DEFAULT_LIBRARY_DOWNLOAD_ROOT,
+    isValid
   };
 }
 
@@ -135,66 +94,17 @@ function parseAuthorizationHeaderValue(value) {
 }
 
 function parseSamacsysProxyAuthorizationHeader(value) {
-  return (
-    parseAuthorizationHeaderValue(value) ||
-    DEFAULT_SAMACSYS_FIREFOX_PROXY_AUTHORIZATION_HEADER
-  );
+  return parseAuthorizationHeaderValue(value);
 }
 
 function parseSamacsysCredentialValue(value, fallback = "") {
   return String(value || "").trim() || fallback;
 }
 
-function parseSamacsysAuthorizationHeader(value) {
-  return (
-    parseAuthorizationHeaderValue(value) ||
-    DEFAULT_SAMACSYS_FIREFOX_AUTHORIZATION_HEADER
-  );
-}
-
-function parseSamacsysCapturedAuthorizationHeader(value) {
-  return (
-    parseAuthorizationHeaderValue(value) ||
-    DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_HEADER
-  );
-}
-
-function parseSamacsysCapturedAuthorizationCapturedAt(value) {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    return DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_CAPTURED_AT;
-  }
-
-  const parsedDate = new Date(raw);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_CAPTURED_AT;
-  }
-  return parsedDate.toISOString();
-}
-
-function isSamacsysCapturedAuthorizationFresh(capturedAt, nowMs = Date.now()) {
-  const normalizedCapturedAt = parseSamacsysCapturedAuthorizationCapturedAt(
-    capturedAt
-  );
-  if (!normalizedCapturedAt) {
-    return false;
-  }
-  const capturedAtMs = new Date(normalizedCapturedAt).getTime();
-  const ageMs = nowMs - capturedAtMs;
-  return ageMs >= 0 && ageMs <= SAMACSYS_CAPTURED_AUTH_SESSION_TTL_MS;
-}
-
 function resolveSamacsysAuthorizationHeader(settings = {}) {
-  return (
-    parseSamacsysAuthorizationHeader(settings.samacsysFirefoxAuthorizationHeader) ||
-    buildSamacsysBasicAuthorizationHeader(
-      settings.samacsysFirefoxUsername,
-      settings.samacsysFirefoxPassword
-    ) ||
-    parseSamacsysCapturedAuthorizationHeader(
-      settings.samacsysFirefoxCapturedAuthorizationHeader
-    ) ||
-    ""
+  return buildSamacsysBasicAuthorizationHeader(
+    settings.samacsysFirefoxUsername,
+    settings.samacsysFirefoxPassword
   );
 }
 
@@ -249,6 +159,10 @@ function getStorageArea(area, defaults, chromeApi) {
   });
 }
 
+function parseBooleanSetting(value, fallback) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
 async function loadSettings(chromeApi) {
   const [settings, sessionSettings] = await Promise.all([
     getStorageArea(chromeApi.storage.local, DEFAULT_SETTINGS, chromeApi),
@@ -258,35 +172,25 @@ async function loadSettings(chromeApi) {
       chromeApi
     )
   ]);
-  const rememberSamacsysCredentials =
-    typeof settings.rememberSamacsysCredentials === "boolean"
-      ? settings.rememberSamacsysCredentials
-      : DEFAULT_SETTINGS.rememberSamacsysCredentials;
-  const rememberSamacsysFirefoxProxyAuthorizationHeader =
-    typeof settings.rememberSamacsysFirefoxProxyAuthorizationHeader === "boolean"
-      ? settings.rememberSamacsysFirefoxProxyAuthorizationHeader
-      : DEFAULT_SETTINGS.rememberSamacsysFirefoxProxyAuthorizationHeader;
+  const rememberSamacsysCredentials = parseBooleanSetting(
+    settings.rememberSamacsysCredentials,
+    DEFAULT_SETTINGS.rememberSamacsysCredentials
+  );
+  const rememberSamacsysFirefoxProxyAuthorizationHeader = parseBooleanSetting(
+    settings.rememberSamacsysFirefoxProxyAuthorizationHeader,
+    DEFAULT_SETTINGS.rememberSamacsysFirefoxProxyAuthorizationHeader
+  );
   const credentialSettings = rememberSamacsysCredentials
     ? settings
     : sessionSettings;
   const proxyAuthorizationSettings =
     rememberSamacsysFirefoxProxyAuthorizationHeader ? settings : sessionSettings;
-  const capturedAuthorizationCapturedAt =
-    parseSamacsysCapturedAuthorizationCapturedAt(
-      sessionSettings.samacsysFirefoxCapturedAuthorizationCapturedAt
-    );
-  const capturedAuthorizationHeader =
-    isSamacsysCapturedAuthorizationFresh(capturedAuthorizationCapturedAt)
-      ? parseSamacsysCapturedAuthorizationHeader(
-          sessionSettings.samacsysFirefoxCapturedAuthorizationHeader
-        )
-      : DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_HEADER;
 
   return {
-    downloadIndividually:
-      typeof settings.downloadIndividually === "boolean"
-        ? settings.downloadIndividually
-        : DEFAULT_SETTINGS.downloadIndividually,
+    downloadIndividually: parseBooleanSetting(
+      settings.downloadIndividually,
+      DEFAULT_SETTINGS.downloadIndividually
+    ),
     libraryDownloadRoot: normalizeLibraryDownloadRoot(
       settings.libraryDownloadRoot
     ),
@@ -305,13 +209,6 @@ async function loadSettings(chromeApi) {
       credentialSettings.samacsysFirefoxPassword,
       DEFAULT_SAMACSYS_FIREFOX_PASSWORD
     ),
-    samacsysFirefoxAuthorizationHeader: parseSamacsysAuthorizationHeader(
-      settings.samacsysFirefoxAuthorizationHeader
-    ),
-    samacsysFirefoxCapturedAuthorizationHeader: capturedAuthorizationHeader,
-    samacsysFirefoxCapturedAuthorizationCapturedAt: capturedAuthorizationHeader
-      ? capturedAuthorizationCapturedAt
-      : DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_CAPTURED_AT,
     rememberSamacsysCredentials,
     rememberSamacsysFirefoxProxyAuthorizationHeader
   };
@@ -332,22 +229,14 @@ export {
   DEFAULT_SAMACSYS_FIREFOX_PROXY_AUTHORIZATION_HEADER,
   DEFAULT_SAMACSYS_FIREFOX_USERNAME,
   DEFAULT_SAMACSYS_FIREFOX_PASSWORD,
-  DEFAULT_SAMACSYS_FIREFOX_AUTHORIZATION_HEADER,
-  DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_HEADER,
-  DEFAULT_SAMACSYS_FIREFOX_CAPTURED_AUTHORIZATION_CAPTURED_AT,
   DEFAULT_REMEMBER_SAMACSYS_CREDENTIALS,
   DEFAULT_REMEMBER_SAMACSYS_FIREFOX_PROXY_AUTHORIZATION_HEADER,
   DEFAULT_SETTINGS,
-  SAMACSYS_CAPTURED_AUTH_SESSION_TTL_MS,
   buildSamacsysBasicAuthorizationHeader,
   parseLibraryDownloadRoot,
   parseSamacsysFirefoxProxyBaseUrl,
   parseSamacsysCredentialValue,
   parseSamacsysProxyAuthorizationHeader,
-  parseSamacsysAuthorizationHeader,
-  parseSamacsysCapturedAuthorizationHeader,
-  parseSamacsysCapturedAuthorizationCapturedAt,
-  isSamacsysCapturedAuthorizationFresh,
   resolveSamacsysAuthorizationHeader,
   normalizeLibraryDownloadRoot,
   normalizeSamacsysFirefoxProxyBaseUrl,

@@ -1,18 +1,15 @@
 /*
- * These tests cover service-worker settings, download wrappers, auth-capture
- * plumbing, and SamacSys archive helper behavior.
+ * These tests cover service-worker settings, download wrappers, and SamacSys
+ * archive helper behavior.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createSymbolLibrary } from "./helpers/fixtures.js";
-import { flushAsyncWork } from "./helpers/test_harness.js";
 import {
   buildLibraryPaths,
   loadSettings,
   normalizeLibraryDownloadRoot,
-  parseSamacsysCapturedAuthorizationCapturedAt,
-  parseSamacsysAuthorizationHeader,
   parseSamacsysProxyAuthorizationHeader,
   parseSamacsysFirefoxProxyBaseUrl
 } from "../src/core/settings.js";
@@ -29,14 +26,10 @@ import {
   stripKicadFootprintModels
 } from "../src/sources/samacsys_common.js";
 import {
-  createSamacsysPartContext,
   createSamacsysPartHtml,
   createServiceWorkerChrome,
-  emitBeforeSendHeaders,
-  loadServiceWorker,
   MOUSER_FOOTPRINT,
-  MOUSER_SYMBOL,
-  sendRuntimeMessage
+  MOUSER_SYMBOL
 } from "./helpers/service_worker_harness.js";
 
 describe("service worker core helpers", () => {
@@ -54,17 +47,6 @@ describe("service worker core helpers", () => {
     expect(
       parseSamacsysProxyAuthorizationHeader(" Authorization: Bearer relay123 ")
     ).toBe("Bearer relay123");
-    expect(parseSamacsysAuthorizationHeader(" Authorization: Basic abc123 ")).toBe(
-      "Basic abc123"
-    );
-    expect(parseSamacsysAuthorizationHeader("Basic abc123\r\nX-Injected: yes")).toBe(
-      ""
-    );
-    expect(
-      parseSamacsysCapturedAuthorizationCapturedAt(
-        "2026-04-14T11:40:00.000Z"
-      )
-    ).toBe("2026-04-14T11:40:00.000Z");
     expect(buildLibraryPaths("KiCad/Workspace")).toEqual({
       symbolFile: "KiCad/Workspace/Workspace.kicad_sym",
       footprintDir: "KiCad/Workspace/Workspace.pretty",
@@ -77,12 +59,7 @@ describe("service worker core helpers", () => {
       storageState: {
         samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
         samacsysFirefoxProxyAuthorizationHeader: "Authorization: Bearer proxy123",
-        samacsysFirefoxAuthorizationHeader: "Authorization: Basic abc123",
         rememberSamacsysFirefoxProxyAuthorizationHeader: true
-      },
-      sessionStorageState: {
-        samacsysFirefoxCapturedAuthorizationHeader: "Authorization: Basic captured123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
       }
     });
 
@@ -93,40 +70,8 @@ describe("service worker core helpers", () => {
       samacsysFirefoxProxyAuthorizationHeader: "Bearer proxy123",
       samacsysFirefoxUsername: "",
       samacsysFirefoxPassword: "",
-      samacsysFirefoxAuthorizationHeader: "Basic abc123",
-      samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
-      samacsysFirefoxCapturedAuthorizationCapturedAt: expect.any(String),
       rememberSamacsysCredentials: false,
       rememberSamacsysFirefoxProxyAuthorizationHeader: true
-    });
-  });
-
-  it("ignores expired Firefox-captured SamacSys auth from session storage", async () => {
-    const { chrome } = createServiceWorkerChrome({
-      sessionStorageState: {
-        samacsysFirefoxCapturedAuthorizationHeader: "Basic expired123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt:
-          "2026-04-14T11:40:00.000Z"
-      }
-    });
-
-    await expect(loadSettings(chrome)).resolves.toMatchObject({
-      samacsysFirefoxCapturedAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
-    });
-  });
-
-  it("ignores future-dated Firefox-captured SamacSys auth from session storage", async () => {
-    const { chrome } = createServiceWorkerChrome({
-      sessionStorageState: {
-        samacsysFirefoxCapturedAuthorizationHeader: "Basic future123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: "2999-01-01T00:00:00.000Z"
-      }
-    });
-
-    await expect(loadSettings(chrome)).resolves.toMatchObject({
-      samacsysFirefoxCapturedAuthorizationHeader: "",
-      samacsysFirefoxCapturedAuthorizationCapturedAt: ""
     });
   });
 
@@ -144,163 +89,6 @@ describe("service worker core helpers", () => {
     ).rejects.toThrow("Download blocked.");
   });
 
-  it("captures and persists the latest Firefox SamacSys Authorization header", async () => {
-    const { chrome, listeners, sessionStorage } = createServiceWorkerChrome();
-    loadServiceWorker({
-      chrome,
-      fetchImpl: vi.fn(),
-      userAgent: "Mozilla/5.0 Firefox/149.0"
-    });
-
-    expect(listeners.beforeSendHeaders).toHaveLength(1);
-
-    emitBeforeSendHeaders(listeners.beforeSendHeaders[0], {
-      requestHeaders: [
-        {
-          name: "Authorization",
-          value: "Basic captured-from-browser"
-        }
-      ]
-    });
-
-    expect(sessionStorage.samacsysFirefoxCapturedAuthorizationHeader).toBe(
-      "Basic captured-from-browser"
-    );
-    expect(sessionStorage.samacsysFirefoxCapturedAuthorizationCapturedAt).toMatch(
-      /^20\d\d-\d\d-\d\dT/
-    );
-  });
-
-  it("refreshes SamacSys auth by triggering the page-native auth flow on the source tab", async () => {
-    const { chrome, listeners, sessionStorage } = createServiceWorkerChrome({
-      storageState: {
-        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
-      }
-    });
-    loadServiceWorker({
-      chrome,
-      fetchImpl: vi.fn(),
-      userAgent: "Mozilla/5.0 Firefox/149.0",
-      samacsysAuthRefreshTimeoutMs: 100
-    });
-
-    const refreshPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
-      type: "REFRESH_SAMACSYS_AUTH",
-      partContext: createSamacsysPartContext("mouser"),
-      sourceTabId: 7
-    });
-    await flushAsyncWork();
-
-    expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
-      7,
-      {
-        type: "TRIGGER_SAMACSYS_AUTH",
-        partContext: createSamacsysPartContext("mouser")
-      },
-      expect.any(Function)
-    );
-
-    emitBeforeSendHeaders(listeners.beforeSendHeaders[0], {
-      requestHeaders: [
-        {
-          name: "Authorization",
-          value: "Basic refreshed123"
-        }
-      ]
-    });
-
-    const result = await refreshPromise;
-    expect(result.response).toEqual({
-      ok: true,
-      authorizationHeader: "Basic refreshed123",
-      capturedAt: sessionStorage.samacsysFirefoxCapturedAuthorizationCapturedAt
-    });
-  });
-
-  it("fails SamacSys auth refresh when the page-native auth trigger is unavailable", async () => {
-    vi.useFakeTimers();
-    const { chrome, listeners } = createServiceWorkerChrome({
-      storageState: {
-        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
-      }
-    });
-    chrome.tabs.sendMessage.mockImplementation((_tabId, _message, callback) => {
-      callback?.({
-        ok: false,
-        error: "SamacSys auth trigger was not found on the current page."
-      });
-    });
-    loadServiceWorker({
-      chrome,
-      fetchImpl: vi.fn(),
-      userAgent: "Mozilla/5.0 Firefox/149.0",
-      samacsysAuthRefreshTimeoutMs: 100
-    });
-
-    try {
-      const refreshPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
-        type: "REFRESH_SAMACSYS_AUTH",
-        partContext: createSamacsysPartContext("mouser"),
-        sourceTabId: 7
-      });
-      await flushAsyncWork();
-
-      const result = await refreshPromise;
-      expect(result.response).toEqual({
-        ok: false,
-        error: "SamacSys auth trigger was not found on the current page."
-      });
-      expect(vi.getTimerCount()).toBe(0);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("triggers the current Farnell page instead of opening a separate auth tab", async () => {
-    const { chrome, listeners, sessionStorage } = createServiceWorkerChrome({
-      storageState: {
-        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
-      }
-    });
-    loadServiceWorker({
-      chrome,
-      fetchImpl: vi.fn(),
-      userAgent: "Mozilla/5.0 Firefox/149.0",
-      samacsysAuthRefreshTimeoutMs: 100
-    });
-
-    const refreshPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
-      type: "REFRESH_SAMACSYS_AUTH",
-      partContext: createSamacsysPartContext("farnell"),
-      sourceTabId: 9
-    });
-    await flushAsyncWork();
-
-    expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
-      9,
-      {
-        type: "TRIGGER_SAMACSYS_AUTH",
-        partContext: createSamacsysPartContext("farnell")
-      },
-      expect.any(Function)
-    );
-
-    emitBeforeSendHeaders(listeners.beforeSendHeaders[0], {
-      requestHeaders: [
-        {
-          name: "Authorization",
-          value: "Basic refreshed123"
-        }
-      ]
-    });
-
-    const result = await refreshPromise;
-    expect(result.response).toEqual({
-      ok: true,
-      authorizationHeader: "Basic refreshed123",
-      capturedAt: sessionStorage.samacsysFirefoxCapturedAuthorizationCapturedAt
-    });
-  });
 
   it("merges symbol blocks without duplicating existing ids", () => {
     const symbolBlock = extractSymbolBlock(MOUSER_SYMBOL);

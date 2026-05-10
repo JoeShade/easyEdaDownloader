@@ -263,19 +263,24 @@ describe("repository hygiene", () => {
     const readmeText = normalizeNewlines(
       fs.readFileSync(path.join(REPO_ROOT, "README.md"), "utf8")
     );
+    const headingLines = readmeText
+      .split("\n")
+      .filter((line) => line.startsWith("## "));
     const expectedOrder = [
-      "# Easy ECAD Downloader",
-      "## Introduction",
-      "## Disclaimer",
-      "## Set-up",
-      "## Usage",
-      "## Contributing",
-      "## Supporting docs"
+      "Contents",
+      "Installation",
+      "Quick start",
+      "Usage walkthrough",
+      "Supported sources and outputs",
+      "Contributing",
+      "Supporting docs"
     ];
 
     let previousIndex = -1;
     for (const heading of expectedOrder) {
-      const currentIndex = readmeText.indexOf(heading);
+      const currentIndex = headingLines.findIndex((line) =>
+        line.includes(heading)
+      );
       expect(currentIndex).toBeGreaterThan(previousIndex);
       previousIndex = currentIndex;
     }
@@ -439,11 +444,10 @@ describe("repository hygiene", () => {
       fs.readFileSync(path.join(REPO_ROOT, "docs/deviations.md"), "utf8")
     );
 
-    expect(deviationsText).toContain("samacsysFirefoxAuthorizationHeader");
-    expect(deviationsText).toContain("settings page no longer exposes");
+    expect(deviationsText).toContain("No current deviations.");
     expect(deviationsText).not.toMatch(/^\s*[-*]\s+/m);
     expect(deviationsText).not.toMatch(/^\s*\d+\.\s+/m);
-    expect(deviationsText.trim().split("\n").length).toBeLessThanOrEqual(6);
+    expect(deviationsText.trim().split("\n").length).toBeLessThanOrEqual(3);
   });
 
   it("does not keep stale footer migration language in governance docs", () => {

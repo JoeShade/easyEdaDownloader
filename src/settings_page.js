@@ -11,7 +11,6 @@ import {
   loadSettings as loadStoredSettings,
   parseLibraryDownloadRoot,
   parseSamacsysCredentialValue,
-  parseSamacsysAuthorizationHeader,
   parseSamacsysProxyAuthorizationHeader,
   parseSamacsysFirefoxProxyBaseUrl
 } from "./core/settings.js";
@@ -65,14 +64,17 @@ const samacsysCredentialsStatusEl = settingsDocument.getElementById(
 const clearSamacsysCredentialsEl = settingsDocument.getElementById(
   "clearSamacsysCredentials"
 );
-const samacsysFirefoxCapturedAuthorizationStatusEl =
-  settingsDocument.getElementById("samacsysFirefoxCapturedAuthorizationStatus");
-const firefoxCapturedAuthorizationFieldEl = settingsDocument.getElementById(
-  "firefoxCapturedAuthorizationField"
+const passwordToggleButtons = Array.from(
+  settingsDocument.querySelectorAll("[data-password-toggle]")
 );
 const isFirefoxSettingsRuntime = isFirefoxRuntime(
   settingsWindow.navigator?.userAgent
 );
+
+const PASSWORD_TOGGLE_LABELS = {
+  samacsysFirefoxPassword: "SamacSys password",
+  samacsysFirefoxProxyAuthorizationHeader: "authentication token"
+};
 
 let currentSettings = { ...DEFAULT_SETTINGS };
 let hasUnsavedChanges = false;
@@ -124,17 +126,17 @@ function getSessionStorageArea() {
 function updateSecretStatuses() {
   if (pendingClearHelperSecret) {
     helperSecretStatusEl.textContent =
-      "Helper password/token will be cleared when you save.";
+      "Authentication token will be cleared when you save.";
   } else if (hasSecretValue(samacsysFirefoxProxyAuthorizationHeaderEl.value)) {
     helperSecretStatusEl.textContent =
-      "New helper password/token ready to save.";
+      "New authentication token ready to save.";
   } else if (hasSecretValue(currentSettings.samacsysFirefoxProxyAuthorizationHeader)) {
     helperSecretStatusEl.textContent =
       currentSettings.rememberSamacsysFirefoxProxyAuthorizationHeader
-        ? "Helper password/token remembered on this device."
-        : "Helper password/token saved for this browser session.";
+        ? "Authentication token remembered on this device."
+        : "Authentication token saved for this browser session.";
   } else {
-    helperSecretStatusEl.textContent = "No helper password/token saved.";
+    helperSecretStatusEl.textContent = "No authentication token saved.";
   }
 
   if (pendingClearSamacsysCredentials) {
@@ -156,6 +158,7 @@ function updateSecretStatuses() {
 function clearSecretInputs() {
   samacsysFirefoxProxyAuthorizationHeaderEl.value = "";
   samacsysFirefoxPasswordEl.value = "";
+  hidePasswordInputs();
 }
 
 function clearPendingSecretActions() {
@@ -163,40 +166,58 @@ function clearPendingSecretActions() {
   pendingClearSamacsysCredentials = false;
 }
 
-function formatCapturedAuthorizationStatus(
-  capturedAuthorizationHeader,
-  capturedAuthorizationCapturedAt
-) {
-  if (!capturedAuthorizationHeader) {
-    return "No saved Firefox sign-in yet.";
-  }
-
-  if (!capturedAuthorizationCapturedAt) {
-    return "Saved Firefox sign-in available.";
-  }
-
-  const capturedDate = new Date(capturedAuthorizationCapturedAt);
-  if (Number.isNaN(capturedDate.getTime())) {
-    return "Saved Firefox sign-in available.";
-  }
-
-  return `Saved Firefox sign-in from ${capturedDate.toLocaleString()}.`;
-}
-
 function updateRelaySettingsAvailability() {
   firefoxAdvancedSettingsEl.hidden = !isFirefoxSettingsRuntime;
   firefoxRelaySectionEl.hidden = !isFirefoxSettingsRuntime;
-  firefoxCapturedAuthorizationFieldEl.hidden = !isFirefoxSettingsRuntime;
   samacsysFirefoxProxyBaseUrlEl.disabled = !isFirefoxSettingsRuntime;
   samacsysFirefoxProxyAuthorizationHeaderEl.disabled = !isFirefoxSettingsRuntime;
+  updatePasswordToggleAvailability();
 }
 
-function refreshSamacsysAuthStatus() {
-  samacsysFirefoxCapturedAuthorizationStatusEl.textContent =
-    formatCapturedAuthorizationStatus(
-      currentSettings.samacsysFirefoxCapturedAuthorizationHeader,
-      currentSettings.samacsysFirefoxCapturedAuthorizationCapturedAt
-    );
+function getPasswordToggleTarget(button) {
+  return settingsDocument.getElementById(button.dataset.passwordToggle);
+}
+
+function setPasswordToggleState(button, input, isVisible) {
+  if (!input) {
+    return;
+  }
+
+  const label = PASSWORD_TOGGLE_LABELS[input.id] || "password";
+  const action = isVisible ? "Hide" : "Show";
+  input.type = isVisible ? "text" : "password";
+  button.classList.toggle("is-visible", isVisible);
+  button.setAttribute("aria-pressed", String(isVisible));
+  button.setAttribute("aria-label", `${action} ${label}`);
+  button.title = `${action} ${label}`;
+}
+
+function hidePasswordInputs() {
+  for (const button of passwordToggleButtons) {
+    setPasswordToggleState(button, getPasswordToggleTarget(button), false);
+  }
+}
+
+function updatePasswordToggleAvailability() {
+  for (const button of passwordToggleButtons) {
+    const input = getPasswordToggleTarget(button);
+    const isDisabled = !input || input.disabled;
+    if (isDisabled) {
+      setPasswordToggleState(button, input, false);
+    }
+    button.disabled = isDisabled;
+  }
+}
+
+function togglePasswordVisibility(event) {
+  const button = event.currentTarget;
+  const input = getPasswordToggleTarget(button);
+  if (!input || input.disabled || button.disabled) {
+    return;
+  }
+
+  setPasswordToggleState(button, input, input.type === "password");
+  input.focus();
 }
 
 function applySettingsToUi(settings) {
@@ -212,12 +233,6 @@ function applySettingsToUi(settings) {
   );
   const normalizedPassword = parseSamacsysCredentialValue(
     settings.samacsysFirefoxPassword
-  );
-  const normalizedAuthorizationHeader = parseSamacsysAuthorizationHeader(
-    settings.samacsysFirefoxAuthorizationHeader
-  );
-  const capturedAuthorizationHeader = parseSamacsysAuthorizationHeader(
-    settings.samacsysFirefoxCapturedAuthorizationHeader
   );
 
   downloadIndividuallyEl.checked =
@@ -242,18 +257,14 @@ function applySettingsToUi(settings) {
     samacsysFirefoxProxyAuthorizationHeader: normalizedProxyAuthorizationHeader,
     samacsysFirefoxUsername: normalizedUsername,
     samacsysFirefoxPassword: normalizedPassword,
-    samacsysFirefoxAuthorizationHeader: normalizedAuthorizationHeader,
-    samacsysFirefoxCapturedAuthorizationHeader: capturedAuthorizationHeader,
-    samacsysFirefoxCapturedAuthorizationCapturedAt:
-      settings.samacsysFirefoxCapturedAuthorizationCapturedAt || "",
     rememberSamacsysCredentials: Boolean(settings.rememberSamacsysCredentials),
     rememberSamacsysFirefoxProxyAuthorizationHeader: Boolean(
       settings.rememberSamacsysFirefoxProxyAuthorizationHeader
     )
   };
   clearPendingSecretActions();
+  hidePasswordInputs();
   hasUnsavedChanges = false;
-  refreshSamacsysAuthStatus();
   updateSecretStatuses();
   updateRelaySettingsAvailability();
   updateActionState();
@@ -291,18 +302,6 @@ function readSettingsFromUi() {
     samacsysFirefoxProxyAuthorizationHeader: normalizedProxyAuthorizationHeader,
     samacsysFirefoxUsername: normalizedUsername,
     samacsysFirefoxPassword: normalizedPassword,
-    samacsysFirefoxAuthorizationHeader:
-      pendingClearSamacsysCredentials
-        ? ""
-        : currentSettings.samacsysFirefoxAuthorizationHeader || "",
-    samacsysFirefoxCapturedAuthorizationHeader:
-      pendingClearSamacsysCredentials
-        ? ""
-        : currentSettings.samacsysFirefoxCapturedAuthorizationHeader || "",
-    samacsysFirefoxCapturedAuthorizationCapturedAt:
-      pendingClearSamacsysCredentials
-        ? ""
-        : currentSettings.samacsysFirefoxCapturedAuthorizationCapturedAt || "",
     rememberSamacsysCredentials: Boolean(rememberSamacsysCredentialsEl.checked),
     rememberSamacsysFirefoxProxyAuthorizationHeader: Boolean(
       rememberSamacsysFirefoxProxyAuthorizationHeaderEl.checked
@@ -325,10 +324,6 @@ function buildLocalSettings(settings) {
     samacsysFirefoxPassword: settings.rememberSamacsysCredentials
       ? settings.samacsysFirefoxPassword
       : "",
-    samacsysFirefoxAuthorizationHeader:
-      settings.samacsysFirefoxAuthorizationHeader,
-    samacsysFirefoxCapturedAuthorizationHeader: "",
-    samacsysFirefoxCapturedAuthorizationCapturedAt: "",
     rememberSamacsysCredentials: settings.rememberSamacsysCredentials,
     rememberSamacsysFirefoxProxyAuthorizationHeader:
       settings.rememberSamacsysFirefoxProxyAuthorizationHeader
@@ -346,11 +341,7 @@ function buildSessionSettings(settings) {
       : settings.samacsysFirefoxUsername,
     samacsysFirefoxPassword: settings.rememberSamacsysCredentials
       ? ""
-      : settings.samacsysFirefoxPassword,
-    samacsysFirefoxCapturedAuthorizationHeader:
-      settings.samacsysFirefoxCapturedAuthorizationHeader,
-    samacsysFirefoxCapturedAuthorizationCapturedAt:
-      settings.samacsysFirefoxCapturedAuthorizationCapturedAt
+      : settings.samacsysFirefoxPassword
   };
 }
 
@@ -360,8 +351,7 @@ function needsSessionStorage(settings) {
       hasSecretValue(settings.samacsysFirefoxProxyAuthorizationHeader)) ||
     (!settings.rememberSamacsysCredentials &&
       (hasSecretValue(settings.samacsysFirefoxUsername) ||
-        hasSecretValue(settings.samacsysFirefoxPassword))) ||
-    hasSecretValue(settings.samacsysFirefoxCapturedAuthorizationHeader)
+        hasSecretValue(settings.samacsysFirefoxPassword)))
   );
 }
 
@@ -398,7 +388,6 @@ async function saveSettings() {
     clearPendingSecretActions();
     hasUnsavedChanges = false;
     clearSecretInputs();
-    refreshSamacsysAuthStatus();
     updateSecretStatuses();
     updateActionState();
     const warnings = [];
@@ -433,6 +422,7 @@ function resetLibraryDownloadRoot() {
 function clearHelperSecret() {
   pendingClearHelperSecret = true;
   samacsysFirefoxProxyAuthorizationHeaderEl.value = "";
+  hidePasswordInputs();
   markDirty();
 }
 
@@ -440,6 +430,7 @@ function clearSamacsysCredentials() {
   pendingClearSamacsysCredentials = true;
   samacsysFirefoxUsernameEl.value = "";
   samacsysFirefoxPasswordEl.value = "";
+  hidePasswordInputs();
   markDirty();
 }
 
@@ -474,6 +465,9 @@ resetLibraryDownloadRootEl.addEventListener("click", resetLibraryDownloadRoot);
 clearHelperSecretEl.addEventListener("click", clearHelperSecret);
 clearSamacsysCredentialsEl.addEventListener("click", clearSamacsysCredentials);
 discardSettingsEl.addEventListener("click", discardSettings);
+for (const button of passwordToggleButtons) {
+  button.addEventListener("click", togglePasswordVisibility);
+}
 
 loadSettings();
 updateRelaySettingsAvailability();
@@ -485,9 +479,10 @@ if (globalThis.__settingsPageTestApi) {
     readSettingsFromUi,
     saveSettings,
     discardSettings,
-    formatCapturedAuthorizationStatus,
     clearHelperSecret,
     clearSamacsysCredentials,
+    hidePasswordInputs,
+    togglePasswordVisibility,
     elements: {
       settingsForm,
       statusEl,
@@ -500,16 +495,19 @@ if (globalThis.__settingsPageTestApi) {
       firefoxRelaySectionEl,
       samacsysFirefoxProxyBaseUrlEl,
       samacsysFirefoxProxyAuthorizationHeaderEl,
+      toggleSamacsysFirefoxProxyAuthorizationHeaderEl: settingsDocument
+        .getElementById("toggleSamacsysFirefoxProxyAuthorizationHeader"),
       rememberSamacsysFirefoxProxyAuthorizationHeaderEl,
       helperSecretStatusEl,
       clearHelperSecretEl,
       samacsysFirefoxUsernameEl,
       samacsysFirefoxPasswordEl,
+      toggleSamacsysFirefoxPasswordEl: settingsDocument.getElementById(
+        "toggleSamacsysFirefoxPassword"
+      ),
       rememberSamacsysCredentialsEl,
       samacsysCredentialsStatusEl,
-      clearSamacsysCredentialsEl,
-      samacsysFirefoxCapturedAuthorizationStatusEl,
-      firefoxCapturedAuthorizationFieldEl
+      clearSamacsysCredentialsEl
     }
   });
 }

@@ -43,7 +43,6 @@ const footprintPreviewFallbackEl = popupDocument.getElementById("footprintPrevie
 // Store the most recently detected part context.
 let currentPartContext = null;
 let currentSettings = { ...DEFAULT_SETTINGS };
-let currentSourceTabId = null;
 
 // Show a status message and optionally mark it as an error.
 function setStatus(message, tone = "default") {
@@ -147,7 +146,6 @@ function setIdentifierDisplay(sourcePartLabel, sourcePartNumber, manufacturerPar
 
 function setUnavailableDisplay(statusMessage) {
   currentPartContext = null;
-  currentSourceTabId = null;
   setPreviewProviderStyle(null);
   sourcePartLabelEl.textContent = DEFAULT_SOURCE_PART_LABEL;
   manufacturerPartNumberEl.textContent = "Unavailable";
@@ -282,7 +280,6 @@ chromeApi.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     setUnavailableDisplay("No active tab detected.");
     return;
   }
-  currentSourceTabId = tab.id;
   requestPartContextFromTab(tab.id);
 });
 
@@ -314,7 +311,6 @@ downloadButton.addEventListener("click", () => {
     {
       type: "EXPORT_PART",
       partContext: currentPartContext,
-      sourceTabId: currentSourceTabId,
       options: {
         symbol: downloadSymbolEl.checked,
         footprint: downloadFootprintEl.checked,
@@ -329,34 +325,15 @@ downloadButton.addEventListener("click", () => {
         return;
       }
       if (response?.ok) {
-        if (response.authRefreshed) {
-          currentSettings = {
-            ...currentSettings,
-            samacsysFirefoxCapturedAuthorizationHeader:
-              response.authAuthorizationHeader ||
-              currentSettings.samacsysFirefoxCapturedAuthorizationHeader ||
-              "captured",
-            samacsysFirefoxCapturedAuthorizationCapturedAt:
-              response.authCapturedAt ||
-              currentSettings.samacsysFirefoxCapturedAuthorizationCapturedAt
-          };
-        }
         const warnings = Array.isArray(response.warnings)
           ? response.warnings.filter(Boolean)
           : [];
         if (warnings.length && response.downloadCount > 0) {
-          setStatus(
-            `${response.authRefreshed ? "SamacSys auth refreshed. " : ""}Download started. ${warnings.join(" ")}`,
-            "warning"
-          );
+          setStatus(`Download started. ${warnings.join(" ")}`, "warning");
         } else if (warnings.length) {
           setStatus(warnings.join(" "), "warning");
         } else {
-          setStatus(
-            response.authRefreshed
-              ? "SamacSys auth refreshed. Download started."
-              : "Download started."
-          );
+          setStatus("Download started.");
         }
       } else {
         setStatus(response?.error || "Download failed.", "error");

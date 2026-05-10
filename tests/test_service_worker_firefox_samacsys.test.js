@@ -1,5 +1,5 @@
 /*
- * These tests cover Firefox SamacSys relay, cookie forwarding, auth refresh,
+ * These tests cover Firefox SamacSys relay, cookie forwarding, explicit auth,
  * and proxy error behavior.
  */
 
@@ -7,10 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createSamacsysFetchImpl,
-  createSamacsysPartHtml,
   createSamacsysPartContext,
   createServiceWorkerChrome,
-  emitBeforeSendHeaders,
   loadServiceWorker,
   MOUSER_FOOTPRINT,
   MOUSER_SYMBOL,
@@ -18,140 +16,7 @@ import {
 } from "./helpers/service_worker_harness.js";
 
 describe("service worker Firefox SamacSys flow", () => {
-  it("retries Firefox SamacSys export once after automatically refreshing auth", async () => {
-    const { chrome, listeners } = createServiceWorkerChrome({
-      storageState: {
-        downloadIndividually: true,
-        libraryDownloadRoot: "KiCad/Workspace",
-        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
-      }
-    });
-    const readZipEntries = vi.fn(async () => [
-      {
-        name: "STM32C552KEU6/KiCad/STM32C552KEU6.kicad_sym",
-        data: new TextEncoder().encode(MOUSER_SYMBOL)
-      }
-    ]);
-    const fetchImpl = vi.fn(async (url, options = {}) => {
-      const requestUrl = String(url);
-      if (requestUrl === "https://proxy.example.test/relay") {
-        const proxyRequest = JSON.parse(options.body);
-        if (proxyRequest.url.includes("entry_u_newDesign.php")) {
-          return {
-            ok: true,
-            status: 200,
-            headers: {
-              get(name) {
-                return String(name).toLowerCase() === "x-upstream-url"
-                  ? "https://ms.componentsearchengine.com/part.php?partID=21790508"
-                  : null;
-              }
-            },
-            text: async () => "<html><body>entry ok</body></html>"
-          };
-        }
-        if (proxyRequest.url.includes("preview_newDesign.php")) {
-          return {
-            ok: true,
-            status: 200,
-            headers: {
-              get() {
-                return null;
-              }
-            },
-            text: async () => createSamacsysPartHtml()
-          };
-        }
-        if (proxyRequest.url.includes("/ga/model.php")) {
-          if (proxyRequest.headers.Authorization === "Basic refreshed123") {
-            return {
-              ok: true,
-              status: 200,
-              headers: {
-                get() {
-                  return null;
-                }
-              },
-              arrayBuffer: async () => new TextEncoder().encode("PKzip").buffer
-            };
-          }
-          return {
-            ok: false,
-            status: 401,
-            headers: {
-              get() {
-                return null;
-              }
-            }
-          };
-        }
-        if (proxyRequest.url.includes("/3D/0/21790508.wrl")) {
-          return {
-            ok: false,
-            status: 404,
-            headers: {
-              get() {
-                return null;
-              }
-            }
-          };
-        }
-      }
-      throw new Error(`Unexpected URL: ${url}`);
-    });
-
-    loadServiceWorker({
-      chrome,
-      fetchImpl,
-      readZipEntries,
-      userAgent: "Mozilla/5.0 Firefox/149.0",
-      samacsysAuthRefreshTimeoutMs: 100
-    });
-
-    const exportPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
-      type: "EXPORT_PART",
-      partContext: createSamacsysPartContext("mouser"),
-      sourceTabId: 7,
-      options: {
-        symbol: true,
-        footprint: false,
-        model3d: false,
-        datasheet: false
-      }
-    });
-    await vi.waitFor(() => {
-      expect(chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    });
-
-    emitBeforeSendHeaders(listeners.beforeSendHeaders[0], {
-      requestHeaders: [
-        {
-          name: "Authorization",
-          value: "Basic refreshed123"
-        }
-      ]
-    });
-
-    const result = await exportPromise;
-    expect(result.response).toEqual({
-      ok: true,
-      warnings: [],
-      downloadCount: 1,
-      authRefreshed: true,
-      authAuthorizationHeader: "Basic refreshed123",
-      authCapturedAt: expect.any(String)
-    });
-    expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
-      7,
-      {
-        type: "TRIGGER_SAMACSYS_AUTH",
-        partContext: createSamacsysPartContext("mouser")
-      },
-      expect.any(Function)
-    );
-  });
-
-  it("stops after one refreshed retry when Firefox SamacSys export still returns unauthorized", async () => {
+  it("returns the sign-in-required error when Firefox SamacSys export is unauthorized", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
         downloadIndividually: true,
@@ -167,14 +32,12 @@ describe("service worker Firefox SamacSys flow", () => {
     loadServiceWorker({
       chrome,
       fetchImpl,
-      userAgent: "Mozilla/5.0 Firefox/149.0",
-      samacsysAuthRefreshTimeoutMs: 100
+      userAgent: "Mozilla/5.0 Firefox/149.0"
     });
 
-    const exportPromise = sendRuntimeMessage(listeners.runtimeMessage[0], {
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
       type: "EXPORT_PART",
       partContext: createSamacsysPartContext("mouser"),
-      sourceTabId: 7,
       options: {
         symbol: true,
         footprint: false,
@@ -182,20 +45,7 @@ describe("service worker Firefox SamacSys flow", () => {
         datasheet: false
       }
     });
-    await vi.waitFor(() => {
-      expect(chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
-    });
 
-    emitBeforeSendHeaders(listeners.beforeSendHeaders[0], {
-      requestHeaders: [
-        {
-          name: "Authorization",
-          value: "Basic refreshed123"
-        }
-      ]
-    });
-
-    const result = await exportPromise;
     expect(result.response).toEqual({
       ok: false,
       error:
@@ -285,11 +135,12 @@ describe("service worker Firefox SamacSys flow", () => {
   it("forwards SamacSys cookies through the Firefox proxy relay", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
-        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
-        samacsysFirefoxAuthorizationHeader: "Basic abc123"
+        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
       },
       sessionStorageState: {
-        samacsysFirefoxProxyAuthorizationHeader: "Bearer relay-secret"
+        samacsysFirefoxProxyAuthorizationHeader: "Bearer relay-secret",
+        samacsysFirefoxUsername: "user@example.com",
+        samacsysFirefoxPassword: "secret123"
       },
       cookieState: {
         "*": [
@@ -304,7 +155,7 @@ describe("service worker Firefox SamacSys flow", () => {
       footprintImage: "BBBB",
       expectedProxyAuthorizationHeader: "Bearer relay-secret",
       expectedCookieHeader: "PHPSESSID=relay-session; partner=mouser",
-      expectedAuthorizationHeader: "Basic abc123"
+      expectedAuthorizationHeader: "Basic dXNlckBleGFtcGxlLmNvbTpzZWNyZXQxMjM="
     });
     loadServiceWorker({
       chrome,
@@ -321,46 +172,14 @@ describe("service worker Firefox SamacSys flow", () => {
     expect(chrome.cookies.getAll).toHaveBeenCalled();
   });
 
-  it("uses the captured SamacSys Authorization header when no manual override exists", async () => {
-    const { chrome, listeners } = createServiceWorkerChrome({
-      storageState: {
-        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
-      },
-      sessionStorageState: {
-        samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
-      }
-    });
-    const fetchImpl = createSamacsysFetchImpl({
-      proxyBaseUrl: "https://proxy.example.test/relay",
-      symbolImage: "AAAA",
-      footprintImage: "BBBB",
-      expectedAuthorizationHeader: "Basic captured123"
-    });
-    loadServiceWorker({
-      chrome,
-      fetchImpl,
-      userAgent: "Mozilla/5.0 Firefox/149.0"
-    });
-
-    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
-      type: "GET_PART_PREVIEWS",
-      partContext: createSamacsysPartContext("mouser")
-    });
-
-    expect(result.response.ok).toBe(true);
-  });
-
-  it("builds the SamacSys Authorization header from stored credentials when no manual override exists", async () => {
+  it("builds the SamacSys Authorization header from stored credentials", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {
         samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay"
       },
       sessionStorageState: {
         samacsysFirefoxUsername: "user@example.com",
-        samacsysFirefoxPassword: "secret123",
-        samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
+        samacsysFirefoxPassword: "secret123"
       }
     });
     const fetchImpl = createSamacsysFetchImpl({
@@ -368,37 +187,6 @@ describe("service worker Firefox SamacSys flow", () => {
       symbolImage: "AAAA",
       footprintImage: "BBBB",
       expectedAuthorizationHeader: "Basic dXNlckBleGFtcGxlLmNvbTpzZWNyZXQxMjM="
-    });
-    loadServiceWorker({
-      chrome,
-      fetchImpl,
-      userAgent: "Mozilla/5.0 Firefox/149.0"
-    });
-
-    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
-      type: "GET_PART_PREVIEWS",
-      partContext: createSamacsysPartContext("mouser")
-    });
-
-    expect(result.response.ok).toBe(true);
-  });
-
-  it("prefers the manual SamacSys Authorization override over the captured header", async () => {
-    const { chrome, listeners } = createServiceWorkerChrome({
-      storageState: {
-        samacsysFirefoxProxyBaseUrl: "https://proxy.example.test/relay",
-        samacsysFirefoxAuthorizationHeader: "Basic manual123"
-      },
-      sessionStorageState: {
-        samacsysFirefoxCapturedAuthorizationHeader: "Basic captured123",
-        samacsysFirefoxCapturedAuthorizationCapturedAt: new Date().toISOString()
-      }
-    });
-    const fetchImpl = createSamacsysFetchImpl({
-      proxyBaseUrl: "https://proxy.example.test/relay",
-      symbolImage: "AAAA",
-      footprintImage: "BBBB",
-      expectedAuthorizationHeader: "Basic manual123"
     });
     loadServiceWorker({
       chrome,
