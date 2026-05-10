@@ -52,9 +52,6 @@ The current repository does not implement:
 - In Firefox relay mode, the service worker forwards matching `componentsearchengine.com` cookies through the relay so authenticated ZIP downloads can reuse the user's upstream browser session.
 - Firefox relay mode can send a separate relay `Authorization` header on the Worker POST when the user configures helper-service auth.
 - Firefox relay mode can forward an upstream SamacSys `Authorization` header for ZIP endpoints that rely on HTTP Basic auth instead of cookies alone.
-- Across authenticated SamacSys ZIP flows, upstream auth precedence is:
-  - locally generated HTTP Basic auth header from SamacSys username and password stored for the session or explicitly remembered on this device
-  - no upstream authorization header
 - The Manifest V3 background is declared for both Chrome and Firefox: Chrome uses `background.service_worker`, while Firefox uses the background-document fallback from `background.scripts`. This combined manifest relies on Firefox 121 or newer.
 - The configurable library download root must remain relative to the browser's Downloads directory.
 

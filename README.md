@@ -138,11 +138,6 @@ Downloads/
 
 Password and token fields are blank when the settings page opens, and each field has a local show/hide button for checking typed values. New values are kept for the current browser session by default. Tick the relevant `Remember ... on this device` box only if you accept the risk of storing that secret in the browser profile.
 
-For authenticated SamacSys ZIP downloads, upstream auth precedence is:
-
-1. Generated Basic auth from `SamacSys username` and `SamacSys password`.
-2. No upstream auth header.
-
 ## <img src="docs/assets/readme/icon-faq.svg" alt="" width="20" height="20" align="absmiddle"> FAQ
 
 <details>
