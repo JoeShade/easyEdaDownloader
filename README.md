@@ -34,7 +34,7 @@ It works on supported JLCPCB, LCSC, Mouser, Farnell, element14, and Newark part 
 </p>
 <br clear="left">
 
-## <img src="docs/assets/readme/icon-contents.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Contents
+## <img src="docs/assets/readme/icon-contents.svg" alt="" width="20" height="20" align="absmiddle"> Contents
 
 - [Installation](#installation)
 - [Quick start](#quick-start)
@@ -48,14 +48,14 @@ It works on supported JLCPCB, LCSC, Mouser, Farnell, element14, and Newark part 
 - [Supporting docs](#supporting-docs)
 - [License and attribution](#license-and-attribution)
 
-## <img src="docs/assets/readme/icon-installation.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Installation
+## <img src="docs/assets/readme/icon-installation.svg" alt="" width="20" height="20" align="absmiddle"> Installation
 
 | Browser | Install from | Notes |
 |---|---|---|
 | Chrome, Edge, Brave, and other Chromium browsers | [Chrome Web Store](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb) | Full support for EasyEDA-backed pages and SamacSys-backed Mouser/Farnell/element14/Newark downloads. |
 | Firefox | [Firefox Add-ons](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/) | Works for EasyEDA-backed pages. SamacSys-backed Mouser/Farnell/element14/Newark downloads need the optional Firefox relay setup. |
 
-## <img src="docs/assets/readme/icon-quick-start.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Quick start
+## <img src="docs/assets/readme/icon-quick-start.svg" alt="" width="20" height="20" align="absmiddle"> Quick start
 
 1. Open a supported JLCPCB, LCSC, Mouser, Farnell, element14, or Newark component page.
 2. Click the Easy ECAD Downloader extension icon.
@@ -64,7 +64,7 @@ It works on supported JLCPCB, LCSC, Mouser, Farnell, element14, and Newark part 
 5. Click `Download`.
 6. Open the generated files from KiCad and review them before use.
 
-## <img src="docs/assets/readme/icon-walkthrough.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Usage walkthrough
+## <img src="docs/assets/readme/icon-walkthrough.svg" alt="" width="20" height="20" align="absmiddle"> Usage walkthrough
 
 ### 1. Open a supported component page
 
@@ -79,7 +79,7 @@ The content script detects supported part contexts from EasyEDA-backed JLCPCB/LC
 The popup shows manufacturer details, source-specific part metadata, symbol and footprint previews, and the available export options.
 
 <p align="center">
-  <img src="docs/assets/readme/PopupPreview.png" alt="Easy ECAD Downloader popup preview" width="520">
+  <img src="docs/assets/readme/PopupPreview.png" alt="Easy ECAD Downloader popup preview" width="260">
 </p>
 
 ### 3. Use the generated KiCad files
@@ -90,7 +90,7 @@ Library mode creates a KiCad-style symbol library, footprint library, model fold
   <img src="docs/assets/readme/exportPreview.png" alt="KiCad 3D viewer export preview" width="760">
 </p>
 
-## <img src="docs/assets/readme/icon-output.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Output structure
+## <img src="docs/assets/readme/icon-output.svg" alt="" width="20" height="20" align="absmiddle"> Output structure
 
 When `Save each file separately` is disabled, files are grouped under `Downloads/<library root>/`. The default library root is `easyECADDownloader`.
 
@@ -118,14 +118,14 @@ Downloads/
 `-- <component>-datasheet.pdf
 ```
 
-## <img src="docs/assets/readme/icon-support.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Supported sources and outputs
+## <img src="docs/assets/readme/icon-support.svg" alt="" width="20" height="20" align="absmiddle"> Supported sources and outputs
 
 | Source flow | Pages | Symbol | Footprint | 3D model | Datasheet | Notes |
 |---|---|---:|---:|---:|---:|---|
 | EasyEDA-backed | JLCPCB, LCSC | Yes | Yes | When available | When available | Uses the detected LCSC id and upstream EasyEDA payload. |
 | SamacSys-backed | Mouser, Farnell, element14, Newark | Yes | Yes | When available | No | Downloads the upstream KiCad ZIP and repackages selected assets. |
 
-## <img src="docs/assets/readme/icon-settings.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Settings
+## <img src="docs/assets/readme/icon-settings.svg" alt="" width="20" height="20" align="absmiddle"> Settings
 
 <p align="center">
   <img src="docs/assets/readme/settingsPreview.png" alt="Easy ECAD Downloader settings page" width="760">
@@ -145,7 +145,7 @@ For authenticated SamacSys ZIP downloads, upstream auth precedence is:
 1. Generated Basic auth from `SamacSys username` and `SamacSys password`.
 2. No upstream auth header.
 
-## <img src="docs/assets/readme/icon-faq.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> FAQ
+## <img src="docs/assets/readme/icon-faq.svg" alt="" width="20" height="20" align="absmiddle"> FAQ
 
 <details>
 <summary><strong>View frequently asked questions</strong></summary>
@@ -289,7 +289,7 @@ Easy ECAD Downloader can only export files that are available from the source pa
 
 </details>
 
-## <img src="docs/assets/readme/icon-technical.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Technical overview
+## <img src="docs/assets/readme/icon-technical.svg" alt="" width="20" height="20" align="absmiddle"> Technical overview
 
 <p align="center">
   <img src="docs/assets/readme/architectureDiagram.png" alt="Extension architecture overview" width="760">
@@ -307,13 +307,13 @@ Key implementation areas:
 - `src/kicad/`: EasyEDA parsing, KiCad emitters, shared conversion helpers, and OBJ-to-WRL conversion.
 - `tests/`: regression suite for behavior, conversion, browser runtime boundaries, and repository hygiene.
 
-## <img src="docs/assets/readme/icon-contributing.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Contributing
+## <img src="docs/assets/readme/icon-contributing.svg" alt="" width="20" height="20" align="absmiddle"> Contributing
 
 Read [contributing.md](contributing.md) for development setup, local validation, contribution expectations, and manual extension-loading instructions. Read [AGENTS.md](AGENTS.md) for repository working rules.
 
 Good contributions include parser fixes for real component pages, regression tests for failed exports, output-format corrections, browser compatibility fixes, and documentation that makes the workflow clearer for KiCad users.
 
-## <img src="docs/assets/readme/icon-docs.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> Supporting docs
+## <img src="docs/assets/readme/icon-docs.svg" alt="" width="20" height="20" align="absmiddle"> Supporting docs
 
 - [systemDesign.md](systemDesign.md): design source of truth.
 - [CHANGELOG.md](CHANGELOG.md): notable changes by release or branch delta.
@@ -321,7 +321,7 @@ Good contributions include parser fixes for real component pages, regression tes
 - [docs/architecture-notes.md](docs/architecture-notes.md): short implementation notes.
 - [docs/firefox-samacsys-proxy.md](docs/firefox-samacsys-proxy.md): Cloudflare Worker relay example for Firefox SamacSys support.
 
-## <img src="docs/assets/readme/icon-license.svg" alt="" width="20" height="20" align="middle" style="vertical-align: -0.1em;"> License and attribution
+## <img src="docs/assets/readme/icon-license.svg" alt="" width="20" height="20" align="absmiddle"> License and attribution
 
 This project includes and is derived from:
 
