@@ -255,6 +255,10 @@ The test suite remains the primary regression net for:
   - loose-file downloads when `downloadIndividually` is `true`
   - KiCad-style library structure when `downloadIndividually` is `false`
 - Library-mode symbol exports merge into a stored symbol library keyed by the resolved library root.
+- Footprint model references are reconciled after 3D export attempts finish:
+  - loose-file footprints reference `${KIPRJMOD}/<modelFilename>` when a model was exported
+  - library-mode footprints reference `../<libraryName>.3dshapes/<modelFilename>` when a model was exported
+  - stale footprint `(model ...)` blocks are removed when no selected 3D model artifact is exported
 - Library-mode datasheet exports are written under `<libraryRoot>/datasheets/`.
 
 ### 5.4 Export SamacSys distributor parts
@@ -339,6 +343,7 @@ The test suite remains the primary regression net for:
 - SamacSys distributor loose-file symbol output keeps the extracted `.kicad_sym` filename from the ZIP.
 - Footprint output uses the extracted or generated `.kicad_mod` filename.
 - SamacSys distributor footprint library-mode downloads rewrite the model path into the library `.3dshapes` directory.
+- EasyEDA footprint downloads rewrite the first KiCad `(model ...)` path to the exported STEP or WRL artifact, preferring WRL when both are produced, and remove stale model blocks when no model artifact is exported.
 - EasyEDA datasheet output uses a sanitized base name plus `-datasheet` and the detected extension. In library mode it is saved under `<libraryRoot>/datasheets/`.
 - The library root name defaults to `easyECADDownloader` and can be changed to another Downloads-relative folder for library mode.
 

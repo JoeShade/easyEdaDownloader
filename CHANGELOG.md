@@ -38,6 +38,7 @@ This section summarizes the current `Development` branch compared with `main` as
 ### Fixed
 
 - Improved provider-aware page detection for JLCPCB, LCSC, Mouser, and Farnell product pages.
+- Reconciled EasyEDA footprint model references with exported STEP/WRL artifacts and removed stale model blocks when no 3D artifact is exported.
 - Preserved SamacSys KiCad library relationships by rewriting symbol footprint properties and footprint model paths in library mode.
 - Handled SamacSys ZIP structures where `KiCad/` and `3D/` folders appear either at the archive root or under a part-specific parent folder.
 - Reworked SamacSys ZIP `401` handling into clearer sign-in-required errors and retry behavior.

@@ -32,6 +32,7 @@ This file records short implementation notes that supplement, but do not replace
 - Farnell, element14, and Newark do not have their own backend adapter files because they intentionally reuse the shared SamacSys distributor backend.
 - Symbol library append behavior depends on `chrome.storage.local`, not on local filesystem reads.
 - Library-mode download paths remain relative to Downloads and are resolved from extension settings, not absolute filesystem paths.
+- EasyEDA footprints are written after 3D export attempts so their KiCad `(model ...)` path can match the artifact that was actually downloaded, or be stripped when no model artifact was produced.
 - SamacSys distributor support is still Chrome-first, but Firefox can opt into a user-managed relay through the advanced Firefox settings menu.
 - Chrome direct SamacSys ZIP export now retries once with configured upstream auth after a `401`, but preview requests still use the normal direct browser session without preemptive auth headers.
 - Firefox relay mode forwards matching `componentsearchengine.com` cookies so authenticated SamacSys ZIP downloads can reuse the browser session instead of teaching the relay to log in.

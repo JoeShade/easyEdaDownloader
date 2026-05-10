@@ -13,6 +13,12 @@ import {
   sendRuntimeMessage
 } from "./helpers/service_worker_harness.js";
 
+function decodeDataUrl(dataUrl) {
+  return Buffer.from(String(dataUrl).split(",")[1] || "", "base64").toString(
+    "utf8"
+  );
+}
+
 describe("service worker EasyEDA flow", () => {
   it("returns EasyEDA preview URLs and datasheet availability for a valid CAD payload", async () => {
     const cadData = createCadData();
@@ -175,6 +181,162 @@ describe("service worker EasyEDA flow", () => {
       state: { current: "complete" }
     });
     expect(urlApi.revokeObjectURL).toHaveBeenCalledWith("blob:download");
+  });
+
+  it("rewrites EasyEDA library footprint model paths to the exported WRL artifact", async () => {
+    const cadData = createCadData();
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: false,
+        libraryDownloadRoot: "KiCad/Workspace"
+      }
+    });
+    const convertEasyedaCadToKicad = vi.fn(() => ({
+      footprint: {
+        name: "Model QFN",
+        content: `(module easyeda2kicad:Model_QFN
+  (fp_text reference U** (at 0 0) (layer F.SilkS))
+  (model "\${KIPRJMOD}/Model QFN.wrl"
+    (at (xyz 0 0 0))
+    (scale (xyz 1 1 1))
+    (rotate (xyz 0 0 0))
+  )
+)
+`
+      }
+    }));
+    const convertObjToWrlString = vi.fn(() => "#VRML");
+    const fetchImpl = vi.fn(async (url) => {
+      if (String(url).includes("/api/products/")) {
+        return {
+          ok: true,
+          json: async () => ({ result: cadData })
+        };
+      }
+      if (String(url).includes("/qAxj6KHrDKw4blvCG8QJPs7Y/")) {
+        return {
+          ok: true,
+          arrayBuffer: async () => new TextEncoder().encode("step").buffer
+        };
+      }
+      if (String(url).includes("/3dmodel/")) {
+        return {
+          ok: true,
+          text: async () => "obj data"
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      convertEasyedaCadToKicad,
+      convertObjToWrlString,
+      urlApi: {}
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: {
+        provider: "easyedaLcsc",
+        lookup: {
+          lcscId: "C12345"
+        }
+      },
+      options: {
+        symbol: false,
+        footprint: true,
+        model3d: true,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [],
+      downloadCount: 3
+    });
+
+    const downloadOptions = chrome.downloads.download.mock.calls.map(
+      ([options]) => options
+    );
+    expect(downloadOptions.map((options) => options.filename)).toEqual([
+      "KiCad/Workspace/Workspace.3dshapes/Model_QFN.step",
+      "KiCad/Workspace/Workspace.3dshapes/Model_QFN.wrl",
+      "KiCad/Workspace/Workspace.pretty/Model_QFN.kicad_mod"
+    ]);
+
+    const footprintDownload = downloadOptions.find((options) =>
+      options.filename.endsWith(".kicad_mod")
+    );
+    const footprintText = decodeDataUrl(footprintDownload.url);
+    expect(footprintText).toContain(
+      '(model "../Workspace.3dshapes/Model_QFN.wrl"'
+    );
+    expect(footprintText).not.toContain("${KIPRJMOD}");
+  });
+
+  it("strips stale EasyEDA footprint model blocks when 3D export is disabled", async () => {
+    const cadData = createCadData();
+    const { chrome, listeners } = createServiceWorkerChrome();
+    const convertEasyedaCadToKicad = vi.fn(() => ({
+      footprint: {
+        name: "Model QFN",
+        content: `(module easyeda2kicad:Model_QFN
+  (fp_text reference U** (at 0 0) (layer F.SilkS))
+  (model "\${KIPRJMOD}/Model QFN.wrl"
+    (at (xyz 0 0 0))
+    (scale (xyz 1 1 1))
+    (rotate (xyz 0 0 0))
+  )
+)
+`
+      }
+    }));
+    const fetchImpl = vi.fn(async (url) => {
+      if (String(url).includes("/api/products/")) {
+        return {
+          ok: true,
+          json: async () => ({ result: cadData })
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      convertEasyedaCadToKicad,
+      urlApi: {}
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: {
+        provider: "easyedaLcsc",
+        lookup: {
+          lcscId: "C12345"
+        }
+      },
+      options: {
+        symbol: false,
+        footprint: true,
+        model3d: false,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [],
+      downloadCount: 1
+    });
+    expect(chrome.downloads.download).toHaveBeenCalledOnce();
+
+    const [[footprintDownload]] = chrome.downloads.download.mock.calls;
+    const footprintText = decodeDataUrl(footprintDownload.url);
+    expect(footprintText).not.toContain("(model");
   });
 
   it("warns instead of reporting a download when a selected EasyEDA model is missing", async () => {

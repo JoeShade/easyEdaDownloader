@@ -116,6 +116,8 @@ Downloads/
 `-- <component>-datasheet.pdf
 ```
 
+When a footprint and matching 3D model are exported together, the footprint model reference is rewritten to the generated model path. If no 3D model is exported, stale model references are removed from the generated footprint.
+
 ## Supported sources and outputs
 
 | Source flow | Pages | Symbol | Footprint | 3D model | Datasheet | Notes |
