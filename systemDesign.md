@@ -258,6 +258,7 @@ The test suite remains the primary regression net for:
   - loose-file downloads when `downloadIndividually` is `true`
   - KiCad-style library structure when `downloadIndividually` is `false`
 - Library-mode symbol exports merge into a stored symbol library keyed by the resolved library root.
+- Library-mode datasheet exports are written under `<libraryRoot>/datasheets/`.
 
 ### 5.4 Export SamacSys distributor parts
 
@@ -312,7 +313,7 @@ The test suite remains the primary regression net for:
 - Detection failures in the popup produce user-facing status messages and disable export.
 - Service-worker preview failures return structured error responses to the popup.
 - Export failures return structured error responses to the popup.
-- Partial export issues that do not invalidate the whole request, such as missing datasheets, are accumulated as warnings.
+- Partial export issues that do not invalidate the whole request, such as missing selected datasheets, unavailable selected 3D models, or selected SamacSys asset categories absent from the upstream ZIP, are accumulated as warnings.
 - SamacSys distributor requests in Firefox fail early with a structured unsupported error message when no relay is configured.
 - Relay transport failures are surfaced distinctly from upstream SamacSys HTTP failures.
 - SamacSys ZIP `401 Unauthorized` responses are rewritten into a sign-in-required error so the popup can tell the user what upstream precondition is missing.
@@ -341,7 +342,7 @@ The test suite remains the primary regression net for:
 - SamacSys distributor loose-file symbol output keeps the extracted `.kicad_sym` filename from the ZIP.
 - Footprint output uses the extracted or generated `.kicad_mod` filename.
 - SamacSys distributor footprint library-mode downloads rewrite the model path into the library `.3dshapes` directory.
-- EasyEDA datasheet output uses a sanitized base name plus `-datasheet` and the detected extension.
+- EasyEDA datasheet output uses a sanitized base name plus `-datasheet` and the detected extension. In library mode it is saved under `<libraryRoot>/datasheets/`.
 - The library root name defaults to `easyECADDownloader` and can be changed to another Downloads-relative folder for library mode.
 
 ## 10. Maintainability and testing boundaries

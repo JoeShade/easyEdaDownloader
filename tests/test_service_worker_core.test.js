@@ -50,7 +50,8 @@ describe("service worker core helpers", () => {
     expect(buildLibraryPaths("KiCad/Workspace")).toEqual({
       symbolFile: "KiCad/Workspace/Workspace.kicad_sym",
       footprintDir: "KiCad/Workspace/Workspace.pretty",
-      modelDir: "KiCad/Workspace/Workspace.3dshapes"
+      modelDir: "KiCad/Workspace/Workspace.3dshapes",
+      datasheetDir: "KiCad/Workspace/datasheets"
     });
   });
 

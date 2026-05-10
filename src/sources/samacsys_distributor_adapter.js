@@ -30,6 +30,29 @@ import {
 } from "./samacsys_common.js";
 import { isFirefoxRuntime } from "../core/part_context.js";
 
+function addMissingAssetWarnings(warnings, options, assets) {
+  const missingSelectedAssets = [
+    [
+      options.symbol && !assets.symbols.length,
+      "Symbol not available in the SamacSys ZIP."
+    ],
+    [
+      options.footprint && !assets.footprints.length,
+      "Footprint not available in the SamacSys ZIP."
+    ],
+    [
+      options.model3d && !assets.stepModels.length && !assets.wrlModels.length,
+      "3D model not available in the SamacSys ZIP."
+    ]
+  ];
+
+  for (const [isMissing, message] of missingSelectedAssets) {
+    if (isMissing) {
+      warnings.push(message);
+    }
+  }
+}
+
 function createSamacsysDistributorAdapter(deps) {
   const { chromeApi, fetchImpl, downloads, readZipEntries, userAgent } = deps;
 
@@ -69,6 +92,12 @@ function createSamacsysDistributorAdapter(deps) {
         warnings.push("Datasheet export is not available for SamacSys distributor parts.");
       }
 
+      const shouldFetchZip =
+        resolvedOptions.symbol || resolvedOptions.footprint || resolvedOptions.model3d;
+      if (!shouldFetchZip) {
+        return { warnings, downloadCount };
+      }
+
       const metadata = await fetchSamacsysPageMetadata(samacsysFetchImpl, partContext);
       const zipBuffer = await fetchSamacsysZipArchive(samacsysFetchImpl, metadata, {
         retryAuthorizationHeader: isFirefoxRuntime(userAgent)
@@ -80,6 +109,8 @@ function createSamacsysDistributorAdapter(deps) {
       const primaryFootprintName = assets.footprints[0]?.name || null;
       const primaryStepFilename = assets.stepModels[0]?.filename || null;
       const shouldIncludeModelReferences = resolvedOptions.model3d && primaryStepFilename;
+
+      addMissingAssetWarnings(warnings, resolvedOptions, assets);
 
       if (resolvedOptions.symbol) {
         for (const symbol of assets.symbols) {

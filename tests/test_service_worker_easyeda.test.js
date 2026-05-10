@@ -95,7 +95,7 @@ describe("service worker EasyEDA flow", () => {
 `
       },
       footprint: {
-        name: "QFN-16_Example",
+        name: "QFN-16/Example",
         content: "(module easyeda2kicad:QFN-16_Example)"
       }
     }));
@@ -168,13 +168,51 @@ describe("service worker EasyEDA flow", () => {
     expect(filenames).toContain(
       "KiCad/Workspace/Workspace.3dshapes/Model_QFN.wrl"
     );
-    expect(filenames).toContain("KiCad/Workspace/QFN-16_Example-datasheet.pdf");
+    expect(filenames).toContain("KiCad/Workspace/datasheets/QFN-16_Example-datasheet.pdf");
 
     listeners.downloadsChanged[0]({
       id: 1,
       state: { current: "complete" }
     });
     expect(urlApi.revokeObjectURL).toHaveBeenCalledWith("blob:download");
+  });
+
+  it("warns instead of reporting a download when a selected EasyEDA model is missing", async () => {
+    const cadData = createCadData();
+    cadData.packageDetail.dataStr.shape = cadData.packageDetail.dataStr.shape.filter(
+      (shape) => !shape.startsWith("SVGNODE~")
+    );
+    const { chrome, listeners } = createServiceWorkerChrome();
+    loadServiceWorker({
+      chrome,
+      fetchImpl: vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ result: cadData })
+      }))
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: {
+        provider: "easyedaLcsc",
+        lookup: {
+          lcscId: "C12345"
+        }
+      },
+      options: {
+        symbol: false,
+        footprint: false,
+        model3d: true,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: ["3D model not available for this part."],
+      downloadCount: 0
+    });
+    expect(chrome.downloads.download).not.toHaveBeenCalled();
   });
 
   it("reports invalid EasyEDA payloads as structured preview failures", async () => {

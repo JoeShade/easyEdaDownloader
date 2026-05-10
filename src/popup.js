@@ -220,6 +220,23 @@ function openSettingsPage() {
   chromeApi.runtime.openOptionsPage?.();
 }
 
+function setExportResultStatus(response) {
+  const warnings = Array.isArray(response.warnings)
+    ? response.warnings.filter(Boolean)
+    : [];
+  const downloadCount = Number(response.downloadCount) || 0;
+
+  if (warnings.length && downloadCount > 0) {
+    setStatus(`Download started. ${warnings.join(" ")}`, "warning");
+  } else if (warnings.length) {
+    setStatus(warnings.join(" "), "warning");
+  } else if (downloadCount > 0) {
+    setStatus("Download started.");
+  } else {
+    setStatus("No files were available to download.", "warning");
+  }
+}
+
 // Update UI state based on whether a supported provider was found.
 function setPartContext(partContext) {
   currentPartContext = partContext?.provider ? partContext : null;
@@ -325,16 +342,7 @@ downloadButton.addEventListener("click", () => {
         return;
       }
       if (response?.ok) {
-        const warnings = Array.isArray(response.warnings)
-          ? response.warnings.filter(Boolean)
-          : [];
-        if (warnings.length && response.downloadCount > 0) {
-          setStatus(`Download started. ${warnings.join(" ")}`, "warning");
-        } else if (warnings.length) {
-          setStatus(warnings.join(" "), "warning");
-        } else {
-          setStatus("Download started.");
-        }
+        setExportResultStatus(response);
       } else {
         setStatus(response?.error || "Download failed.", "error");
       }

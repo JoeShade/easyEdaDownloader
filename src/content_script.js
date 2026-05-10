@@ -260,6 +260,28 @@ function findFarnellProductData() {
   };
 }
 
+function getFarnellBrandConfig() {
+  if (isNewarkHost()) {
+    return {
+      partnerName: "newark",
+      sourcePartLabel: "Newark part",
+      baseUrl: "https://newark.componentsearchengine.com"
+    };
+  }
+  if (isElement14Host()) {
+    return {
+      partnerName: "element14",
+      sourcePartLabel: "element14 part",
+      baseUrl: "https://element14.componentsearchengine.com"
+    };
+  }
+  return {
+    partnerName: "farnell",
+    sourcePartLabel: "Farnell part",
+    baseUrl: DISTRIBUTORS.farnell.baseUrl
+  };
+}
+
 function extractEventValueFromOnclick(onclickText, key) {
   const text = String(onclickText || "");
   const match = text.match(new RegExp(`"${key}":"([^"]*)"`, "i"));
@@ -438,37 +460,24 @@ function findMouserPartContext() {
 }
 
 function findFarnellPartContext() {
-  const element14Host = isElement14Host();
-  const newarkHost = isNewarkHost();
-  const brandPartnerName = newarkHost
-    ? "newark"
-    : element14Host
-      ? "element14"
-      : "farnell";
-  const brandSourcePartLabel = newarkHost
-    ? "Newark part"
-    : element14Host
-      ? "element14 part"
-      : "Farnell part";
-  const brandBaseUrl = newarkHost
-    ? "https://newark.componentsearchengine.com"
-    : element14Host
-      ? "https://element14.componentsearchengine.com"
-      : DISTRIBUTORS.farnell.baseUrl;
+  const brandConfig = getFarnellBrandConfig();
   const samacsysLink = findSamacsysLinkElement();
-  const linkMetadata = parseSamacsysLinkUrl(samacsysLink?.href, brandPartnerName);
+  const linkMetadata = parseSamacsysLinkUrl(
+    samacsysLink?.href,
+    brandConfig.partnerName
+  );
   const farnellProductData = findFarnellProductData();
   const manufacturerName = linkMetadata?.manufacturerName || farnellProductData.manufacturerName;
   const manufacturerPartNumber =
     linkMetadata?.manufacturerPartNumber || farnellProductData.manufacturerPartNumber;
   return buildSamacsysPartContext({
     distributor: "farnell",
-    sourcePartLabel: brandSourcePartLabel,
+    sourcePartLabel: brandConfig.sourcePartLabel,
     sourcePartNumber: farnellProductData.sourcePartNumber,
     manufacturerPartNumber,
     manufacturerName,
-    partnerName: linkMetadata?.partnerName || brandPartnerName,
-    baseUrl: linkMetadata?.baseUrl || brandBaseUrl,
+    partnerName: linkMetadata?.partnerName || brandConfig.partnerName,
+    baseUrl: linkMetadata?.baseUrl || brandConfig.baseUrl,
     authRefreshUrl: linkMetadata ? samacsysLink.href : null,
     logo: linkMetadata?.logo,
     lang: linkMetadata?.lang

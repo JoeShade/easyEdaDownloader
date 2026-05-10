@@ -20,13 +20,11 @@
   <a href="#faq"><strong>FAQ</strong></a>
 </p>
 
-<p align="center">
-  <video src="docs/assets/readme/demo-placeholder.mov" controls width="820" title="Easy ECAD Downloader demo placeholder"></video>
-</p>
-
 Easy ECAD Downloader is a browser extension for exporting KiCad-compatible CAD assets from supported distributor product pages.
 
 It works on supported JLCPCB, LCSC, Mouser, Farnell, element14, and Newark part pages, and can download the available KiCad files for you: symbols, footprints, 3D models, and datasheets.
+
+<br>
 
 <p>
   <img src="docs/assets/readme/important-bar.svg" alt="" width="4" height="58" align="left" hspace="12">

@@ -2,7 +2,6 @@
   <g transform="translate(1.2 0.2) scale(0.9)">
   <circle cx="6" cy="6" r="3"/>
   <circle cx="18" cy="18" r="3"/>
-  <path d="M9 6h2a4 4 0 0 1 4 4v5"/>
-  <path d="M15 12h4"/>
+  <path d="M9 6h5a4 4 0 0 1 4 4v5"/>
   </g>
 </svg>

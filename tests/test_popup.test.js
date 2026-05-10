@@ -454,6 +454,38 @@ describe("popup", () => {
     expect(hooks.elements.statusEl.textContent).toBe("Download failed.");
     expect(hooks.elements.statusEl.classList.contains("error")).toBe(true);
   });
+
+  it("does not say a download started when the worker reports no files", async () => {
+    const { state, hooks } = await loadPopup();
+
+    await applyStoredSettings(state);
+    activatePopupTab(state, 9);
+    state.tabMessages[0].callback(EASYEDA_PART_CONTEXT);
+    state.runtimeMessages[0].callback({
+      ok: true,
+      previews: {
+        symbolUrl: "data:image/svg+xml;utf8,%3Csvg%20%2F%3E",
+        footprintUrl: "data:image/svg+xml;utf8,%3Csvg%20%2F%3E"
+      },
+      metadata: {
+        datasheetAvailable: false
+      }
+    });
+    await flushAsyncWork();
+
+    hooks.elements.downloadButton.click();
+    state.runtimeMessages[1].callback({
+      ok: true,
+      warnings: [],
+      downloadCount: 0
+    });
+    await flushAsyncWork();
+
+    expect(hooks.elements.statusEl.textContent).toBe(
+      "No files were available to download."
+    );
+    expect(hooks.elements.statusEl.classList.contains("warning")).toBe(true);
+  });
 });
 
 // SamacSys/relay work in this file: JoeShade and Josh Webster

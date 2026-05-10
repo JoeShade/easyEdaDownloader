@@ -21,6 +21,11 @@ import {
   writeTextArtifact,
   writeUrlArtifact
 } from "../core/export_artifacts.js";
+import { sanitizeFilenamePart } from "../core/preview_data.js";
+
+function buildSafeFilename(name, extension, fallback) {
+  return `${sanitizeFilenamePart(name, fallback)}.${extension}`;
+}
 
 function createEasyedaAdapter(deps) {
   const {
@@ -52,30 +57,43 @@ function createEasyedaAdapter(deps) {
       });
 
       if (kicadFiles.symbol) {
+        const symbolFilename = buildSafeFilename(
+          `${lcscId}-${kicadFiles.symbol.name}`,
+          "kicad_sym",
+          lcscId
+        );
         downloadCount += await writeSymbolArtifact({
           chromeApi,
           downloads,
           exportContext,
           symbolContent: kicadFiles.symbol.content,
           symbolName: kicadFiles.symbol.name,
-          individualFilename: `${lcscId}-${kicadFiles.symbol.name}.kicad_sym`
+          individualFilename: symbolFilename
         });
       }
 
       if (kicadFiles.footprint) {
+        const footprintFilename = buildSafeFilename(
+          kicadFiles.footprint.name,
+          "kicad_mod",
+          "footprint"
+        );
         downloadCount += await writeTextArtifact({
           downloads,
           exportContext,
           content: kicadFiles.footprint.content,
-          individualFilename: `${kicadFiles.footprint.name}.kicad_mod`,
-          libraryPath: `${exportContext.libraryPaths.footprintDir}/${kicadFiles.footprint.name}.kicad_mod`
+          individualFilename: footprintFilename,
+          libraryPath: `${exportContext.libraryPaths.footprintDir}/${footprintFilename}`
         });
       }
 
       if (resolvedOptions.model3d) {
         const modelInfo = find3dModelInfo(cadData.packageDetail);
         if (modelInfo) {
-          const safeModelName = modelInfo.name.replace(/[^\w.-]+/g, "_");
+          const safeModelName = sanitizeFilenamePart(
+            modelInfo.name,
+            modelInfo.uuid || "model"
+          );
           const stepResponse = await fetchImpl(
             EASYEDA_MODEL_STEP_ENDPOINT.replace("{uuid}", modelInfo.uuid)
           );
@@ -90,6 +108,7 @@ function createEasyedaAdapter(deps) {
             });
           } else {
             console.warn("3D STEP download failed:", stepResponse.status);
+            warnings.push("3D STEP model download failed.");
           }
 
           const objResponse = await fetchImpl(
@@ -107,7 +126,10 @@ function createEasyedaAdapter(deps) {
             });
           } else {
             console.warn("3D OBJ download failed:", objResponse.status);
+            warnings.push("3D WRL model download failed.");
           }
+        } else {
+          warnings.push("3D model not available for this part.");
         }
       }
 
@@ -121,7 +143,7 @@ function createEasyedaAdapter(deps) {
               exportContext,
               url: datasheetInfo.url,
               individualFilename: datasheetInfo.filename,
-              libraryPath: `${exportContext.settings.libraryDownloadRoot}/${datasheetInfo.filename}`
+              libraryPath: `${exportContext.libraryPaths.datasheetDir}/${datasheetInfo.filename}`
             });
           } catch (error) {
             console.warn("Datasheet download failed:", error);

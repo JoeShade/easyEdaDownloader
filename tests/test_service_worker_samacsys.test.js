@@ -304,6 +304,77 @@ describe("service worker SamacSys direct flow", () => {
     expect(chrome.downloads.download).not.toHaveBeenCalled();
   });
 
+  it("skips the SamacSys ZIP request when only unsupported datasheet export is selected", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome();
+    const fetchImpl = vi.fn();
+    loadServiceWorker({
+      chrome,
+      fetchImpl
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      options: {
+        symbol: false,
+        footprint: false,
+        model3d: false,
+        datasheet: true
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [
+        "Datasheet export is not available for SamacSys distributor parts."
+      ],
+      downloadCount: 0
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(chrome.downloads.download).not.toHaveBeenCalled();
+  });
+
+  it("warns when a selected SamacSys asset type is absent from the ZIP", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true
+      }
+    });
+    const readZipEntries = vi.fn(async () => [
+      {
+        name: "STM32C552KEU6/KiCad/QFN50P500X500X60-33N-D.kicad_mod",
+        data: new TextEncoder().encode(MOUSER_FOOTPRINT)
+      }
+    ]);
+    const fetchImpl = createSamacsysFetchImpl({
+      zipStatus: 200
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      readZipEntries
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      options: {
+        symbol: true,
+        footprint: false,
+        model3d: false,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: ["Symbol not available in the SamacSys ZIP."],
+      downloadCount: 0
+    });
+    expect(chrome.downloads.download).not.toHaveBeenCalled();
+  });
+
   it("does not read SamacSys cookies on Chrome direct requests", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       cookieState: {

@@ -219,7 +219,8 @@ function buildLibraryPaths(libraryDownloadRoot = DEFAULT_LIBRARY_DOWNLOAD_ROOT) 
   return {
     symbolFile: `${libraryDownloadRoot}/${libraryName}.kicad_sym`,
     footprintDir: `${libraryDownloadRoot}/${libraryName}.pretty`,
-    modelDir: `${libraryDownloadRoot}/${libraryName}.3dshapes`
+    modelDir: `${libraryDownloadRoot}/${libraryName}.3dshapes`,
+    datasheetDir: `${libraryDownloadRoot}/datasheets`
   };
 }
 

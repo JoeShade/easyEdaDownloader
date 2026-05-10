@@ -42,6 +42,7 @@ This section summarizes the current `Development` branch compared with `main` as
 - Handled SamacSys ZIP structures where `KiCad/` and `3D/` folders appear either at the archive root or under a part-specific parent folder.
 - Reworked SamacSys ZIP `401` handling into clearer sign-in-required errors and retry behavior.
 - Kept relay auth separate from upstream SamacSys auth so relay credentials are not forwarded to upstream providers.
+- Saved EasyEDA datasheets in the documented library-mode `datasheets/` folder and warned when selected export assets are unavailable.
 - Removed real-looking SamacSys auth values from tests and fixtures.
 - Removed a stale repository review plan from tracked docs so `systemDesign.md` remains the design source of truth.
 
