@@ -258,7 +258,7 @@ export default {
 
    For the Worker code above, this should match the value stored in `PROXY_BEARER_TOKEN`.
 10. Leave `Remember helper password/token on this device` unticked unless you accept the local-storage risk.
-11. Reload the target Mouser or Farnell page.
+11. Reload the target Mouser, Farnell, element14, or Newark page.
 12. Test previews in Firefox first.
 13. If previews work, try ZIP export.
 

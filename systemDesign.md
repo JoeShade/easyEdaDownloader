@@ -8,7 +8,7 @@ The extension supports three provider flows:
 
 - EasyEDA-backed JLCPCB and LCSC pages
 - Mouser pages that expose the SamacSys / Component Search Engine ECAD button
-- Farnell pages that expose the Supplyframe / SamacSys ECAD link
+- Farnell, element14, and Newark pages that expose the Supplyframe / SamacSys ECAD link
 
 The repository remains intentionally compact. If code and design diverge, update one of them in the same change.
 
@@ -16,7 +16,7 @@ The repository remains intentionally compact. If code and design diverge, update
 
 ### 2.1 Supported operator flow
 
-1. Open a supported JLCPCB, LCSC, Mouser, or Farnell product page.
+1. Open a supported JLCPCB, LCSC, Mouser, Farnell, element14, or Newark product page.
 2. Optionally open the extension settings page to configure download layout or advanced SamacSys options.
 3. Open the extension popup.
 4. Ask the content script for a provider-aware part context via `GET_PART_CONTEXT`.
@@ -35,10 +35,10 @@ The current repository does not implement:
 
 ## 3. Supported contexts and assumptions
 
-- The content script is injected only on matching JLCPCB, LCSC, Mouser, and Farnell pages.
+- The content script is injected only on matching JLCPCB, LCSC, Mouser, Farnell, element14, and Newark pages.
 - EasyEDA-backed pages expose an LCSC-style part id such as `C12345`.
 - Mouser support depends on the ECAD button `#lnk_CadModel[data-testid="ProductInfoECAD"]`.
-- Farnell support depends on a Supplyframe / SamacSys link exposed in the `ECAD / MCAD` section.
+- Farnell, element14, and Newark support depend on a Supplyframe / SamacSys link exposed in the `ECAD / MCAD` section.
 - The content script returns a generic part context, not a provider-specific ad hoc message shape.
 - EasyEDA previews are generated locally from CAD payload primitives.
 - SamacSys distributor previews come from SamacSys JSON preview endpoints and are displayed as PNG data URLs.
@@ -67,7 +67,7 @@ There is no application-owned cloud backend in this repository. The service work
 ```mermaid
 flowchart LR
     user["User on supported product page"]
-    productPage["JLCPCB / LCSC / Mouser / Farnell DOM"]
+    productPage["JLCPCB / LCSC / Mouser / Farnell / element14 / Newark DOM"]
     contentScript["Content script\nsrc/content_script.js"]
     popup["Extension popup\nsrc/popup.js"]
     settingsPage["Settings page\nsrc/settings_page.js"]
@@ -105,10 +105,10 @@ Owns page inspection only:
 
 - detect EasyEDA/LCSC identifiers from definition lists, known tables, and page text
 - detect Mouser SamacSys ECAD availability from the ECAD button
-- detect Farnell SamacSys ECAD availability from the `Supply Frame Models Link`
+- detect Farnell, element14, or Newark SamacSys ECAD availability from the `Supply Frame Models Link`
 - read provider-specific source part metadata from the page DOM
 - reconstruct the Mouser SamacSys entry URL from `loadPartDiv(...)`
-- reconstruct the Farnell SamacSys entry URL from the Supplyframe link metadata
+- reconstruct the Farnell, element14, or Newark SamacSys entry URL from the Supplyframe link metadata
 - reply to popup-originated `GET_PART_CONTEXT` requests
 
 It remains a DOM-reading boundary with no network or download logic.
@@ -136,7 +136,7 @@ Owns persistent settings UI:
 - keep helper tokens and SamacSys credentials in `chrome.storage.session` unless the user explicitly opts to remember them on this device
 - keep form edits local to the page until the user chooses `Save`, with `Discard` restoring the last loaded settings
 - expose the download layout controls, including loose-file mode and library folder root
-- expose SamacSys username/password auth inputs for Mouser/Farnell downloads
+- expose SamacSys username/password auth inputs for Mouser/Farnell/element14/Newark downloads
 - let users temporarily show or hide typed password and token values without changing stored settings
 - expose Firefox-only helper-service auth and relay URL inside a hidden-by-default advanced Firefox settings menu
 - normalize settings through `src/core/settings.js`
@@ -226,10 +226,10 @@ The test suite remains the primary regression net for:
   - source part number equal to `Mouser No`
   - manufacturer part number equal to `Mfr. No`
   - lookup metadata containing manufacturer name and a reconstructed SamacSys entry URL
-- On Farnell pages, the content script returns:
+- On Farnell, element14, and Newark pages, the content script returns:
   - provider `farnellSamacsys`
-  - source label `Farnell part`
-  - source part number equal to the detected Farnell order code or page part identifier
+  - source label `Farnell part`, `element14 part`, or `Newark part` based on the current site
+  - source part number equal to the detected page order code or page part identifier
   - manufacturer part number from the SamacSys link metadata or page text
   - lookup metadata containing manufacturer name and a reconstructed SamacSys entry URL
 
@@ -240,7 +240,7 @@ The test suite remains the primary regression net for:
   - fetch the EasyEDA CAD payload
   - synthesize symbol and footprint SVG previews
   - derive datasheet availability from the payload
-- Mouser and Farnell pages:
+- Mouser, Farnell, element14, and Newark pages:
   - fetch the SamacSys entry URL
   - follow the part-page redirect and parse the ZIP form and preview token
   - fetch `symbol.php` and `footprint.php` JSON previews

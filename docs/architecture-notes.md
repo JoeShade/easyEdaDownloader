@@ -11,7 +11,7 @@ This file records short implementation notes that supplement, but do not replace
 - `src/service_worker_runtime.js`: provider routing, runtime gating, response shaping, and composition of worker dependencies
 - `src/core/*.js`: shared worker business logic for settings, downloads, storage-backed symbol-library handling, shared export artifact writing, and common normalization
 - `src/sources/*.js`: source adapters plus source-specific fetch/parse/export helpers
-  - `src/sources/samacsys_distributor_adapter.js` is the shared backend adapter for Mouser and Farnell
+  - `src/sources/samacsys_distributor_adapter.js` is the shared backend adapter for Mouser, Farnell, element14, and Newark
 - `src/sources/samacsys_common.js` holds the shared SamacSys preview, ZIP, relay-cookie, relay-auth, upstream-auth, direct-request ZIP-auth fallback, and asset-rewrite helpers
 - `src/kicad_converter.js`: stable public converter facade
 - `src/kicad/*.js`: EasyEDA parsing, KiCad text generation, shared conversion math, and OBJ-to-WRL conversion
@@ -29,7 +29,7 @@ This file records short implementation notes that supplement, but do not replace
 
 - The popup does not fetch, extract, or convert CAD assets directly; it only requests that work.
 - The runtime/router owns provider branching, while source adapters own source-specific preview and export behavior.
-- Farnell does not have its own backend adapter file because it intentionally reuses the shared SamacSys distributor backend.
+- Farnell, element14, and Newark do not have their own backend adapter files because they intentionally reuse the shared SamacSys distributor backend.
 - Symbol library append behavior depends on `chrome.storage.local`, not on local filesystem reads.
 - Library-mode download paths remain relative to Downloads and are resolved from extension settings, not absolute filesystem paths.
 - SamacSys distributor support is still Chrome-first, but Firefox can opt into a user-managed relay through the advanced Firefox settings menu.

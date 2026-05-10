@@ -344,6 +344,130 @@ describe("content script", () => {
     });
   });
 
+  it("detects an element14 SamacSys part context and preserves the element14 host", () => {
+    const { hooks } = loadContentScript(
+      `
+      <section>
+        <div>Manufacturer Part No: NB3L553DG</div>
+        <div>Order Code: 2101848</div>
+        <a href="https://element14.componentsearchengine.com/icon.php?lang=en-GB&mna=ONSEMI&mpn=NB3L553DG&pna=element14&logo=element14&q3=SHOW3D">
+          <img alt="Supply Frame Models Link" />
+        </a>
+      </section>
+      `,
+      {
+        url: "https://au.element14.com/webapp/wcs/stores/servlet/ProductDisplay?partNumber=2101848"
+      }
+    );
+
+    expect(hooks.findFarnellPartContext()).toEqual({
+      provider: "farnellSamacsys",
+      sourcePartLabel: "element14 part",
+      sourcePartNumber: "2101848",
+      manufacturerPartNumber: "NB3L553DG",
+      lookup: {
+        manufacturerName: "ONSEMI",
+        entryUrl:
+          "https://element14.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=NB3L553DG&pna=element14&vrq=multi&fmt=zip&logo=element14&lang=en-GB",
+        authRefreshUrl:
+          "https://element14.componentsearchengine.com/icon.php?lang=en-GB&mna=ONSEMI&mpn=NB3L553DG&pna=element14&logo=element14&q3=SHOW3D",
+        partnerName: "element14",
+        samacsysBaseUrl: "https://element14.componentsearchengine.com"
+      }
+    });
+  });
+
+  it("falls back to element14 page labels when the Supplyframe link is absent", () => {
+    const { hooks } = loadContentScript(
+      `
+      <section>
+        <div>Manufacturer: ONSEMI</div>
+        <div>Manufacturer Part No: NB3L553DG</div>
+        <div>Order Code: 2101848</div>
+      </section>
+      `,
+      {
+        url: "https://au.element14.com/onsemi/nb3l553dg/clock-fanout-buffer-soic-8/dp/2101848"
+      }
+    );
+
+    expect(hooks.findFarnellPartContext()).toEqual({
+      provider: "farnellSamacsys",
+      sourcePartLabel: "element14 part",
+      sourcePartNumber: "2101848",
+      manufacturerPartNumber: "NB3L553DG",
+      lookup: {
+        manufacturerName: "ONSEMI",
+        entryUrl:
+          "https://element14.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=NB3L553DG&pna=element14&vrq=multi&fmt=zip",
+        partnerName: "element14",
+        samacsysBaseUrl: "https://element14.componentsearchengine.com"
+      }
+    });
+  });
+
+  it("detects a Newark SamacSys part context and preserves the Newark host", () => {
+    const { hooks } = loadContentScript(
+      `
+      <section>
+        <div>Manufacturer Part No: PN2222ATF</div>
+        <div>Newark Part No.: 58K2048</div>
+        <a href="https://newark.componentsearchengine.com/icon.php?lang=en-US&mna=ONSEMI&mpn=PN2222ATF&pna=newark&logo=newark&q3=SHOW3D">
+          <img alt="Supply Frame Models Link" />
+        </a>
+      </section>
+      `,
+      {
+        url: "https://www.newark.com/webapp/wcs/stores/servlet/ProductDisplay?catalogId=15003&langId=-1&partNumber=58K2048&storeId=10194&urlRequestType=Base"
+      }
+    );
+
+    expect(hooks.findFarnellPartContext()).toEqual({
+      provider: "farnellSamacsys",
+      sourcePartLabel: "Newark part",
+      sourcePartNumber: "58K2048",
+      manufacturerPartNumber: "PN2222ATF",
+      lookup: {
+        manufacturerName: "ONSEMI",
+        entryUrl:
+          "https://newark.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=PN2222ATF&pna=newark&vrq=multi&fmt=zip&logo=newark&lang=en-US",
+        authRefreshUrl:
+          "https://newark.componentsearchengine.com/icon.php?lang=en-US&mna=ONSEMI&mpn=PN2222ATF&pna=newark&logo=newark&q3=SHOW3D",
+        partnerName: "newark",
+        samacsysBaseUrl: "https://newark.componentsearchengine.com"
+      }
+    });
+  });
+
+  it("falls back to Newark page labels when the Supplyframe link is absent", () => {
+    const { hooks } = loadContentScript(
+      `
+      <section>
+        <div>Manufacturer: ONSEMI</div>
+        <div>Manufacturer Part No: PN2222ATF</div>
+        <div>Newark Part No.: 58K2048</div>
+      </section>
+      `,
+      {
+        url: "https://www.newark.com/onsemi/pn2222atf/transistor-bjt-npn-to-226aa/dp/58K2048"
+      }
+    );
+
+    expect(hooks.findFarnellPartContext()).toEqual({
+      provider: "farnellSamacsys",
+      sourcePartLabel: "Newark part",
+      sourcePartNumber: "58K2048",
+      manufacturerPartNumber: "PN2222ATF",
+      lookup: {
+        manufacturerName: "ONSEMI",
+        entryUrl:
+          "https://newark.componentsearchengine.com/entry_u_newDesign.php?mna=ONSEMI&mpn=PN2222ATF&pna=newark&vrq=multi&fmt=zip",
+        partnerName: "newark",
+        samacsysBaseUrl: "https://newark.componentsearchengine.com"
+      }
+    });
+  });
+
   it("prefers Farnell canonical and meta product data over flattened body text", () => {
     const { hooks } = loadContentScript(
       `

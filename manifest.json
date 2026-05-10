@@ -45,7 +45,9 @@
         "*://*.mouser.com/*",
         "*://*.mouser.co.uk/*",
         "*://uk.farnell.com/*",
-        "*://*.farnell.com/*"
+        "*://*.farnell.com/*",
+        "*://*.element14.com/*",
+        "*://*.newark.com/*"
       ],
       "js": ["src/content_script.js"]
     }
