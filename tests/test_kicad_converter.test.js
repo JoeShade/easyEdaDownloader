@@ -46,6 +46,7 @@ describe("kicad converter", () => {
     expect(result.footprint.content).toContain("(pad 1 smd rect");
     expect(result.footprint.content).toContain("(primitives");
     expect(result.footprint.content).toContain('(model "${KIPRJMOD}/Model QFN.wrl"');
+    expect(result.footprint.content).toContain("(offset (xyz 0.500 -0.500 0.200))");
     expect(result.footprint.content).toContain("(rotate (xyz 0 270 180))");
     expect(result.footprint.content).toContain("(layer F.Fab)");
   });
@@ -79,7 +80,8 @@ f 1 2 3
 
     expect(wrl).toContain("#VRML V2.0 utf8");
     expect(wrl).toContain("diffuseColor 0.4 0.5 0.6");
-    expect(wrl).toContain("1.0000 0.0000 0.0000");
+    expect(wrl).toContain("0.5000 -0.5000 0.0000");
+    expect(wrl).toContain("-0.5000 -0.5000 1.0000");
     expect(wrl).toContain("Shape{");
   });
 });

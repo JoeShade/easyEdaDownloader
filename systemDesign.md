@@ -259,6 +259,7 @@ The test suite remains the primary regression net for:
   - loose-file footprints reference `${KIPRJMOD}/<modelFilename>` when a model was exported
   - library-mode footprints reference `../<libraryName>.3dshapes/<modelFilename>` when a model was exported
   - stale footprint `(model ...)` blocks are removed when no selected 3D model artifact is exported
+- EasyEDA OBJ-to-WRL conversion recenters model geometry in X/Y, bottom-aligns the model in Z, and writes footprint model offsets in KiCad 3D units so the WRL aligns with the generated footprint.
 - Library-mode datasheet exports are written under `<libraryRoot>/datasheets/`.
 
 ### 5.4 Export SamacSys distributor parts

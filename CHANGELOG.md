@@ -37,6 +37,7 @@ This section summarizes the current `Development` branch compared with `main` as
 
 ### Fixed
 
+- Corrected EasyEDA WRL placement by centering OBJ geometry, bottom-aligning Z, and writing KiCad 3D-unit offsets.
 - Rendered EasyEDA footprint previews for oval pads and solid-region geometry used by several LCSC footprints.
 - Detected JLCPCB manufacturer part numbers when product pages use compact labels such as `MFR.Part #`.
 - Improved provider-aware page detection for JLCPCB, LCSC, Mouser, and Farnell product pages.

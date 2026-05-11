@@ -18,6 +18,12 @@ import {
   toNumber
 } from "./shared.js";
 
+const KI_3D_UNIT_MM = 2.54;
+
+function mmToKi3dUnit(value) {
+  return value / KI_3D_UNIT_MM;
+}
+
 function drillToKi(holeRadius, holeLength, padHeight, padWidth) {
   if (holeRadius > 0 && holeLength && holeLength !== 0) {
     const maxDistanceHole = Math.max(holeRadius * 2, holeLength);
@@ -93,11 +99,9 @@ function convertFootprintToKiCad(footprint) {
     ? {
         ...footprint.model3d,
         translation: {
-          x: convertToMm(footprint.model3d.translation.x) - bbox.x,
-          y: -(convertToMm(footprint.model3d.translation.y) - bbox.y),
-          z: footprint.info.fpType === "smd"
-            ? -convertToMm(footprint.model3d.translation.z)
-            : 0
+          x: mmToKi3dUnit(convertToMm(footprint.model3d.translation.x) - bbox.x),
+          y: mmToKi3dUnit(-(convertToMm(footprint.model3d.translation.y) - bbox.y)),
+          z: mmToKi3dUnit(convertToMm(footprint.model3d.translation.z))
         },
         rotation: {
           x: (360 - toNumber(footprint.model3d.rotation.x)) % 360,
