@@ -59,6 +59,13 @@ const githubSlugForPlainHeading = (heading) =>
     .replace(/[^a-z0-9 -]/g, "")
     .replace(/\s+/g, "-");
 
+const readmeHeadingText = (line) =>
+  line
+    .slice(3)
+    .trim()
+    .replace(/<img\s+[^>]*>\s*/g, "")
+    .trim();
+
 const CANONICAL_FOOTER = normalizeNewlines(
   [
     "/*",
@@ -298,7 +305,7 @@ describe("repository hygiene", () => {
       fs.readFileSync(path.join(REPO_ROOT, "README.md"), "utf8")
     );
     const contentsMatch = readmeText.match(
-      /^## Contents\n\n((?:- \[[^\]]+\]\(#[^)]+\)\n)+)/m
+      /^## (?:<img\s+[^>]*>\s*)?Contents\n\n((?:- \[[^\]]+\]\(#[^)]+\)\n)+)/m
     );
 
     expect(contentsMatch).not.toBeNull();
@@ -312,11 +319,8 @@ describe("repository hygiene", () => {
       readmeText
         .split("\n")
         .filter((line) => line.startsWith("## "))
-        .map((line) => line.slice(3).trim())
-        .map((heading) => {
-          expect(heading).not.toMatch(/<[^>]+>/);
-          return githubSlugForPlainHeading(heading);
-        })
+        .map(readmeHeadingText)
+        .map(githubSlugForPlainHeading)
     );
 
     expect(linkedFragments).toEqual([...new Set(linkedFragments)]);
