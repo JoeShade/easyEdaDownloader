@@ -127,6 +127,34 @@ describe("content script", () => {
     });
   });
 
+  it("extracts JLCPCB manufacturer part numbers from compact labels", () => {
+    const { hooks } = loadContentScript(
+      `
+      <dl>
+        <dt>MFR.Part #</dt>
+        <dd>35ZLH100MEFC6.3X11</dd>
+      </dl>
+      <dl>
+        <dt>JLCPCB Part #</dt>
+        <dd>C109392</dd>
+      </dl>
+    `,
+      {
+        url: "https://jlcpcb.com/partdetail/Rubycon-35ZLH100MEFC63X11/C109392"
+      }
+    );
+
+    expect(hooks.findPartContext()).toEqual({
+      provider: "easyedaLcsc",
+      sourcePartLabel: "LCSC part",
+      sourcePartNumber: "C109392",
+      manufacturerPartNumber: "35ZLH100MEFC6.3X11",
+      lookup: {
+        lcscId: "C109392"
+      }
+    });
+  });
+
   it("detects a Mouser SamacSys part context from the ECAD button and DOM metadata", () => {
     const { hooks } = loadContentScript(
       `

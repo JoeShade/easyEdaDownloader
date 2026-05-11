@@ -45,7 +45,7 @@ function isNewarkHost() {
 
 // Normalize a label so we can compare it reliably.
 function normalizeLabel(text) {
-  return text.replace(/\s+/g, " ").trim().toLowerCase();
+  return text.replace(/[.:]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 function matchesKnownLabel(label, expectedLabels) {
