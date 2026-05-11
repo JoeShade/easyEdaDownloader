@@ -49,6 +49,9 @@ describe("kicad converter", () => {
     expect(result.footprint.content).toContain("(offset (xyz 0.500 -0.500 0.200))");
     expect(result.footprint.content).toContain("(rotate (xyz 0 270 180))");
     expect(result.footprint.content).toContain("(layer F.Fab)");
+    expect(result.footprint.content).toContain("(size 0.76 0.76)");
+    expect(result.footprint.content).toContain("(font (size 1.02 1.02)");
+    expect(result.footprint.content).not.toMatch(/\{(?:diameter|fontSize)\}/);
   });
 
   it("keeps key geometry helpers stable for parsed paths and drill output", () => {

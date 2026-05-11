@@ -260,7 +260,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
     output += KI_FOOTPRINT_TEMPLATES.via
       .replace("{posX}", (via.centerX - kiFootprint.bbox.x).toFixed(2))
       .replace("{posY}", (via.centerY - kiFootprint.bbox.y).toFixed(2))
-      .replace("{diameter}", via.diameter.toFixed(2))
+      .replace(/{diameter}/g, via.diameter.toFixed(2))
       .replace("{size}", (via.radius * 2).toFixed(2));
   }
 
@@ -337,7 +337,7 @@ function exportKiCadFootprint(kiFootprint, model3dPath) {
       .replace("{orientation}", angleToKi(text.rotation).toFixed(2))
       .replace("{layers}", layers)
       .replace("{display}", text.isDisplayed === false ? " hide" : "")
-      .replace("{fontSize}", Math.max(text.fontSize, 1).toFixed(2))
+      .replace(/{fontSize}/g, Math.max(text.fontSize, 1).toFixed(2))
       .replace("{thickness}", Math.max(text.strokeWidth, 0.01).toFixed(2))
       .replace("{mirror}", mirror);
   }
