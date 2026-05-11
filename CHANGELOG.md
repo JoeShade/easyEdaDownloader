@@ -37,6 +37,7 @@ This section summarizes the current `Development` branch compared with `main` as
 
 ### Fixed
 
+- Preserved SamacSys library footprint model references when an archive provides only a WRL model.
 - Replaced repeated KiCad footprint template fields so generated vias and text sizes no longer leave raw placeholders.
 - Corrected EasyEDA WRL placement by centering OBJ geometry, bottom-aligning Z, and writing KiCad 3D-unit offsets.
 - Rendered EasyEDA footprint previews for oval pads and solid-region geometry used by several LCSC footprints.

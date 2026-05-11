@@ -107,8 +107,10 @@ function createSamacsysDistributorAdapter(deps) {
       const assets = await extractSamacsysKiCadAssets(zipBuffer, readZipEntries);
       const libraryName = getLibraryName(exportContext.libraryPaths);
       const primaryFootprintName = assets.footprints[0]?.name || null;
-      const primaryStepFilename = assets.stepModels[0]?.filename || null;
-      const shouldIncludeModelReferences = resolvedOptions.model3d && primaryStepFilename;
+      const primaryModelFilename =
+        assets.stepModels[0]?.filename || assets.wrlModels[0]?.filename || null;
+      const shouldIncludeModelReferences =
+        resolvedOptions.model3d && primaryModelFilename;
 
       addMissingAssetWarnings(warnings, resolvedOptions, assets);
 
@@ -142,7 +144,7 @@ function createSamacsysDistributorAdapter(deps) {
               ? footprint.content
               : rewriteSamacsysFootprintModelPath(
                   footprint.content,
-                  primaryStepFilename,
+                  primaryModelFilename,
                   libraryName
                 );
           }
