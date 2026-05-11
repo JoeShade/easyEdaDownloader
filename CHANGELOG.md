@@ -37,6 +37,7 @@ This section summarizes the current `Development` branch compared with `main` as
 
 ### Fixed
 
+- Rendered EasyEDA footprint previews for oval pads and solid-region geometry used by several LCSC footprints.
 - Detected JLCPCB manufacturer part numbers when product pages use compact labels such as `MFR.Part #`.
 - Improved provider-aware page detection for JLCPCB, LCSC, Mouser, and Farnell product pages.
 - Reconciled EasyEDA footprint model references with exported STEP/WRL artifacts and removed stale model blocks when no 3D artifact is exported.

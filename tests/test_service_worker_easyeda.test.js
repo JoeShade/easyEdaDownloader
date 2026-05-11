@@ -12,6 +12,7 @@ import {
   loadServiceWorker,
   sendRuntimeMessage
 } from "./helpers/service_worker_harness.js";
+import { buildFootprintPreviewSvg } from "../src/sources/easyeda_common.js";
 
 function decodeDataUrl(dataUrl) {
   return Buffer.from(String(dataUrl).split(",")[1] || "", "base64").toString(
@@ -20,6 +21,39 @@ function decodeDataUrl(dataUrl) {
 }
 
 describe("service worker EasyEDA flow", () => {
+  it("renders EasyEDA oval pad previews without using two-point guide data as a polygon", () => {
+    const svg = buildFootprintPreviewSvg({
+      packageDetail: {
+        dataStr: {
+          BBox: { x: 5, y: 15, width: 10, height: 12 },
+          shape: [
+            "PAD~OVAL~10~21~2~8~1~~1~0~10 17 10 25~0~pad-1~0~~Y~0"
+          ]
+        }
+      }
+    });
+
+    expect(svg).toContain("<ellipse");
+    expect(svg).not.toContain('<polygon points="10,17 10,25"');
+  });
+
+  it("renders EasyEDA footprint solid regions in previews", () => {
+    const svg = buildFootprintPreviewSvg({
+      packageDetail: {
+        dataStr: {
+          BBox: { x: 0, y: 0, width: 10, height: 10 },
+          shape: [
+            "SOLIDREGION~99~~M 1 1 L 9 1 L 9 9 L 1 9 Z~solid~region-1~~~~0",
+            "SOLIDREGION~100~~M 2 2 L 8 2 L 8 8 L 2 8 Z~cutout~region-2~~~~0"
+          ]
+        }
+      }
+    });
+
+    expect(svg).toContain('<path d="M 1 1 L 9 1 L 9 9 L 1 9 Z"');
+    expect(svg).toContain('<path d="M 2 2 L 8 2 L 8 8 L 2 8 Z"');
+  });
+
   it("returns EasyEDA preview URLs and datasheet availability for a valid CAD payload", async () => {
     const cadData = createCadData();
     const { chrome, listeners } = createServiceWorkerChrome();

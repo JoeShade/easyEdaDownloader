@@ -16,6 +16,9 @@ const EASYEDA_API_ENDPOINT =
 const EASYEDA_MODEL_OBJ_ENDPOINT = "https://modules.easyeda.com/3dmodel/{uuid}";
 const EASYEDA_MODEL_STEP_ENDPOINT =
   "https://modules.easyeda.com/qAxj6KHrDKw4blvCG8QJPs7Y/{uuid}";
+const FOOTPRINT_PREVIEW_BACKGROUND = "#f8fafc";
+const FOOTPRINT_PREVIEW_COPPER = "#0f172a";
+const FOOTPRINT_PREVIEW_BODY = "#cbd5e1";
 
 function toNumber(value, fallback = 0) {
   const num = Number(value);
@@ -33,6 +36,14 @@ function parsePoints(pointsText) {
 
 function pointsToSvg(points) {
   return points.map((point) => point.join(",")).join(" ");
+}
+
+function escapeSvgAttribute(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function buildSvgDocument(viewBox, body, options = {}) {
@@ -137,20 +148,21 @@ function buildFootprintPreviewSvg(cadData) {
       const centerY = toNumber(fields[2]);
       const width = toNumber(fields[3]);
       const height = toNumber(fields[4]);
-      const points = String(fields[9] || "").trim();
+      const padPoints = parsePoints(fields[9]);
       const rotation = toNumber(fields[10]);
       const holeRadius = toNumber(fields[8]);
-      if (points) {
-        const polygon = pointsToSvg(parsePoints(points));
+      if (padPoints.length >= 3 && shape !== "OVAL" && shape !== "ELLIPSE") {
+        const polygon = pointsToSvg(padPoints);
         svgParts.push(`<polygon points="${polygon}" fill="#0f172a" stroke="none" />`);
       } else if (shape === "ELLIPSE" || shape === "OVAL") {
+        const transform = rotation ? ` transform="rotate(${rotation} ${centerX} ${centerY})"` : "";
         svgParts.push(
-          `<ellipse cx="${centerX}" cy="${centerY}" rx="${width / 2}" ry="${height / 2}" fill="#0f172a" stroke="none" />`
+          `<ellipse cx="${centerX}" cy="${centerY}" rx="${width / 2}" ry="${height / 2}" fill="${FOOTPRINT_PREVIEW_COPPER}" stroke="none"${transform} />`
         );
       } else {
         const x = centerX - width / 2;
         const y = centerY - height / 2;
-        const rect = `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="#0f172a" stroke="none"`;
+        const rect = `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${FOOTPRINT_PREVIEW_COPPER}" stroke="none"`;
         if (rotation) {
           svgParts.push(`${rect} transform="rotate(${rotation} ${centerX} ${centerY})" />`);
         } else {
@@ -161,6 +173,18 @@ function buildFootprintPreviewSvg(cadData) {
         svgParts.push(
           `<circle cx="${centerX}" cy="${centerY}" r="${holeRadius}" fill="#f8fafc" stroke="#0f172a" stroke-width="0.4" />`
         );
+      }
+    } else if (designator === "SOLIDREGION") {
+      const layerId = toNumber(fields[0]);
+      const path = String(fields[2] || "").trim();
+      const regionType = String(fields[3] || "solid").trim().toLowerCase();
+      if (path) {
+        const fill = regionType === "cutout"
+          ? FOOTPRINT_PREVIEW_BACKGROUND
+          : layerId === 99
+            ? FOOTPRINT_PREVIEW_BODY
+            : FOOTPRINT_PREVIEW_COPPER;
+        svgParts.push(`<path d="${escapeSvgAttribute(path)}" fill="${fill}" stroke="none" />`);
       }
     } else if (designator === "TRACK") {
       const strokeWidth = toNumber(fields[0], 0.2);
@@ -194,7 +218,9 @@ function buildFootprintPreviewSvg(cadData) {
     }
   }
 
-  return buildSvgDocument(viewBox, svgParts.join("\n"), { background: "#f8fafc" });
+  return buildSvgDocument(viewBox, svgParts.join("\n"), {
+    background: FOOTPRINT_PREVIEW_BACKGROUND
+  });
 }
 
 async function fetchCadData(fetchImpl, lcscId) {
