@@ -279,6 +279,51 @@ describe("service worker SamacSys direct flow", () => {
     );
   });
 
+  it("exports Mouser WRL-only model archives when only 3D output is selected", async () => {
+    const { chrome, listeners } = createServiceWorkerChrome({
+      storageState: {
+        downloadIndividually: true
+      }
+    });
+    const readZipEntries = vi.fn(async () => [
+      {
+        name: "STM32C552KEU6/3D/STM32C552KEU6.wrl",
+        data: new TextEncoder().encode("#VRML V2.0")
+      }
+    ]);
+    const fetchImpl = createSamacsysFetchImpl({
+      zipStatus: 200
+    });
+
+    loadServiceWorker({
+      chrome,
+      fetchImpl,
+      readZipEntries
+    });
+
+    const result = await sendRuntimeMessage(listeners.runtimeMessage[0], {
+      type: "EXPORT_PART",
+      partContext: createSamacsysPartContext("mouser"),
+      options: {
+        symbol: false,
+        footprint: false,
+        model3d: true,
+        datasheet: false
+      }
+    });
+
+    expect(result.response).toEqual({
+      ok: true,
+      warnings: [],
+      downloadCount: 1
+    });
+
+    const filenames = chrome.downloads.download.mock.calls.map(
+      ([options]) => options.filename
+    );
+    expect(filenames).toEqual(["STM32C552KEU6.wrl"]);
+  });
+
   it("does not leave Mouser footprint model references behind when 3D export is disabled", async () => {
     const { chrome, listeners } = createServiceWorkerChrome({
       storageState: {

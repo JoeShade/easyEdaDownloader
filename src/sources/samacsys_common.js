@@ -442,7 +442,12 @@ async function extractSamacsysKiCadAssets(zipBuffer, readZipEntriesImpl = readZi
       entry.name.toLowerCase().endsWith(".wrl")
   );
 
-  if (!symbolEntries.length && !footprintEntries.length && !stepEntries.length) {
+  if (
+    !symbolEntries.length &&
+    !footprintEntries.length &&
+    !stepEntries.length &&
+    !wrlEntries.length
+  ) {
     throw new Error("SamacSys ZIP did not contain KiCad assets.");
   }
 
