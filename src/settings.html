@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Easy ECAD Downloader Settings</title>
+    <link rel="stylesheet" href="settings_page.css" />
+  </head>
+  <body>
+    <main class="settings-page">
+      <header class="page-header">
+        <h1>Easy ECAD Downloader Settings</h1>
+      </header>
+      <form id="settingsForm" class="settings-form">
+        <section class="settings-section" aria-labelledby="downloadSettingsTitle">
+          <h2 id="downloadSettingsTitle">Downloads</h2>
+          <label class="option">
+            <input type="checkbox" id="downloadIndividually" />
+            Save each file separately
+          </label>
+          <div class="settings-field">
+            <label class="settings-label" for="libraryDownloadRoot">
+              KiCad library folder
+            </label>
+            <div class="field-action-row">
+              <button
+                id="resetLibraryDownloadRoot"
+                type="button"
+                class="secondary"
+              >
+                Use default folder
+              </button>
+              <input
+                type="text"
+                id="libraryDownloadRoot"
+                class="settings-input"
+                value="easyECADDownloader"
+                spellcheck="false"
+              />
+            </div>
+          </div>
+          <p class="settings-hint">
+            Choose the folder inside Downloads where grouped KiCad library files
+            are saved.
+          </p>
+        </section>
+
+        <section class="settings-section" aria-labelledby="authSettingsTitle">
+          <h2 id="authSettingsTitle">SamacSys sign-in</h2>
+          <p class="settings-hint">
+            Leave blank unless Mouser, Farnell, element14, or Newark asks you to sign in before
+            downloading CAD files.
+          </p>
+          <label class="settings-field" for="samacsysFirefoxUsername">
+            <span class="settings-label">SamacSys username</span>
+            <input
+              type="text"
+              id="samacsysFirefoxUsername"
+              class="settings-input"
+              value=""
+              placeholder="name@example.com"
+              autocomplete="username"
+              spellcheck="false"
+            />
+          </label>
+          <div class="settings-field">
+            <label class="settings-label" for="samacsysFirefoxPassword">
+              SamacSys password
+            </label>
+            <div class="password-input-row">
+              <input
+                type="password"
+                id="samacsysFirefoxPassword"
+                class="settings-input"
+                value=""
+                placeholder="Password"
+                autocomplete="current-password"
+                spellcheck="false"
+              />
+              <button
+                type="button"
+                id="toggleSamacsysFirefoxPassword"
+                class="password-toggle"
+                data-password-toggle="samacsysFirefoxPassword"
+                aria-controls="samacsysFirefoxPassword"
+                aria-label="Show SamacSys password"
+                aria-pressed="false"
+                title="Show SamacSys password"
+              >
+                <svg
+                  class="password-toggle-icon password-toggle-icon-show"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M2.25 12s3.5-6.25 9.75-6.25S21.75 12 21.75 12 18.25 18.25 12 18.25 2.25 12 2.25 12Z"
+                  />
+                  <circle cx="12" cy="12" r="2.5" />
+                </svg>
+                <svg
+                  class="password-toggle-icon password-toggle-icon-hide"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M3 3l18 18" />
+                  <path
+                    d="M10.25 5.95A10.2 10.2 0 0 1 12 5.75C18.25 5.75 21.75 12 21.75 12a18.5 18.5 0 0 1-3.23 3.88"
+                  />
+                  <path
+                    d="M14.12 14.12A2.5 2.5 0 0 1 9.88 9.88"
+                  />
+                  <path
+                    d="M6.2 7.2A18.6 18.6 0 0 0 2.25 12S5.75 18.25 12 18.25a10.2 10.2 0 0 0 3.38-.58"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <label class="option">
+            <input type="checkbox" id="rememberSamacsysCredentials" />
+            Remember SamacSys sign-in on this device
+          </label>
+          <p class="security-note">
+            Security risk: remembering this stores your sign-in details in this
+            browser profile.
+          </p>
+          <div class="field-action-row">
+            <button
+              id="clearSamacsysCredentials"
+              type="button"
+              class="secondary"
+            >
+              Clear SamacSys sign-in
+            </button>
+            <output
+              id="samacsysCredentialsStatus"
+              class="settings-readonly"
+              aria-live="polite"
+            >
+              No SamacSys password saved.
+            </output>
+          </div>
+        </section>
+
+        <details
+          id="firefoxAdvancedSettings"
+          class="settings-section advanced-settings"
+          hidden
+        >
+          <summary>Advanced Firefox settings</summary>
+          <section id="firefoxRelaySection" aria-labelledby="relaySettingsTitle">
+            <h2 id="relaySettingsTitle">Firefox download helper</h2>
+            <label class="settings-field" for="samacsysFirefoxProxyBaseUrl">
+              <span class="settings-label">Helper service URL</span>
+              <input
+                type="text"
+                id="samacsysFirefoxProxyBaseUrl"
+                class="settings-input"
+                value=""
+                placeholder="https://proxy.example.test/relay"
+                spellcheck="false"
+              />
+            </label>
+            <div class="settings-field">
+              <label
+                class="settings-label"
+                for="samacsysFirefoxProxyAuthorizationHeader"
+              >
+                Authentication token
+              </label>
+              <div class="password-input-row">
+                <input
+                  type="password"
+                  id="samacsysFirefoxProxyAuthorizationHeader"
+                  class="settings-input"
+                  value=""
+                  placeholder="Bearer ... or Basic ..."
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button
+                  type="button"
+                  id="toggleSamacsysFirefoxProxyAuthorizationHeader"
+                  class="password-toggle"
+                  data-password-toggle="samacsysFirefoxProxyAuthorizationHeader"
+                  aria-controls="samacsysFirefoxProxyAuthorizationHeader"
+                  aria-label="Show authentication token"
+                  aria-pressed="false"
+                  title="Show authentication token"
+                >
+                  <svg
+                    class="password-toggle-icon password-toggle-icon-show"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M2.25 12s3.5-6.25 9.75-6.25S21.75 12 21.75 12 18.25 18.25 12 18.25 2.25 12 2.25 12Z"
+                    />
+                    <circle cx="12" cy="12" r="2.5" />
+                  </svg>
+                  <svg
+                    class="password-toggle-icon password-toggle-icon-hide"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 3l18 18" />
+                    <path
+                      d="M10.25 5.95A10.2 10.2 0 0 1 12 5.75C18.25 5.75 21.75 12 21.75 12a18.5 18.5 0 0 1-3.23 3.88"
+                    />
+                    <path
+                      d="M14.12 14.12A2.5 2.5 0 0 1 9.88 9.88"
+                    />
+                    <path
+                      d="M6.2 7.2A18.6 18.6 0 0 0 2.25 12S5.75 18.25 12 18.25a10.2 10.2 0 0 0 3.38-.58"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <label class="option">
+              <input
+                type="checkbox"
+                id="rememberSamacsysFirefoxProxyAuthorizationHeader"
+              />
+              Remember authentication token on this device
+            </label>
+            <p class="security-note">
+              Security risk: remembering this stores it in this browser profile.
+            </p>
+            <div class="field-action-row">
+              <button id="clearHelperSecret" type="button" class="secondary">
+                Clear authentication token
+              </button>
+              <output
+                id="helperSecretStatus"
+                class="settings-readonly"
+                aria-live="polite"
+              >
+                No authentication token saved.
+              </output>
+            </div>
+          </section>
+        </details>
+
+        <div class="form-actions">
+          <p id="status" class="status" aria-live="polite"></p>
+          <button id="saveSettings" type="submit" class="primary">
+            Save
+          </button>
+          <button id="discardSettings" type="button" class="secondary danger">
+            Discard
+          </button>
+        </div>
+      </form>
+      <p class="footer">
+        Visit the
+        <a
+          class="footer-link"
+          href="https://github.com/JoeShade/Easy-ECAD-Downloader"
+          target="_blank"
+          rel="noopener"
+        >
+          GitHub
+        </a>
+        page for more information.
+      </p>
+    </main>
+    <script type="module" src="settings_page.js"></script>
+  </body>
+</html>

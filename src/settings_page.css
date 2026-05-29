@@ -1,0 +1,409 @@
+/*
+ * Settings-page styles for the extension options UI. The page keeps persistent
+ * configuration out of the popup while staying visually aligned with it.
+ */
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: #1c1f24;
+  background: #f2f4f7 url("assets/settings-bg.png") no-repeat center / cover;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.settings-page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(720px, calc(100% - 32px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 32px 0;
+}
+
+.page-header {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 8px;
+  font-size: 28px;
+  color: #1663d6;
+}
+
+h2 {
+  margin-bottom: 14px;
+  font-size: 16px;
+}
+
+.page-intro,
+.settings-hint {
+  color: #5b6470;
+  line-height: 1.5;
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 18px;
+  background: #ffffff;
+}
+
+.advanced-settings summary {
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.advanced-settings[open] summary {
+  margin-bottom: 16px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.settings-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-input {
+  width: 100%;
+  display: block;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 9px 10px;
+  font: inherit;
+  color: #1c1f24;
+  background: #ffffff;
+}
+
+.settings-input:focus {
+  outline: 2px solid rgba(22, 99, 214, 0.18);
+  outline-offset: 1px;
+  border-color: #1663d6;
+}
+
+.settings-input:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.password-input-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.password-input-row .settings-input {
+  grid-area: 1 / 1;
+  padding-right: 44px;
+}
+
+.password-toggle {
+  grid-area: 1 / 1;
+  justify-self: end;
+  align-self: stretch;
+  z-index: 1;
+  width: 40px;
+  margin: 1px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 5px 5px 0;
+  background: #1663d6;
+  appearance: none;
+  -webkit-appearance: none;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-toggle:hover,
+.password-toggle:focus {
+  color: #ffffff;
+  background: #0f4ea8;
+}
+
+.password-input-row:focus-within .settings-input {
+  outline: none;
+  border-color: #1663d6;
+  box-shadow: 0 0 0 2px rgba(22, 99, 214, 0.18);
+}
+
+.password-toggle:focus-visible {
+  outline: none;
+}
+
+.password-toggle:disabled {
+  color: #ffffff;
+  background: #9bb5dd;
+  cursor: not-allowed;
+}
+
+.password-toggle-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.password-toggle-icon-hide {
+  display: none;
+}
+
+.password-toggle.is-visible .password-toggle-icon-show {
+  display: none;
+}
+
+.password-toggle.is-visible .password-toggle-icon-hide {
+  display: block;
+}
+
+.field-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.field-action-row .settings-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.field-action-row .settings-readonly {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.field-action-row .secondary {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.settings-readonly {
+  display: block;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 9px 10px;
+  background: #f8fafc;
+  color: #5b6470;
+  line-height: 1.4;
+}
+
+.settings-hint {
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.security-note {
+  margin: 0 0 12px;
+  border-left: 3px solid #1663d6;
+  padding-left: 10px;
+  color: #0f4ea8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.option input {
+  margin: 0;
+  accent-color: #1663d6;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.form-actions .status {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.form-actions .primary,
+.form-actions .secondary {
+  flex: 0 0 auto;
+}
+
+.primary,
+.secondary {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.primary {
+  border-color: #1663d6;
+  background: #1663d6;
+  color: #ffffff;
+}
+
+.primary:disabled,
+.secondary:disabled {
+  border-color: #9bb5dd;
+  cursor: not-allowed;
+}
+
+.primary:disabled {
+  background: #9bb5dd;
+}
+
+.primary:not(:disabled):hover,
+.primary:not(:disabled):focus {
+  border-color: #0f4ea8;
+  background: #0f4ea8;
+}
+
+.secondary:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.secondary {
+  margin-bottom: 12px;
+  border-color: #1663d6;
+  background: #1663d6;
+  color: #ffffff;
+}
+
+.form-actions .secondary {
+  margin-bottom: 0;
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #1c1f24;
+}
+
+.secondary:not(:disabled):hover,
+.secondary:not(:disabled):focus {
+  border-color: #0f4ea8;
+  background: #0f4ea8;
+  color: #ffffff;
+}
+
+.form-actions .secondary:not(:disabled):hover,
+.form-actions .secondary:not(:disabled):focus {
+  border-color: #1663d6;
+  background: #ffffff;
+  color: #1c1f24;
+}
+
+.danger {
+  border-color: #b42318;
+  background: #b42318;
+  color: #ffffff;
+}
+
+.danger:disabled {
+  border-color: #fecaca;
+  background: #fecaca;
+  color: #ffffff;
+}
+
+.danger:not(:disabled):hover,
+.danger:not(:disabled):focus {
+  border-color: #912018;
+  background: #912018;
+}
+
+@media (max-width: 520px) {
+  .field-action-row,
+  .form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .form-actions .status {
+    margin-right: 0;
+  }
+}
+
+.status {
+  margin: 0;
+  min-height: 18px;
+  font-size: 13px;
+  color: #4a5568;
+}
+
+.status.error {
+  color: #b42318;
+}
+
+.status.warning {
+  color: #9a6700;
+}
+
+.footer {
+  margin: auto 0 0;
+  font-size: 12px;
+  color: #5b6470;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.footer-link {
+  color: #1663d6;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer-link:hover,
+.footer-link:focus {
+  text-decoration: underline;
+}

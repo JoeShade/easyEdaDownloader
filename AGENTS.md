@@ -2,12 +2,15 @@
 
 ## Repository at a glance
 
-This repository is a compact browser extension that detects LCSC part numbers on supported product pages and exports EasyEDA-backed CAD assets in KiCad-friendly formats.
+This repository is a compact browser extension that detects supported distributor part contexts and exports CAD assets in KiCad-friendly formats.
 
-- `src/content_script.js`: page detection and LCSC id extraction
+- `src/content_script.js`: page detection for EasyEDA/LCSC and SamacSys-backed Mouser/Farnell contexts
 - `src/popup.js`: popup UI state, settings interaction, preview requests, and export requests
-- `src/service_worker.js`: orchestration, EasyEDA fetches, preview generation, storage-backed library assembly, and downloads
-- `src/kicad_converter.js`: EasyEDA-to-KiCad conversion and OBJ-to-WRL conversion
+- `src/service_worker.js`: thin background entrypoint that registers the runtime
+- `src/service_worker_runtime.js`: provider routing, runtime gating, response shaping, and worker dependency composition
+- `src/core/`: shared worker helpers for settings, downloads, preview data, export artifacts, and storage-backed libraries
+- `src/sources/`: EasyEDA and SamacSys source adapters and upstream fetch/archive helpers
+- `src/kicad_converter.js` and `src/kicad/`: EasyEDA-to-KiCad conversion and OBJ-to-WRL conversion
 - `tests`: regression suite for pure logic, implementation behavior, and repository hygiene
 
 `systemDesign.md` is the design source of truth.
@@ -32,8 +35,9 @@ This repository is a compact browser extension that detects LCSC part numbers on
 - Add or update tests with every substantive behavior change.
 - Prefer regression tests for bug fixes.
 - Use test-only harnesses, mocks, fixtures, and loaders instead of production refactors for testability.
+- Run `npm run lint` for JavaScript source or test changes.
 - Run targeted tests while iterating.
-- Run `npm test` before finalizing.
+- Run `npm run validate` before finalizing when Node/npm are available.
 
 ## Using `systemDesign.md`
 
@@ -61,6 +65,7 @@ This repository is a compact browser extension that detects LCSC part numbers on
 - Remove obsolete references when files or behaviors change.
 - Keep test harnesses and developer support code under `tests/` or other clearly developer-only locations.
 - Let the repo-hygiene tests enforce governance files, footer coverage, and documentation discipline.
+- Keep CI, linting, audit, and local validation scripts aligned.
 
 ## Source footer
 

@@ -1,3 +1,9 @@
+/*
+ * Shared fixtures for converter and worker tests. They provide compact but
+ * representative EasyEDA payloads and KiCad symbol libraries without tying
+ * tests to large external fixture files.
+ */
+
 export function createCadData({
   lcscId = "C12345",
   datasheetUrl = "https://cdn.example.test/datasheets/demo-part.pdf",
@@ -68,7 +74,7 @@ export function createCadData({
 export function createSymbolLibrary(symbolId = "ExistingSymbol") {
   return `(kicad_symbol_lib
   (version 20211014)
-  (generator "easy EDA downloader")
+  (generator "Easy ECAD Downloader")
   (symbol "${symbolId}"
     (in_bom yes)
     (on_board yes)

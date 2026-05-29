@@ -1,20 +1,24 @@
 {
   "manifest_version": 3,
-  "name": "EasyEDA Downloader",
-  "version": "0.1.1",
-  "description": "Extract LCSC part numbers and export symbol, footprint, and 3D model files.",
-  "permissions": ["activeTab", "downloads", "storage"],
+  "name": "Easy ECAD Downloader",
+  "version": "1.0.0",
+  "description": "Export KiCad symbol, footprint, and 3D model files from EasyEDA and supported SamacSys distributor product pages.",
+  "permissions": ["activeTab", "cookies", "downloads", "storage"],
   "host_permissions": [
+    "http://*/*",
+    "https://*/*",
     "https://easyeda.com/*",
-    "https://modules.easyeda.com/*"
+    "https://modules.easyeda.com/*",
+    "https://*.componentsearchengine.com/*"
   ],
   "background": {
     "service_worker": "src/service_worker.js",
     "scripts": ["src/service_worker.js"],
+    "preferred_environment": ["document", "service_worker"],
     "type": "module"
   },
   "action": {
-    "default_title": "Export EasyEDA part",
+    "default_title": "Export supported part",
     "default_popup": "src/popup.html",
     "default_icon": {
       "16": "icons/16x16.png",
@@ -22,6 +26,10 @@
       "48": "icons/48x48.png",
       "128": "icons/128x128.png"
     }
+  },
+  "options_ui": {
+    "page": "src/settings.html",
+    "open_in_tab": true
   },
   "icons": {
     "16": "icons/16x16.png",
@@ -31,13 +39,23 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.jlcpcb.com/*", "*://*.lcsc.com/*"],
+      "matches": [
+        "*://*.jlcpcb.com/*",
+        "*://*.lcsc.com/*",
+        "*://*.mouser.com/*",
+        "*://*.mouser.co.uk/*",
+        "*://uk.farnell.com/*",
+        "*://*.farnell.com/*",
+        "*://*.element14.com/*",
+        "*://*.newark.com/*"
+      ],
       "js": ["src/content_script.js"]
     }
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "easyeda-downloader@joeshade.local",
+      "id": "easy-ecad-downloader-dev@joeshade.local",
+      "strict_min_version": "121.0",
       "data_collection_permissions": {
         "required": ["none"]
       }
