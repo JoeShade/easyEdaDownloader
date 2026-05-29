@@ -3,9 +3,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/JoeShade/easyEdaDownloader/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JoeShade/easyEdaDownloader?style=flat-square&color=1155cc"></a>
-  <a href="https://github.com/JoeShade/easyEdaDownloader/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/JoeShade/easyEdaDownloader?style=flat-square&color=1155cc"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/JoeShade/easyEdaDownloader?style=flat-square&color=1155cc"></a>
+  <a href="https://github.com/JoeShade/Easy-ECAD-Downloader/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JoeShade/Easy-ECAD-Downloader?style=flat-square&color=1155cc"></a>
+  <a href="https://github.com/JoeShade/Easy-ECAD-Downloader/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/JoeShade/Easy-ECAD-Downloader?style=flat-square&color=1155cc"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/JoeShade/Easy-ECAD-Downloader?style=flat-square&color=1155cc"></a>
   <a href="https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb"><img alt="Chrome Web Store users" src="https://img.shields.io/chrome-web-store/users/egbkokdcahpjimldjjaobimnofbdnncb?style=flat-square&label=Chrome%20users&color=1155cc"></a>
   <a href="https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/"><img alt="Firefox Add-ons users" src="https://img.shields.io/amo/users/easyeda-downloader?style=flat-square&label=Firefox%20users&color=1155cc"></a>
 </p>

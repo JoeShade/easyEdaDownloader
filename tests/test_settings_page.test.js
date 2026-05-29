@@ -193,7 +193,7 @@ describe("settings page", () => {
       hooks.elements.statusEl
     );
     expect(dom.window.document.querySelector(".footer-link")?.href).toBe(
-      "https://github.com/JoeShade/easyECADDownloader"
+      "https://github.com/JoeShade/Easy-ECAD-Downloader"
     );
   });
 
