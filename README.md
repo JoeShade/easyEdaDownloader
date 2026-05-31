@@ -7,13 +7,13 @@
   <a href="https://github.com/JoeShade/Easy-ECAD-Downloader/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/JoeShade/Easy-ECAD-Downloader?style=flat-square&color=1155cc"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/JoeShade/Easy-ECAD-Downloader?style=flat-square&color=1155cc"></a>
   <a href="https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb"><img alt="Chrome Web Store users" src="https://img.shields.io/chrome-web-store/users/egbkokdcahpjimldjjaobimnofbdnncb?style=flat-square&label=Chrome%20users&color=1155cc"></a>
-  <a href="https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/"><img alt="Firefox Add-ons users" src="https://img.shields.io/amo/users/easyeda-downloader?style=flat-square&label=Firefox%20users&color=1155cc"></a>
+  <a href="https://addons.mozilla.org/en-GB/firefox/addon/easy-ecad-downloader/"><img alt="Firefox Add-ons users" src="https://img.shields.io/amo/users/easy-ecad-downloader?style=flat-square&label=Firefox%20users&color=1155cc"></a>
 </p>
 
 <p align="center">
   <a href="https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb"><strong>Install for Chrome</strong></a>
   &nbsp;|&nbsp;
-  <a href="https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/"><strong>Install for Firefox</strong></a>
+  <a href="https://addons.mozilla.org/en-GB/firefox/addon/easy-ecad-downloader/"><strong>Install for Firefox</strong></a>
   &nbsp;|&nbsp;
   <a href="#quick-start"><strong>Quick start</strong></a>
   &nbsp;|&nbsp;
@@ -51,7 +51,7 @@ It works on supported JLCPCB, LCSC, Mouser, Farnell, element14, and Newark part 
 | Browser | Install from | Notes |
 |---|---|---|
 | Chrome, Edge, Brave, and other Chromium browsers | [Chrome Web Store](https://chromewebstore.google.com/detail/easyeda-downloader/egbkokdcahpjimldjjaobimnofbdnncb) | Full support for EasyEDA-backed pages and SamacSys-backed Mouser/Farnell/element14/Newark downloads. |
-| Firefox | [Firefox Add-ons](https://addons.mozilla.org/en-GB/firefox/addon/easyeda-downloader/) | Works for EasyEDA-backed pages. SamacSys-backed Mouser/Farnell/element14/Newark downloads need the optional Firefox relay setup. |
+| Firefox | [Firefox Add-ons](https://addons.mozilla.org/en-GB/firefox/addon/easy-ecad-downloader/) | Works for EasyEDA-backed pages. SamacSys-backed Mouser/Farnell/element14/Newark downloads need the optional Firefox relay setup. |
 
 ## <img src="docs/assets/readme/icon-quick-start.svg" alt="" width="20" height="20" align="absmiddle"> Quick start
 
